@@ -32,25 +32,23 @@ const activeTabData = computed(() => tabs.find(t => t.id === activeTab.value)!)
 
 const content: Record<string, string[]> = {
   'quem-somos': [
-    'Somos uma iniciativa educacional construída a partir da vivência direta no ambiente escolar e do diálogo constante com estudantes e educadores.',
-    'Nascemos do propósito de fortalecer o interesse pelos estudos, estimular a autonomia intelectual e ampliar horizontes para jovens que não encontram apoio suficiente em seus contextos.',
-    'Atuamos para reduzir as distâncias entre estudantes e oportunidades, construindo redes de apoio que valorizam o conhecimento e o crescimento coletivo.',
+    'Nascemos de uma pergunta simples: por que tantos estudantes brasileiros nunca descobrem as oportunidades que poderiam mudar suas vidas?',
+    'Fundado por estudantes de escola pública que encontraram oportunidades por acaso — e decidiram que acaso não é suficiente.',
+    'Hoje conectamos estudantes de 40+ escolas em 4 regiões do Brasil. Cada um deles é a prova de que informação muda trajetórias.',
   ],
   missao: [
-    'Conectar estudantes a mentores, referências inspiradoras e oportunidades educacionais, acadêmicas e profissionais.',
-    'Oferecer orientação que auxilie na tomada de decisões conscientes sobre estudos, carreira e desenvolvimento pessoal.',
-    'Criar pontes entre o potencial acadêmico dos estudantes e caminhos reais de crescimento e realização.',
+    'Garantir que nenhum estudante perca uma oportunidade por falta de informação — independente de onde nasceu ou onde estuda.',
+    'Conectar estudantes a oportunidades, uns aos outros e a líderes que querem fazer a diferença.',
+    'Usar tecnologia como ponte, não como fim — o seConecta existe para pessoas, não para métricas.',
   ],
   valores: [
-    'Colaboração como base para a construção de soluções educacionais mais eficazes, inclusivas e sustentáveis.',
-    'Empatia no entendimento das diferentes realidades, desafios e contextos individuais de cada estudante.',
-    'Compromisso com a educação como direito fundamental e motor de transformação social.',
-    'Crença no poder do conhecimento e do acesso a oportunidades como ferramentas capazes de mudar trajetórias.',
+    'Acesso: acreditamos que o CEP de um estudante não deve determinar o tamanho do seu sonho.',
+    'Execução: ideias sem ação não mudam nada. Construímos, testamos e melhoramos.',
+    'Comunidade: crescemos juntos — estudantes ajudando estudantes é o coração do projeto.',
   ],
   visao: [
-    'Ser uma referência em apoio educacional colaborativo, reconhecida pela qualidade e impacto social.',
-    'Contribuir para a formação de estudantes mais confiantes, informados e preparados para desafios futuros.',
-    'Impactar positivamente a trajetória de milhares de jovens, promovendo mobilidade educacional e social.',
+    'Ser a infraestrutura de oportunidades para estudantes brasileiros — do interior ao litoral.',
+    'Um Brasil onde qualquer estudante, em qualquer escola, sabe o que é possível para ele.',
   ],
 }
 </script>
