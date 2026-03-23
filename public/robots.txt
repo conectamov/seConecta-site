@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /sobre
+Allow: /embaixadores
+Allow: /equipe
+Disallow: /feed/novo
+Disallow: /perfil
+Disallow: /dashboard
+Disallow: /feed/review
+
+Sitemap: https://seconecta.org/sitemap.xml

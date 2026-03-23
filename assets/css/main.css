@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Tipografia global ── */
+h1, h2, h3, h4, h5, h6, p, a, button, span, li {
+  font-family: 'Outfit', sans-serif;
+}
+
+/* ── Overflow ── */
+html {
+  overflow-x: hidden;
+  overflow-y: scroll;
+  scroll-behavior: smooth;
+}
+
+/* ── Gradient text animado (identidade visual) ── */
+.gradient-text {
+  background: linear-gradient(135deg, #079272 0%, #2464e8 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradientShift 3s ease infinite;
+  position: relative;
+  display: inline-block;
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ── AOS reset ── */
+[data-aos] {
+  pointer-events: none;
+}
+[data-aos].aos-animate {
+  pointer-events: auto;
+}
+
+/* ── Scrollbar personalizada ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(#079272, #2464E8);
+  border-radius: 99px;
+}
+
+/* ── Utilitários ── */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* ── Acessibilidade ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Prose (markdown) ── */
+.prose { max-width: none; }
+.prose img { border-radius: 12px; }
+
+/* ── Slide fade (tab transitions) ── */
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: all 0.2s ease;
+}
+.slide-fade-enter-from { opacity: 0; transform: translateY(6px); }
+.slide-fade-leave-to { opacity: 0; transform: translateY(-6px); }
+
+/* ── Item animation ── */
+@keyframes itemIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Phone 3D ── */
+@keyframes phoneFloat {
+  0%, 100% { transform: translateY(0px) rotate(-2deg); }
+  50% { transform: translateY(-16px) rotate(2deg); }
+}
+
+@keyframes screenSlide {
+  0%, 28% { transform: translateY(0%); }
+  33%, 61% { transform: translateY(-100%); }
+  66%, 94% { transform: translateY(-200%); }
+  99%, 100% { transform: translateY(-300%); }
+}
+
+@keyframes notchPulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}

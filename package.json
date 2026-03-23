@@ -1,0 +1,44 @@
+{
+  "name": "seconecta-nuxt",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "nuxt": "^3.16.0",
+    "@pinia/nuxt": "^0.10.1",
+    "pinia": "^3.0.1",
+    "axios": "^1.8.4",
+    "aos": "^2.3.4",
+    "marked": "^15.0.7",
+    "dompurify": "^3.3.2",
+    "sweetalert2": "^11.15.10"
+  },
+  "devDependencies": {
+    "@nuxtjs/tailwindcss": "^6.13.1",
+    "@vite-pwa/nuxt": "^0.10.6",
+    "tailwindcss": "^3.4.17",
+    "@tailwindcss/typography": "^0.5.16",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3"
+  },
+  "overrides": {
+    "nanoid": "^3.3.8",
+    "cookie": "^0.7.0",
+    "braces": "^3.0.3",
+    "micromatch": "^4.0.8",
+    "semver": "^7.7.1",
+    "ws": "^8.18.0",
+    "ip": "^2.0.1",
+    "path-to-regexp": "^6.3.0"
+  }
+}
