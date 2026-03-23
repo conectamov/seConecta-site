@@ -13,17 +13,15 @@
           class="text-[clamp(2.2rem,5vw,3.8rem)] font-extrabold text-[#0f172a] leading-[1.08] tracking-[-0.02em] mb-5"
           style="animation: fadeInUp 0.65s 0.1s ease both;"
         >
-          Conecte-se com
-          <span class="bg-gradient-to-r from-[#079272] via-[#0DA790] to-[#2464E8] bg-[length:200%_200%] animate-[gradMove_4s_ease_infinite] bg-clip-text text-transparent">estudantes</span>
-          que pensam como
-          <span class="bg-gradient-to-r from-[#079272] via-[#0DA790] to-[#2464E8] bg-[length:200%_200%] animate-[gradMove_4s_ease_infinite] bg-clip-text text-transparent">você</span>
+          Quantos estudantes o Brasil perdeu por
+          <span class="bg-gradient-to-r from-[#079272] via-[#0DA790] to-[#2464E8] bg-[length:200%_200%] animate-[gradMove_4s_ease_infinite] bg-clip-text text-transparent">falta de informação?</span>
         </h1>
 
         <p
           class="text-[clamp(1rem,1.8vw,1.15rem)] text-[#475569] leading-relaxed max-w-[520px] mb-8"
           style="animation: fadeInUp 0.65s 0.2s ease both;"
         >
-          Encontre colegas com os mesmos objetivos acadêmicos e receba oportunidades de bolsas, estágios e editais personalizadas para o seu perfil.
+          O seConecta conecta estudantes a oportunidades, uns aos outros e a líderes que querem fazer a diferença.
         </p>
 
         <div
