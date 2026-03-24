@@ -70,7 +70,7 @@ async function fetchPost() {
   loadingPost.value = true
   errorPost.value   = null
   try {
-    const res       = await get(`/api/v1/posts/slug/${route.params.slug}`)
+    const res       = await get(`/posts/slug/${route.params.slug}`)
     post.value      = res.data
     likeCount.value = res.data.likes_count ?? 0
     if (res.data.author_id) postAuthor.value = await getUser(res.data.author_id)
@@ -87,7 +87,7 @@ async function fetchComments(reset = false) {
   if (reset) { commentPage.value = 1; comments.value = []; repliesMap.value.clear() }
   loadingComments.value = true
   try {
-    const res = await get(`/api/v1/comments/post/${post.value.id}`, { params: { page: commentPage.value, limit: COMMENT_LIMIT } })
+    const res = await get(`/comments/post/${post.value.id}`, { params: { page: commentPage.value, limit: COMMENT_LIMIT } })
     let data = [], count = 0
     if (Array.isArray(res.data)) { data = res.data; count = res.data.length }
     else if (res.data?.data) { data = res.data.data; count = res.data.count ?? data.length }
@@ -105,7 +105,7 @@ async function fetchReplies(commentId: any, openAfterLoad = false) {
   }
   repliesMap.value.set(commentId, { data: [], loading: true, open: openAfterLoad })
   try {
-    const res     = await get(`/api/v1/comments/${commentId}/replies`)
+    const res     = await get(`/comments/${commentId}/replies`)
     const replies = res.data.data ?? []
     repliesMap.value.set(commentId, { data: replies, loading: false, open: openAfterLoad })
     const parent = findCommentById(commentId)
@@ -128,7 +128,7 @@ async function submitComment() {
   if (!newMsg.value.trim() || submitting.value) return
   submitting.value = true
   try {
-    const res = await apiPost('/api/v1/comments/', { message: newMsg.value.trim(), post_id: post.value.id })
+    const res = await apiPost('/comments/', { message: newMsg.value.trim(), post_id: post.value.id })
     comments.value.unshift({ ...res.data, author_id: currentUser.value?.id })
     commentsCount.value++
     newMsg.value = ''
@@ -141,7 +141,7 @@ async function submitReply(parentId: any) {
   if (!replyMsg.value.trim() || submittingReply.value) return
   submittingReply.value = true
   try {
-    const res = await apiPost('/api/v1/comments/', { message: replyMsg.value.trim(), post_id: post.value.id, parent_comment_id: parentId })
+    const res = await apiPost('/comments/', { message: replyMsg.value.trim(), post_id: post.value.id, parent_comment_id: parentId })
     const parent = findCommentById(parentId)
     if (parent) parent.replies_count = (parent.replies_count ?? 0) + 1
     if (!repliesMap.value.has(parentId)) repliesMap.value.set(parentId, { data: [], loading: false, open: true })
@@ -158,7 +158,7 @@ function startEdit(comment: any) { editingId.value = comment.id; editText.value 
 async function saveEdit(commentId: any, parentId: any = null) {
   if (!editText.value.trim()) return
   try {
-    const res = await patch(`/api/v1/comments/${commentId}`, { message: editText.value.trim() })
+    const res = await patch(`/comments/${commentId}`, { message: editText.value.trim() })
     if (parentId) {
       const state = repliesMap.value.get(parentId)
       const reply = state?.data.find((r: any) => r.id === commentId)
@@ -175,7 +175,7 @@ async function deleteComment(commentId: any, parentId: any = null) {
   if (deletingId.value) return
   deletingId.value = commentId
   try {
-    await del(`/api/v1/comments/${commentId}`)
+    await del(`/comments/${commentId}`)
     if (parentId) {
       const state = repliesMap.value.get(parentId)
       if (state) {
@@ -205,7 +205,7 @@ async function approvePost(targetPost: any) {
   if (!result.isConfirmed) return
   approving.value = true
   try {
-    await patch(`/api/v1/posts/${targetPost.id}`, { approved: true })
+    await patch(`/posts/${targetPost.id}`, { approved: true })
     if (post.value) post.value.approved = true
     await Swal.fire({ icon: 'success', title: 'Post aprovado!', text: 'O post foi publicado com sucesso.', timer: 2000, showConfirmButton: false })
   } catch (e: any) {

@@ -35,7 +35,7 @@ async function fetchPosts(reset = true) {
     const params: Record<string, any> = { page: page.value, limit: LIMIT }
     if (searchQuery.value.trim()) params.search = searchQuery.value.trim()
     if (activeTag.value) params.tag = activeTag.value
-    const res = await get('/api/v1/posts/pending', { params })
+    const res = await get('/posts/pending', { params })
     const data  = res.data.data  ?? []
     const count = res.data.count ?? 0
     if (reset) { posts.value = data; totalCount.value = count }

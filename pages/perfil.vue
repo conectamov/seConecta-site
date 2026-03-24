@@ -73,7 +73,7 @@ async function saveInfo() {
   if (infoForm.value.location.trim())            payload.location            = infoForm.value.location.trim()
   if (infoForm.value.profile_picture_url.trim()) payload.profile_picture_url = infoForm.value.profile_picture_url.trim()
   try {
-    await patch('/api/v1/users/me', payload); await fetchMe()
+    await patch('/users/me', payload); await fetchMe()
     infoSuccess.value = true; setTimeout(() => { infoSuccess.value = false }, 3000)
   } catch (e: any) {
     infoError.value = e?.response?.status === 409 ? 'Email já em uso.' : 'Erro ao salvar. Tente novamente.'
@@ -103,7 +103,7 @@ const notifChanged = computed(() => {
 async function saveNotifications() {
   notifSaving.value = true; notifError.value = null; notifSuccess.value = false
   try {
-    await patch('/api/v1/users/me', { ...notifForm.value }); await fetchMe()
+    await patch('/users/me', { ...notifForm.value }); await fetchMe()
     notifSuccess.value = true; setTimeout(() => { notifSuccess.value = false }, 3000)
   } catch { notifError.value = 'Erro ao salvar preferências.' }
   finally { notifSaving.value = false }
@@ -130,7 +130,7 @@ async function savePassword() {
   if (!validatePw()) return
   pwSaving.value = true; pwError.value = null; pwSuccess.value = false
   try {
-    await patch('/api/v1/users/me/password', { current_password: pwForm.value.current_password, new_password: pwForm.value.new_password })
+    await patch('/users/me/password', { current_password: pwForm.value.current_password, new_password: pwForm.value.new_password })
     pwSuccess.value = true; pwForm.value = { current_password: '', new_password: '', confirm_password: '' }
     setTimeout(() => { pwSuccess.value = false }, 4000)
   } catch (e: any) {
@@ -155,7 +155,7 @@ const canDelete     = computed(() => deleteConfirm.value === currentUser.value?.
 async function deleteAccount() {
   if (!canDelete.value) return
   deleting.value = true; deleteError.value = null
-  try { await del('/api/v1/users/me'); logout(); router.push('/login') }
+  try { await del('/users/me'); logout(); router.push('/login') }
   catch { deleteError.value = 'Erro ao deletar conta. Tente novamente.'; deleting.value = false }
 }
 

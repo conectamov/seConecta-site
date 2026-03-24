@@ -8,7 +8,7 @@ export function useUserCache() {
     if (_cache.has(id)) return _cache.get(id)
     _cache.set(id, null)
     try {
-      const res = await get(`/api/v1/users/${id}`)
+      const res = await get(`/users/${id}`)
       _cache.set(id, res.data)
       return res.data
     } catch { return null }

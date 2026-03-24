@@ -29,7 +29,7 @@ async function fetchUsers(reset = true) {
   if (reset) { skip.value = 0; users.value = [] }
   loading.value = true; error.value = null
   try {
-    const res  = await get('/api/v1/users/', { params: { skip: skip.value, limit: LIMIT } })
+    const res  = await get('/users/', { params: { skip: skip.value, limit: LIMIT } })
     const data = res.data.data ?? []
     totalUsers.value = res.data.count ?? 0
     if (reset) users.value = data
@@ -72,7 +72,7 @@ async function togglePerm(user: any, field: string) {
   permsOverride.value[user.id][field] = newVal
   patching.value[user.id] = true
   try {
-    await patch(`/api/v1/users/${user.id}`, { [field]: newVal })
+    await patch(`/users/${user.id}`, { [field]: newVal })
     showToast('success', `${field === 'is_manager' ? 'Manager' : 'Superuser'} ${newVal ? 'ativado' : 'removido'} para @${user.username}.`)
   } catch (e: any) {
     permsOverride.value[user.id][field] = current
@@ -85,7 +85,7 @@ async function deleteUser(userId: any) {
   if (deleting.value[userId]) return
   confirmDeleteId.value = null; deleting.value[userId] = true
   try {
-    await del(`/api/v1/users/${userId}`)
+    await del(`/users/${userId}`)
     users.value = users.value.filter(u => u.id !== userId)
     totalUsers.value = Math.max(0, totalUsers.value - 1)
     showToast('success', 'Usuário removido com sucesso.')

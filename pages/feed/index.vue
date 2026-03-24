@@ -36,12 +36,12 @@ async function fetchPosts(reset = true) {
   try {
     let res
     if (feedMode.value === 'personalized' && isAuthenticated.value) {
-      res = await get('/api/v1/posts/feed', { params: { page: page.value, limit: LIMIT } })
+      res = await get('/posts/feed', { params: { page: page.value, limit: LIMIT } })
     } else {
       const params: Record<string, any> = { page: page.value, limit: LIMIT }
       if (searchQuery.value.trim()) params.search = searchQuery.value.trim()
       if (activeTag.value) params.tag = activeTag.value
-      res = await get('/api/v1/posts/', { params })
+      res = await get('/posts/', { params })
     }
     const data  = res.data.data  ?? []
     const count = res.data.count ?? 0

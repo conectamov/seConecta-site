@@ -65,7 +65,7 @@ async function handleSubmit() {
   if (form.value.cover_url.trim()) payload.cover_url = form.value.cover_url.trim()
   if (form.value.tags.length) payload.tags = form.value.tags
   try {
-    await apiPost('/api/v1/posts/', payload)
+    await apiPost('/posts/', payload)
     success.value = true
     setTimeout(() => router.push('/feed'), 2500)
   } catch (err: any) {
