@@ -284,7 +284,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
         </div>
 
         <div class="px-7 pb-7 mt-12">
-          <div class="flex items-end gap-5 -mt-10 mb-5">
+          <div class="flex items-end gap-4 -mt-10 mb-5 flex-wrap">  
             <!-- Avatar -->
             <div class="relative flex-shrink-0">
               <div class="w-20 h-20 rounded-2xl border-4 border-white shadow-lg overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center">
@@ -308,7 +308,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
             </div>
 
             <!-- Nome -->
-            <div class="flex-1 min-w-0 pb-1">
+            <div class="flex-1 min-w-0 pb-1 w-full sm:w-auto">
               <div class="flex items-center gap-2 flex-wrap">
                 <h1 class="text-xl font-bold text-[#111] tracking-[-0.02em] truncate">
                   {{ currentUser?.full_name || currentUser?.username }}
@@ -337,7 +337,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
           </div>
 
           <!-- Info rápida -->
-          <div class="flex items-center gap-4 flex-wrap text-[0.75rem] text-[#999]">
+          <div class="flex items-center gap-3 md:gap-4 flex-wrap text-[0.72rem] md:text-[0.75rem] text-[#999]">
             <span v-if="currentUser?.email" class="flex items-center gap-1.5">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
               {{ currentUser.email }}
@@ -371,7 +371,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
       <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">
 
         <!-- Sidebar nav -->
-        <nav class="bg-white border border-[#e8e4dc] rounded-2xl p-3 flex flex-col gap-1 lg:sticky lg:top-20" style="animation: fadeUp .5s ease .1s both">
+        <nav class="bg-white border border-[#e8e4dc] rounded-2xl p-3 flex flex-row lg:flex-col gap-1 overflow-x-auto lg:sticky lg:top-20" style="animation: fadeUp .5s ease .1s both">
           <button
             v-for="tab in [
               { key: 'info',          icon: 'user',    label: 'Meu perfil'    },
@@ -380,7 +380,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
               { key: 'activity',      icon: 'activity',label: 'Atividade'     },
             ]"
             :key="tab.key"
-            class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[0.83rem] font-medium transition-all cursor-pointer border-none text-left"
+            class="flex items-center gap-2 lg:gap-3 px-3 lg:px-3.5 py-2 lg:py-2.5 rounded-xl text-[0.78rem] lg:text-[0.83rem] font-medium whitespace-nowrap transition-all cursor-pointer border-none text-left"
             :class="activeTab === tab.key ? 'bg-[#0d0d0d] text-white' : 'bg-transparent text-[#666] hover:bg-[#f7f5f0] hover:text-[#111]'"
             @click="activeTab = tab.key"
           >
@@ -388,7 +388,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
             <svg v-else-if="tab.icon === 'bell'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
             <svg v-else-if="tab.icon === 'lock'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
             <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            {{ tab.label }}
+            <span class="hidden sm:inline">{{ tab.label }}</span>
             <span v-if="tab.key === 'activity' && pendingPosts.length"
               class="ml-auto text-[0.6rem] font-bold px-1.5 py-0.5 rounded-full"
               :class="activeTab === 'activity' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-600'"
@@ -401,6 +401,25 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
 
           <!-- ── Tab: Meu perfil ──────────────────────── -->
           <div v-if="activeTab === 'info'" class="flex flex-col gap-5">
+            <!-- ── Banner: conta não verificada ──────────────── -->
+              <div
+                v-if="!isLinked"
+                class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4"
+              >
+                <div class="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </div>
+                <div>
+                  <p class="text-[0.88rem] font-bold text-amber-800">Conta não verificada pelo WhatsApp</p>
+                  <p class="text-[0.78rem] text-amber-700 mt-0.5 leading-relaxed">
+                    Você ainda não vinculou seu WhatsApp ao seConecta. Adicione seu número e conclua a verificação
+                    para receber notificações e usar todos os recursos da plataforma.
+                  </p>
+                </div>
+              </div>
 
             <div class="bg-white border border-[#e8e4dc] rounded-2xl p-6">
               <h2 class="text-[0.88rem] font-bold text-[#111] tracking-[-0.01em] mb-5">Informações do perfil</h2>
