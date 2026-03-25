@@ -301,7 +301,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                 v-if="isManager || isSuperuser"
                 class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center"
                 :class="isSuperuser ? 'bg-[#2464E8]' : 'bg-[#079272]'"
-                :title="isSuperuser ? 'Superuser' : 'Manager'"
+                :title="isSuperuser ? 'Admin' : 'Manager'"
               >
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
@@ -316,7 +316,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                 <span v-if="currentUser?.public_title" class="text-[0.7rem] font-medium px-2.5 py-0.5 bg-[#f7f5f0] border border-[#e8e4dc] text-[#666] rounded-full">
                   {{ currentUser.public_title }}
                 </span>
-                <span v-if="isSuperuser" class="text-[0.68rem] font-semibold px-2.5 py-0.5 bg-[#2464E8]/10 border border-[#2464E8]/20 text-[#2464E8] rounded-full">Superuser</span>
+                <span v-if="isSuperuser" class="text-[0.68rem] font-semibold px-2.5 py-0.5 bg-[#2464E8]/10 border border-[#2464E8]/20 text-[#2464E8] rounded-full">Admin</span>
                 <span v-else-if="isManager" class="text-[0.68rem] font-semibold px-2.5 py-0.5 bg-[#079272]/10 border border-[#079272]/20 text-[#079272] rounded-full">Manager</span>
               </div>
               <p class="text-[0.82rem] text-[#aaa] mt-0.5">@{{ currentUser?.username }}</p>
@@ -680,7 +680,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                 <div class="bg-[#f7f5f0] rounded-xl px-4 py-3">
                   <p class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-[#bbb] mb-1">Papel</p>
                   <p class="text-[0.85rem] font-medium" :class="isSuperuser ? 'text-[#2464E8]' : isManager ? 'text-[#079272]' : 'text-[#555]'">
-                    {{ isSuperuser ? 'Superuser' : isManager ? 'Manager' : 'Usuário' }}
+                    {{ isSuperuser ? 'Admin' : isManager ? 'Manager' : 'Usuário' }}
                   </p>
                 </div>
               </div>
