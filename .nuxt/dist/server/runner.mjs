@@ -1,0 +1,1 @@
+export { default } from "file:///home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/node_modules/@nuxt/vite-builder/dist/vite-node-runner.mjs"

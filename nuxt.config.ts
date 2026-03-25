@@ -8,6 +8,10 @@ export default defineNuxtConfig({
     '@vite-pwa/nuxt',
   ],
 
+  devServer: {
+    port: 5173
+  },
+
   app: {
     head: {
       htmlAttrs: { lang: 'pt-BR' },
