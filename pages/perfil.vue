@@ -3,7 +3,7 @@ definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Meu Perfil — seConecta' })
 
 const router = useRouter()
-const { patch, del } = useAxios()
+const { patch, del, post } = useAxios()
 const { currentUser, fetchMe, logout, isAuthenticated } = useAuth()
 
 const activeTab = ref('info')
@@ -11,7 +11,7 @@ const activeTab = ref('info')
 const infoForm = ref({
   full_name: '', email: '', phone: '', birthdate: '',
   public_title: '', bio: '', location: '',
-  opportunities: false, profile_picture_url: '',
+  profile_picture_url: '',
 })
 const infoErrors  = ref<Record<string,string>>({})
 const infoSaving  = ref(false)
@@ -29,7 +29,6 @@ function syncInfoForm(u: any) {
   infoForm.value.public_title        = u.public_title        ?? ''
   infoForm.value.bio                 = u.bio                 ?? ''
   infoForm.value.location            = u.location            ?? ''
-  infoForm.value.opportunities       = u.opportunities       ?? false
   infoForm.value.profile_picture_url = u.profile_picture_url ?? ''
   interests.value                    = u.interests ? [...u.interests] : []
 }
@@ -57,14 +56,14 @@ const infoChanged = computed(() => {
     infoForm.value.full_name !== (u.full_name ?? '') || infoForm.value.email !== (u.email ?? '') ||
     infoForm.value.phone !== (u.phone ?? '') || infoForm.value.birthdate !== bdOrig ||
     infoForm.value.public_title !== (u.public_title ?? '') || infoForm.value.bio !== (u.bio ?? '') ||
-    infoForm.value.location !== (u.location ?? '') || infoForm.value.opportunities !== (u.opportunities ?? false) ||
+    infoForm.value.location !== (u.location ?? '') ||
     infoForm.value.profile_picture_url !== (u.profile_picture_url ?? '') || interestsChanged
   )
 })
 async function saveInfo() {
   if (!validateInfo()) return
   infoSaving.value = true; infoError.value = null; infoSuccess.value = false
-  const payload: Record<string, any> = { email: infoForm.value.email.trim(), interests: interests.value, opportunities: infoForm.value.opportunities }
+  const payload: Record<string, any> = { email: infoForm.value.email.trim(), interests: interests.value }
   if (infoForm.value.full_name.trim())           payload.full_name           = infoForm.value.full_name.trim()
   if (infoForm.value.phone.trim())               payload.phone               = infoForm.value.phone.trim()
   if (infoForm.value.birthdate)                  payload.birthdate           = infoForm.value.birthdate
@@ -79,6 +78,53 @@ async function saveInfo() {
     infoError.value = e?.response?.status === 409 ? 'Email já em uso.' : 'Erro ao salvar. Tente novamente.'
   } finally { infoSaving.value = false }
 }
+
+// ── Verificação WhatsApp ─────────────────────────────────
+const verifying        = ref(false)
+const verifySuccess    = ref(false)
+const verifyError      = ref<string|null>(null)
+const refreshingLinked = ref(false)
+const refreshError     = ref<string|null>(null)
+const refreshSuccess   = ref(false)
+
+// O telefone salvo no servidor (não o que está no form, que pode ter mudado)
+const savedPhone = computed(() => currentUser.value?.phone ?? '')
+const isLinked   = computed(() => currentUser.value?.linked ?? false)
+
+// O usuário editou o telefone no form mas ainda não salvou
+const phoneUnsaved = computed(() =>
+  infoForm.value.phone.trim() !== savedPhone.value
+)
+
+async function sendVerification() {
+  if (!savedPhone.value) return
+  verifying.value = true; verifyError.value = null; verifySuccess.value = false
+  try {
+    await post(`/bot/verification-message?phone=${encodeURIComponent(savedPhone.value)}`)
+    verifySuccess.value = true
+  } catch (e: any) {
+    verifyError.value = e?.response?.status === 429
+      ? 'Muitas tentativas. Aguarde alguns minutos.'
+      : 'Erro ao enviar mensagem. Tente novamente.'
+  } finally { verifying.value = false }
+}
+
+async function refreshLinked() {
+  refreshingLinked.value = true; refreshError.value = null; refreshSuccess.value = false
+  try {
+    await post('/users/refresh-linked')
+    await fetchMe()
+    if (currentUser.value?.linked) {
+      refreshSuccess.value = true
+      setTimeout(() => { refreshSuccess.value = false }, 4000)
+    } else {
+      refreshError.value = 'Verificação ainda não concluída. Complete pelo WhatsApp e tente novamente.'
+    }
+  } catch {
+    refreshError.value = 'Erro ao atualizar status. Tente novamente.'
+  } finally { refreshingLinked.value = false }
+}
+// ────────────────────────────────────────────────────────
 
 const notifForm = ref({ notify_comments: true, notify_replies: true, notify_likes: false, notify_post_approved: true })
 const notifSaving  = ref(false)
@@ -251,7 +297,6 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                 />
                 <span v-else class="text-3xl font-bold text-white">{{ userInitial }}</span>
               </div>
-              <!-- Badge manager/superuser -->
               <div
                 v-if="isManager || isSuperuser"
                 class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center"
@@ -304,10 +349,11 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
             <span v-if="currentUser?.phone" class="flex items-center gap-1.5">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.07 1.18 2 2 0 012.04 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.07 7.91a16 16 0 006.02 6.02l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
               {{ currentUser.phone }}
-            </span>
-            <span v-if="currentUser?.opportunities" class="flex items-center gap-1.5 text-[#079272]">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              Aberto a oportunidades
+              <!-- Inline verified badge on hero -->
+              <span v-if="isLinked" class="inline-flex items-center gap-1 text-[#079272] font-semibold">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                verificado
+              </span>
             </span>
           </div>
 
@@ -343,7 +389,6 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
             <svg v-else-if="tab.icon === 'lock'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
             <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             {{ tab.label }}
-            <!-- Badge posts pendentes na tab Atividade -->
             <span v-if="tab.key === 'activity' && pendingPosts.length"
               class="ml-auto text-[0.6rem] font-bold px-1.5 py-0.5 rounded-full"
               :class="activeTab === 'activity' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-600'"
@@ -429,7 +474,18 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                     />
                   </div>
                   <div>
-                    <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">Telefone</label>
+                    <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">
+                      Telefone (WhatsApp)
+                      <!-- Status badge inline com o label -->
+                      <span
+                        v-if="savedPhone && isLinked"
+                        class="ml-1.5 normal-case font-semibold text-[0.62rem] px-1.5 py-0.5 bg-[#e8f5f2] text-[#079272] rounded-full border border-[#c5e8df] align-middle"
+                      >✓ verificado</span>
+                      <span
+                        v-else-if="savedPhone && !isLinked && !phoneUnsaved"
+                        class="ml-1.5 normal-case font-medium text-[0.62rem] px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-full border border-amber-200 align-middle"
+                      >não verificado</span>
+                    </label>
                     <input
                       v-model="infoForm.phone" type="tel" placeholder="+55 11 99999-9999"
                       class="w-full h-11 px-4 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"
@@ -437,30 +493,115 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                   </div>
                 </div>
 
-                <!-- Nascimento + Oportunidades -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                <!-- ── Bloco de verificação WhatsApp ──── -->
+                <!-- Caso 1: sem telefone salvo -->
+                <div
+                  v-if="!savedPhone && !infoForm.phone.trim()"
+                  class="flex items-start gap-3 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl px-4 py-3.5"
+                >
+                  <div class="w-8 h-8 rounded-lg bg-[#e8e4dc] flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.07 1.18 2 2 0 012.04 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.07 7.91a16 16 0 006.02 6.02l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                  </div>
+                  <div>
+                    <p class="text-[0.83rem] font-semibold text-[#444]">Adicione seu número de WhatsApp</p>
+                    <p class="text-[0.75rem] text-[#999] mt-0.5 leading-relaxed">Preencha o campo telefone acima, salve e depois conclua a verificação para receber notificações pelo WhatsApp.</p>
+                  </div>
+                </div>
+
+                <!-- Caso 2: telefone no form mas não salvo ainda (editando) -->
+                <div
+                  v-else-if="phoneUnsaved && infoForm.phone.trim()"
+                  class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5"
+                >
+                  <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  </div>
+                  <div>
+                    <p class="text-[0.83rem] font-semibold text-amber-700">Salve para verificar</p>
+                    <p class="text-[0.75rem] text-amber-600 mt-0.5">Clique em "Salvar alterações" antes de iniciar a verificação pelo WhatsApp.</p>
+                  </div>
+                </div>
+
+                <!-- Caso 3: telefone salvo, verificação pendente -->
+                <div
+                  v-else-if="savedPhone && !isLinked"
+                  class="bg-[#fffbf0] border border-amber-200 rounded-xl p-4"
+                >
+                  <div class="flex items-start gap-3 mb-3.5">
+                    <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                      <!-- WhatsApp icon -->
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="#d97706"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    </div>
+                    <div>
+                      <p class="text-[0.85rem] font-semibold text-amber-800">Verificação pendente</p>
+                      <p class="text-[0.75rem] text-amber-700 mt-0.5 leading-relaxed">
+                        Envie uma mensagem de verificação para <strong>{{ savedPhone }}</strong> e conclua pelo WhatsApp.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-wrap gap-2">
+                    <!-- Botão enviar código -->
+                    <button
+                      class="flex items-center gap-2 text-[0.8rem] font-semibold px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      :disabled="verifying"
+                      @click="sendVerification"
+                    >
+                      <svg v-if="verifying" class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                      {{ verifying ? 'Enviando...' : 'Enviar código por WhatsApp' }}
+                    </button>
+
+                    <!-- Botão já verifiquei / refresh -->
+                    <button
+                      class="flex items-center gap-2 text-[0.8rem] font-semibold px-4 py-2 bg-white hover:bg-[#f7f5f0] text-amber-700 border border-amber-300 rounded-xl cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      :disabled="refreshingLinked"
+                      @click="refreshLinked"
+                    >
+                      <svg v-if="refreshingLinked" class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                      {{ refreshingLinked ? 'Verificando...' : 'Já verifiquei' }}
+                    </button>
+                  </div>
+
+                  <!-- Feedbacks do bloco de verificação -->
+                  <p v-if="verifySuccess" class="text-[0.75rem] text-amber-700 font-medium mt-2.5 flex items-center gap-1.5">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    Mensagem enviada! Conclua a verificação no WhatsApp e clique em "Já verifiquei".
+                  </p>
+                  <p v-if="verifyError" class="text-[0.75rem] text-red-500 mt-2.5">{{ verifyError }}</p>
+                  <p v-if="refreshError" class="text-[0.75rem] text-red-500 mt-2.5">{{ refreshError }}</p>
+                </div>
+
+                <!-- Caso 4: verificado ✓ -->
+                <div
+                  v-else-if="savedPhone && isLinked"
+                  class="flex items-center gap-3 bg-[#f0faf7] border border-[#c5e8df] rounded-xl px-4 py-3"
+                >
+                  <div class="w-7 h-7 rounded-lg bg-[#079272] flex items-center justify-center flex-shrink-0">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[0.83rem] font-semibold text-[#079272]">WhatsApp verificado</p>
+                    <p class="text-[0.72rem] text-[#5a9e8a] mt-0.5">{{ savedPhone }} está vinculado ao bot.</p>
+                  </div>
+                  <!-- Botão para re-verificar caso mude o número -->
+                  <button
+                    class="text-[0.72rem] font-medium text-[#5a9e8a] hover:text-[#079272] border-none bg-transparent cursor-pointer underline flex-shrink-0"
+                    :disabled="refreshingLinked"
+                    @click="refreshLinked"
+                  >{{ refreshingLinked ? '...' : 'Atualizar' }}</button>
+                </div>
+                <!-- ── Fim bloco verificação ─────────── -->
+
+                <!-- Nascimento -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">Data de nascimento</label>
                     <input
                       v-model="infoForm.birthdate" type="date"
                       class="w-full h-11 px-4 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"
                     />
-                  </div>
-                  <div>
-                    <label class="flex items-center gap-3 h-11 px-4 bg-[#f7f5f0] rounded-xl cursor-pointer select-none">
-                      <div
-                        class="relative rounded-full transition-colors duration-200 flex-shrink-0 cursor-pointer"
-                        style="width:36px;height:20px;"
-                        :style="{ background: infoForm.opportunities ? '#079272' : '#ddd' }"
-                        @click="infoForm.opportunities = !infoForm.opportunities"
-                      >
-                        <div
-                          class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
-                          :style="{ transform: infoForm.opportunities ? 'translateX(18px)' : 'translateX(2px)' }"
-                        ></div>
-                      </div>
-                      <span class="text-[0.82rem] font-medium text-[#555]">Aberto a oportunidades</span>
-                    </label>
                   </div>
                 </div>
 
@@ -500,10 +641,14 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                   <p class="text-[0.68rem] text-[#bbb] mt-1">Pressione Enter ou vírgula para adicionar. Usado para personalizar seu feed.</p>
                 </div>
 
-                <!-- Feedback -->
+                <!-- Feedback salvar -->
                 <div v-if="infoSuccess" class="flex items-center gap-2 text-[0.82rem] text-[#079272] font-medium">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                   Perfil atualizado com sucesso!
+                </div>
+                <div v-if="refreshSuccess" class="flex items-center gap-2 text-[0.82rem] text-[#079272] font-medium">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  WhatsApp verificado com sucesso!
                 </div>
                 <div v-if="infoError" class="text-[0.82rem] text-red-500">{{ infoError }}</div>
 
@@ -699,7 +844,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
               </div>
             </div>
 
-            <!-- Posts em análise — destaque -->
+            <!-- Posts em análise -->
             <div v-if="pendingPosts.length" class="bg-amber-50 border border-amber-200 rounded-2xl p-5">
               <div class="flex items-center gap-2 mb-3">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2">
@@ -788,12 +933,9 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
               <div v-else class="flex flex-col divide-y divide-[#f7f5f0]">
                 <div
                   v-for="comment in myComments" :key="comment.id"
-                  class="py-3.5 flex items-start gap-3 group"
-
+                  class="py-3.5 flex items-start gap-3 group cursor-pointer"
                   @click="router.push({ name: 'article', params: { slug: comment.id } })"
                 >
-
-
                   <div class="flex-1 min-w-0">
                     <p v-if="comment.message" class="text-[0.75rem] text-[#aaa] line-clamp-1 mt-0.5">{{ comment.message }}</p>
                     <div class="flex items-center gap-3 mt-1.5 text-[0.68rem] text-[#bbb] flex-wrap">
