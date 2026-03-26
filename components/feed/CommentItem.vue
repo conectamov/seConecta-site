@@ -73,9 +73,23 @@ function handleLoadMore()      { emit('load-more-replies', props.comment.id) }
 function handleStartEdit()     { emit('start-edit', props.comment) }
 function handleSaveEdit()      { emit('save-edit', props.comment.id, props.parentId) }
 function handleCancelEdit()    { emit('cancel-edit') }
-function handleDelete() {
-  if (confirm('Tem certeza que deseja excluir este comentário?'))
+async function handleDelete() {
+  const { default: Swal } = await import('sweetalert2')
+
+  const result = await Swal.fire({
+    title: 'Excluir comentário?',
+    text: 'Você realmente quer apagar isso?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Sim, excluir',
+    cancelButtonText: 'Cancelar',
+    reverseButtons: true,
+    focusCancel: true
+  })
+
+  if (result.isConfirmed) {
     emit('delete-comment', props.comment.id, props.parentId)
+  }
 }
 function handleEditInput(e: Event)  { emit('update:edit-text', (e.target as HTMLTextAreaElement).value) }
 function handleReplyInput(e: Event) { emit('update:reply-msg', (e.target as HTMLTextAreaElement).value) }
