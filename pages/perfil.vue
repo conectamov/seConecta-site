@@ -8,15 +8,77 @@ const { currentUser, fetchMe, logout, isAuthenticated } = useAuth()
 
 const activeTab = ref('info')
 
+// ── Country definitions ───────────────────────────────────────────────────────
+const COUNTRIES = [
+  { code: 'BR', flag: '🇧🇷', dial: '55',  ddds: 2, placeholder: '98825-2013' },
+  { code: 'US', flag: '🇺🇸', dial: '1',   ddds: 3, placeholder: '555-1234'   },
+  { code: 'PT', flag: '🇵🇹', dial: '351', ddds: 0, placeholder: '912 345 678' },
+  { code: 'AR', flag: '🇦🇷', dial: '54',  ddds: 2, placeholder: '9-1234-5678' },
+  { code: 'MX', flag: '🇲🇽', dial: '52',  ddds: 2, placeholder: '55-1234-5678' },
+  { code: 'CO', flag: '🇨🇴', dial: '57',  ddds: 2, placeholder: '300-123-4567' },
+]
+
+const selectedCountry = computed(() => COUNTRIES.find(c => c.code === phoneCountry.value) ?? COUNTRIES[0])
+
+// ── Phone state ───────────────────────────────────────────────────────────────
+const phoneCountry = ref('BR')
+const phoneDDD     = ref('')
+const phoneLocal   = ref('')
+
+// E.164 digits string → { country, ddd, local }
+function parseStoredPhone(raw: string): { country: string; ddd: string; local: string } {
+  if (!raw) return { country: 'BR', ddd: '', local: '' }
+  const digits = raw.replace(/\D/g, '')
+  for (const c of COUNTRIES) {
+    if (digits.startsWith(c.dial)) {
+      const rest  = digits.slice(c.dial.length)
+      const ddd   = c.ddds > 0 ? rest.slice(0, c.ddds) : ''
+      const local = rest.slice(c.ddds)
+      return { country: c.code, ddd, local: formatLocalPhone(local, c.code) }
+    }
+  }
+  // fallback: assume BR
+  const ddd   = digits.slice(2, 4)
+  const local = digits.slice(4)
+  return { country: 'BR', ddd, local: formatLocalPhone(local, 'BR') }
+}
+
+// Format local number for display (BR: 9####-#### or ####-####)
+function formatLocalPhone(digits: string, country: string): string {
+  const d = digits.replace(/\D/g, '')
+  if (country === 'BR') {
+    if (d.length <= 4) return d
+    if (d.length >= 9) return `${d.slice(0, 5)}-${d.slice(5, 9)}`
+    return `${d.slice(0, 4)}-${d.slice(4, 8)}`
+  }
+  return d
+}
+
+function onPhoneInput(e: Event) {
+  const raw    = (e.target as HTMLInputElement).value
+  phoneLocal.value = formatLocalPhone(raw, phoneCountry.value)
+}
+
+// Combine parts → E.164 digits (no +, no spaces)
+function buildE164(): string {
+  const c     = selectedCountry.value
+  const ddd   = phoneDDD.value.replace(/\D/g, '')
+  const local = phoneLocal.value.replace(/\D/g, '')
+  if (!local) return ''
+  return `${c.dial}${ddd}${local}`
+}
+
+// ── Info form ─────────────────────────────────────────────────────────────────
 const infoForm = ref({
-  full_name: '', email: '', phone: '', birthdate: '',
+  full_name: '', email: '', birthdate: '',
   public_title: '', bio: '', location: '',
   profile_picture_url: '',
+  opportunities: false,
 })
-const infoErrors  = ref<Record<string,string>>({})
+const infoErrors  = ref<Record<string, string>>({})
 const infoSaving  = ref(false)
 const infoSuccess = ref(false)
-const infoError   = ref<string|null>(null)
+const infoError   = ref<string | null>(null)
 const interestInput = ref('')
 const interests     = ref<string[]>([])
 
@@ -24,22 +86,33 @@ function syncInfoForm(u: any) {
   if (!u) return
   infoForm.value.full_name           = u.full_name           ?? ''
   infoForm.value.email               = u.email               ?? ''
-  infoForm.value.phone               = u.phone               ?? ''
   infoForm.value.birthdate           = u.birthdate ? new Date(u.birthdate).toISOString().split('T')[0] : ''
   infoForm.value.public_title        = u.public_title        ?? ''
   infoForm.value.bio                 = u.bio                 ?? ''
   infoForm.value.location            = u.location            ?? ''
   infoForm.value.profile_picture_url = u.profile_picture_url ?? ''
+  infoForm.value.opportunities       = u.opportunities       ?? false
   interests.value                    = u.interests ? [...u.interests] : []
+
+  const parsed       = parseStoredPhone(u.phone ?? '')
+  phoneCountry.value = parsed.country
+  phoneDDD.value     = parsed.ddd
+  phoneLocal.value   = parsed.local
 }
 watch(currentUser, syncInfoForm, { immediate: true })
 
+// ── Interests ─────────────────────────────────────────────────────────────────
 function addInterest() {
   const val = interestInput.value.trim().toLowerCase().replace(/\s+/g, '-')
   if (!val || interests.value.includes(val) || interests.value.length >= 10) return
-  interests.value.push(val); interestInput.value = ''
+  interests.value.push(val)
+  interestInput.value = ''
 }
-function removeInterest(tag: string) { interests.value = interests.value.filter(t => t !== tag) }
+function removeInterest(tag: string) {
+  interests.value = interests.value.filter(t => t !== tag)
+}
+
+// ── Validation ────────────────────────────────────────────────────────────────
 function validateInfo() {
   infoErrors.value = {}
   if (!infoForm.value.email.trim()) infoErrors.value.email = 'Email é obrigatório.'
@@ -48,53 +121,70 @@ function validateInfo() {
   if (infoForm.value.bio.length > 500) infoErrors.value.bio = 'Máximo 500 caracteres.'
   return !Object.keys(infoErrors.value).length
 }
+
+// ── Phone computed ────────────────────────────────────────────────────────────
+const phoneE164Form = computed(() => buildE164())
+const savedPhone    = computed(() => currentUser.value?.phone ?? '')
+const isLinked      = computed(() => currentUser.value?.linked ?? false)
+const phoneUnsaved  = computed(() => phoneE164Form.value !== savedPhone.value)
+
+// ── infoChanged ───────────────────────────────────────────────────────────────
 const infoChanged = computed(() => {
-  const u = currentUser.value; if (!u) return false
+  const u = currentUser.value
+  if (!u) return false
   const bdOrig = u.birthdate ? new Date(u.birthdate).toISOString().split('T')[0] : ''
-  const interestsChanged = JSON.stringify(interests.value.slice().sort()) !== JSON.stringify((u.interests ?? []).slice().sort())
+  const interestsChanged =
+    JSON.stringify(interests.value.slice().sort()) !==
+    JSON.stringify((u.interests ?? []).slice().sort())
   return (
-    infoForm.value.full_name !== (u.full_name ?? '') || infoForm.value.email !== (u.email ?? '') ||
-    infoForm.value.phone !== (u.phone ?? '') || infoForm.value.birthdate !== bdOrig ||
-    infoForm.value.public_title !== (u.public_title ?? '') || infoForm.value.bio !== (u.bio ?? '') ||
-    infoForm.value.location !== (u.location ?? '') ||
-    infoForm.value.profile_picture_url !== (u.profile_picture_url ?? '') || interestsChanged
+    infoForm.value.full_name           !== (u.full_name           ?? '') ||
+    infoForm.value.email               !== (u.email               ?? '') ||
+    infoForm.value.birthdate           !== bdOrig                        ||
+    infoForm.value.public_title        !== (u.public_title        ?? '') ||
+    infoForm.value.bio                 !== (u.bio                 ?? '') ||
+    infoForm.value.location            !== (u.location            ?? '') ||
+    infoForm.value.profile_picture_url !== (u.profile_picture_url ?? '') ||
+    infoForm.value.opportunities       !== (u.opportunities       ?? false) ||
+    phoneUnsaved.value                                                   ||
+    interestsChanged
   )
 })
+
+// ── Save info ─────────────────────────────────────────────────────────────────
 async function saveInfo() {
   if (!validateInfo()) return
   infoSaving.value = true; infoError.value = null; infoSuccess.value = false
-  const payload: Record<string, any> = { email: infoForm.value.email.trim(), interests: interests.value }
+  const payload: Record<string, any> = {
+    email:        infoForm.value.email.trim(),
+    interests:    interests.value,
+    opportunities: infoForm.value.opportunities,
+  }
   if (infoForm.value.full_name.trim())           payload.full_name           = infoForm.value.full_name.trim()
-  if (infoForm.value.phone.trim())               payload.phone               = infoForm.value.phone.trim()
   if (infoForm.value.birthdate)                  payload.birthdate           = infoForm.value.birthdate
   if (infoForm.value.public_title.trim())        payload.public_title        = infoForm.value.public_title.trim()
   if (infoForm.value.bio.trim())                 payload.bio                 = infoForm.value.bio.trim()
   if (infoForm.value.location.trim())            payload.location            = infoForm.value.location.trim()
   if (infoForm.value.profile_picture_url.trim()) payload.profile_picture_url = infoForm.value.profile_picture_url.trim()
+  if (phoneE164Form.value)                       payload.phone               = phoneE164Form.value
   try {
-    await patch('/users/me', payload); await fetchMe()
-    infoSuccess.value = true; setTimeout(() => { infoSuccess.value = false }, 3000)
+    await patch('/users/me', payload)
+    await fetchMe()
+    infoSuccess.value = true
+    setTimeout(() => { infoSuccess.value = false }, 3000)
   } catch (e: any) {
     infoError.value = e?.response?.status === 409 ? 'Email já em uso.' : 'Erro ao salvar. Tente novamente.'
-  } finally { infoSaving.value = false }
+  } finally {
+    infoSaving.value = false
+  }
 }
 
-// ── Verificação WhatsApp ─────────────────────────────────
+// ── WhatsApp verification ─────────────────────────────────────────────────────
 const verifying        = ref(false)
 const verifySuccess    = ref(false)
-const verifyError      = ref<string|null>(null)
+const verifyError      = ref<string | null>(null)
 const refreshingLinked = ref(false)
-const refreshError     = ref<string|null>(null)
+const refreshError     = ref<string | null>(null)
 const refreshSuccess   = ref(false)
-
-// O telefone salvo no servidor (não o que está no form, que pode ter mudado)
-const savedPhone = computed(() => currentUser.value?.phone ?? '')
-const isLinked   = computed(() => currentUser.value?.linked ?? false)
-
-// O usuário editou o telefone no form mas ainda não salvou
-const phoneUnsaved = computed(() =>
-  infoForm.value.phone.trim() !== savedPhone.value
-)
 
 async function sendVerification() {
   if (!savedPhone.value) return
@@ -106,7 +196,9 @@ async function sendVerification() {
     verifyError.value = e?.response?.status === 429
       ? 'Muitas tentativas. Aguarde alguns minutos.'
       : 'Erro ao enviar mensagem. Tente novamente.'
-  } finally { verifying.value = false }
+  } finally {
+    verifying.value = false
+  }
 }
 
 async function refreshLinked() {
@@ -122,14 +214,19 @@ async function refreshLinked() {
     }
   } catch {
     refreshError.value = 'Erro ao atualizar status. Tente novamente.'
-  } finally { refreshingLinked.value = false }
+  } finally {
+    refreshingLinked.value = false
+  }
 }
-// ────────────────────────────────────────────────────────
 
-const notifForm = ref({ notify_comments: true, notify_replies: true, notify_likes: false, notify_post_approved: true })
+// ── Notifications ─────────────────────────────────────────────────────────────
+const notifForm = ref({
+  notify_comments: true, notify_replies: true,
+  notify_likes: false,   notify_post_approved: true,
+})
 const notifSaving  = ref(false)
 const notifSuccess = ref(false)
-const notifError   = ref<string|null>(null)
+const notifError   = ref<string | null>(null)
 watch(currentUser, (u) => {
   if (!u) return
   notifForm.value.notify_comments      = u.notify_comments      ?? true
@@ -149,17 +246,23 @@ const notifChanged = computed(() => {
 async function saveNotifications() {
   notifSaving.value = true; notifError.value = null; notifSuccess.value = false
   try {
-    await patch('/users/me', { ...notifForm.value }); await fetchMe()
-    notifSuccess.value = true; setTimeout(() => { notifSuccess.value = false }, 3000)
-  } catch { notifError.value = 'Erro ao salvar preferências.' }
-  finally { notifSaving.value = false }
+    await patch('/users/me', { ...notifForm.value })
+    await fetchMe()
+    notifSuccess.value = true
+    setTimeout(() => { notifSuccess.value = false }, 3000)
+  } catch {
+    notifError.value = 'Erro ao salvar preferências.'
+  } finally {
+    notifSaving.value = false
+  }
 }
 
-const pwForm   = ref({ current_password: '', new_password: '', confirm_password: '' })
-const pwErrors  = ref<Record<string,string>>({})
+// ── Password ──────────────────────────────────────────────────────────────────
+const pwForm    = ref({ current_password: '', new_password: '', confirm_password: '' })
+const pwErrors  = ref<Record<string, string>>({})
 const pwSaving  = ref(false)
 const pwSuccess = ref(false)
-const pwError   = ref<string|null>(null)
+const pwError   = ref<string | null>(null)
 const showPw    = ref({ current: false, new: false, confirm: false })
 watch(() => pwForm.value.current_password, () => delete pwErrors.value.current_password)
 watch(() => pwForm.value.new_password,     () => delete pwErrors.value.new_password)
@@ -176,12 +279,18 @@ async function savePassword() {
   if (!validatePw()) return
   pwSaving.value = true; pwError.value = null; pwSuccess.value = false
   try {
-    await patch('/users/me/password', { current_password: pwForm.value.current_password, new_password: pwForm.value.new_password })
-    pwSuccess.value = true; pwForm.value = { current_password: '', new_password: '', confirm_password: '' }
+    await patch('/users/me/password', {
+      current_password: pwForm.value.current_password,
+      new_password: pwForm.value.new_password,
+    })
+    pwSuccess.value = true
+    pwForm.value = { current_password: '', new_password: '', confirm_password: '' }
     setTimeout(() => { pwSuccess.value = false }, 4000)
   } catch (e: any) {
     pwError.value = e?.response?.status === 400 ? 'Senha atual incorreta.' : 'Erro ao alterar senha. Tente novamente.'
-  } finally { pwSaving.value = false }
+  } finally {
+    pwSaving.value = false
+  }
 }
 const pwStrength = computed(() => {
   const p = pwForm.value.new_password; if (!p) return 0
@@ -193,10 +302,11 @@ const pwStrength = computed(() => {
 const pwStrengthLabel = computed(() => ['', 'Muito fraca', 'Fraca', 'Média', 'Forte', 'Muito forte'][pwStrength.value] || '')
 const pwStrengthColor = computed(() => ['', '#e53e3e', '#e53e3e', '#d97706', '#079272', '#079272'][pwStrength.value] || '')
 
+// ── Delete account ────────────────────────────────────────────────────────────
 const deleteModal   = ref(false)
 const deleteConfirm = ref('')
 const deleting      = ref(false)
-const deleteError   = ref<string|null>(null)
+const deleteError   = ref<string | null>(null)
 const canDelete     = computed(() => deleteConfirm.value === currentUser.value?.username)
 async function deleteAccount() {
   if (!canDelete.value) return
@@ -205,6 +315,7 @@ async function deleteAccount() {
   catch { deleteError.value = 'Erro ao deletar conta. Tente novamente.'; deleting.value = false }
 }
 
+// ── Computed helpers ──────────────────────────────────────────────────────────
 const myPosts        = computed(() => currentUser.value?.posts ?? [])
 const pendingPosts   = computed(() => myPosts.value.filter((p: any) => !p.approved))
 const publishedPosts = computed(() => myPosts.value.filter((p: any) => p.approved))
@@ -234,7 +345,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
 <template>
   <div class="min-h-screen">
 
-    <!-- ── Modal deletar conta ────────────────────────── -->
+    <!-- ── Modal deletar conta ────────────────────────────────────────────── -->
     <Transition name="modal">
       <div v-if="deleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="deleteModal = false; deleteConfirm = ''"></div>
@@ -276,7 +387,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
 
     <div class="max-w-[960px] mx-auto px-6 md:px-8 py-10">
 
-      <!-- ── Hero ──────────────────────────────────────── -->
+      <!-- ── Hero ──────────────────────────────────────────────────────────── -->
       <div class="bg-white border border-[#e8e4dc] rounded-3xl overflow-hidden mb-8" style="animation: fadeUp .5s ease both">
         <div class="h-28 bg-gradient-to-r from-[#0c1b32] via-[#0d2a20] to-[#0c1b32] relative overflow-hidden">
           <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 20% 50%, #079272 0%, transparent 50%), radial-gradient(circle at 80% 50%, #2464E8 0%, transparent 50%)"></div>
@@ -284,7 +395,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
         </div>
 
         <div class="px-7 pb-7 mt-12">
-          <div class="flex items-end gap-4 -mt-10 mb-5 flex-wrap">  
+          <div class="flex items-end gap-4 -mt-10 mb-5 flex-wrap">
             <!-- Avatar -->
             <div class="relative flex-shrink-0">
               <div class="w-20 h-20 rounded-2xl border-4 border-white shadow-lg overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center">
@@ -293,7 +404,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                   :src="currentUser.profile_picture_url"
                   :alt="currentUser.full_name"
                   class="w-full h-full object-cover"
-                  @error="$event.target.style.display='none'"
+                  @error="($event.target as HTMLImageElement).style.display='none'"
                 />
                 <span v-else class="text-3xl font-bold text-white">{{ userInitial }}</span>
               </div>
@@ -348,8 +459,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
             </span>
             <span v-if="currentUser?.phone" class="flex items-center gap-1.5">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.07 1.18 2 2 0 012.04 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.07 7.91a16 16 0 006.02 6.02l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
-              {{ currentUser.phone }}
-              <!-- Inline verified badge on hero -->
+              +{{ currentUser.phone }}
               <span v-if="isLinked" class="inline-flex items-center gap-1 text-[#079272] font-semibold">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                 verificado
@@ -367,29 +477,30 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
         </div>
       </div>
 
-      <!-- ── Layout sidebar + conteúdo ────────────────── -->
+      <!-- ── Layout sidebar + conteúdo ─────────────────────────────────────── -->
       <div class="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">
 
         <!-- Sidebar nav -->
         <nav class="bg-white border border-[#e8e4dc] rounded-2xl p-3 flex flex-row lg:flex-col gap-1 overflow-x-auto lg:sticky lg:top-20" style="animation: fadeUp .5s ease .1s both">
           <button
             v-for="tab in [
-              { key: 'info',          icon: 'user',    label: 'Meu perfil'    },
-              { key: 'notifications', icon: 'bell',    label: 'Notificações'  },
-              { key: 'security',      icon: 'lock',    label: 'Segurança'     },
-              { key: 'activity',      icon: 'activity',label: 'Atividade'     },
+              { key: 'info',          icon: 'user',     label: 'Meu perfil'   },
+              { key: 'notifications', icon: 'bell',     label: 'Notificações' },
+              { key: 'security',      icon: 'lock',     label: 'Segurança'    },
+              { key: 'activity',      icon: 'activity', label: 'Atividade'    },
             ]"
             :key="tab.key"
             class="flex items-center gap-2 lg:gap-3 px-3 lg:px-3.5 py-2 lg:py-2.5 rounded-xl text-[0.78rem] lg:text-[0.83rem] font-medium whitespace-nowrap transition-all cursor-pointer border-none text-left"
             :class="activeTab === tab.key ? 'bg-[#0d0d0d] text-white' : 'bg-transparent text-[#666] hover:bg-[#f7f5f0] hover:text-[#111]'"
             @click="activeTab = tab.key"
           >
-            <svg v-if="tab.icon === 'user'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <svg v-if="tab.icon === 'user'"     width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             <svg v-else-if="tab.icon === 'bell'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
             <svg v-else-if="tab.icon === 'lock'" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
             <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             <span class="hidden sm:inline">{{ tab.label }}</span>
-            <span v-if="tab.key === 'activity' && pendingPosts.length"
+            <span
+              v-if="tab.key === 'activity' && pendingPosts.length"
               class="ml-auto text-[0.6rem] font-bold px-1.5 py-0.5 rounded-full"
               :class="activeTab === 'activity' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-600'"
             >{{ pendingPosts.length }}</span>
@@ -399,28 +510,30 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
         <!-- Conteúdo -->
         <div style="animation: fadeUp .5s ease .15s both">
 
-          <!-- ── Tab: Meu perfil ──────────────────────── -->
+          <!-- ── Tab: Meu perfil ────────────────────────────────────────────── -->
           <div v-if="activeTab === 'info'" class="flex flex-col gap-5">
-            <!-- ── Banner: conta não verificada ──────────────── -->
-              <div
-                v-if="!isLinked"
-                class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4"
-              >
-                <div class="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                  </svg>
-                </div>
-                <div>
-                  <p class="text-[0.88rem] font-bold text-amber-800">Conta não verificada pelo WhatsApp</p>
-                  <p class="text-[0.78rem] text-amber-700 mt-0.5 leading-relaxed">
-                    Você ainda não vinculou seu WhatsApp ao seConecta. Adicione seu número e conclua a verificação
-                    para receber notificações e usar todos os recursos da plataforma.
-                  </p>
-                </div>
-              </div>
 
+            <!-- Banner: conta não verificada -->
+            <div
+              v-if="!isLinked"
+              class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4"
+            >
+              <div class="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-[0.88rem] font-bold text-amber-800">Conta não verificada pelo WhatsApp</p>
+                <p class="text-[0.78rem] text-amber-700 mt-0.5 leading-relaxed">
+                  Você ainda não vinculou seu WhatsApp ao seConecta. Adicione seu número e conclua a verificação
+                  para receber notificações e usar todos os recursos da plataforma.
+                </p>
+              </div>
+            </div>
+
+            <!-- Card principal de informações -->
             <div class="bg-white border border-[#e8e4dc] rounded-2xl p-6">
               <h2 class="text-[0.88rem] font-bold text-[#111] tracking-[-0.01em] mb-5">Informações do perfil</h2>
 
@@ -492,10 +605,10 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                       class="w-full h-11 px-4 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"
                     />
                   </div>
+
                   <div>
                     <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">
                       Telefone (WhatsApp)
-                      <!-- Status badge inline com o label -->
                       <span
                         v-if="savedPhone && isLinked"
                         class="ml-1.5 normal-case font-semibold text-[0.62rem] px-1.5 py-0.5 bg-[#e8f5f2] text-[#079272] rounded-full border border-[#c5e8df] align-middle"
@@ -505,113 +618,144 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                         class="ml-1.5 normal-case font-medium text-[0.62rem] px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-full border border-amber-200 align-middle"
                       >não verificado</span>
                     </label>
-                    <input
-                      v-model="infoForm.phone" type="tel" placeholder="+55 11 99999-9999"
-                      class="w-full h-11 px-4 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"
-                    />
+
+                    <!-- Country + DDD + Number -->
+                    <div class="flex gap-1.5">
+                      <!-- Country selector -->
+                      <select
+                        v-model="phoneCountry"
+                        class="h-11 px-2 text-sm bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] transition-all cursor-pointer flex-shrink-0"
+                      >
+                        <option v-for="c in COUNTRIES" :key="c.code" :value="c.code">
+                          {{ c.flag }} +{{ c.dial }}
+                        </option>
+                      </select>
+
+                      <!-- DDD (only for countries that have it) -->
+                      <input
+                        v-if="selectedCountry.ddds > 0"
+                        v-model="phoneDDD"
+                        type="text"
+                        :maxlength="selectedCountry.ddds"
+                        placeholder="DDD"
+                        class="w-16 h-11 px-3 text-sm text-center text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all flex-shrink-0"
+                      />
+
+                      <!-- Local number -->
+                      <input
+                        :value="phoneLocal"
+                        @input="onPhoneInput"
+                        type="tel"
+                        :placeholder="selectedCountry.placeholder"
+                        class="flex-1 h-11 px-3 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all min-w-0"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <!-- ── Bloco de verificação WhatsApp ──── -->
-                <!-- Caso 1: sem telefone salvo -->
-                <div
-                  v-if="!savedPhone && !infoForm.phone.trim()"
-                  class="flex items-start gap-3 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl px-4 py-3.5"
-                >
-                  <div class="w-8 h-8 rounded-lg bg-[#e8e4dc] flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.07 1.18 2 2 0 012.04 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.07 7.91a16 16 0 006.02 6.02l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
-                  </div>
-                  <div>
-                    <p class="text-[0.83rem] font-semibold text-[#444]">Adicione seu número de WhatsApp</p>
-                    <p class="text-[0.75rem] text-[#999] mt-0.5 leading-relaxed">Preencha o campo telefone acima, salve e depois conclua a verificação para receber notificações pelo WhatsApp.</p>
-                  </div>
-                </div>
-
-                <!-- Caso 2: telefone no form mas não salvo ainda (editando) -->
-                <div
-                  v-else-if="phoneUnsaved && infoForm.phone.trim()"
-                  class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5"
-                >
-                  <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  </div>
-                  <div>
-                    <p class="text-[0.83rem] font-semibold text-amber-700">Salve para verificar</p>
-                    <p class="text-[0.75rem] text-amber-600 mt-0.5">Clique em "Salvar alterações" antes de iniciar a verificação pelo WhatsApp.</p>
-                  </div>
-                </div>
-
-                <!-- Caso 3: telefone salvo, verificação pendente -->
-                <div
-                  v-else-if="savedPhone && !isLinked"
-                  class="bg-[#fffbf0] border border-amber-200 rounded-xl p-4"
-                >
-                  <div class="flex items-start gap-3 mb-3.5">
-                    <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-                      <!-- WhatsApp icon -->
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="#d97706"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                <!-- ── Bloco de verificação WhatsApp ──────────────────────── -->
+                <!-- Separado do grid acima para evitar z-index / overlap -->
+                <div>
+                  <!-- Caso 1: sem telefone salvo e sem telefone no form -->
+                  <div
+                    v-if="!savedPhone && !phoneE164Form"
+                    class="flex items-start gap-3 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl px-4 py-3.5"
+                  >
+                    <div class="w-8 h-8 rounded-lg bg-[#e8e4dc] flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.07 1.18 2 2 0 012.04 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.07 7.91a16 16 0 006.02 6.02l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
                     </div>
                     <div>
-                      <p class="text-[0.85rem] font-semibold text-amber-800">Verificação pendente</p>
-                      <p class="text-[0.75rem] text-amber-700 mt-0.5 leading-relaxed">
-                        Envie uma mensagem de verificação para <strong>{{ savedPhone }}</strong> e conclua pelo WhatsApp.
+                      <p class="text-[0.83rem] font-semibold text-[#444]">Adicione seu número de WhatsApp</p>
+                      <p class="text-[0.75rem] text-[#999] mt-0.5 leading-relaxed">
+                        Preencha o campo telefone acima, salve e depois conclua a verificação para receber notificações pelo WhatsApp.
                       </p>
                     </div>
                   </div>
 
-                  <div class="flex flex-wrap gap-2">
-                    <!-- Botão enviar código -->
-                    <button
-                      class="flex items-center gap-2 text-[0.8rem] font-semibold px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      :disabled="verifying"
-                      @click="sendVerification"
-                    >
-                      <svg v-if="verifying" class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                      <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                      {{ verifying ? 'Enviando...' : 'Enviar código por WhatsApp' }}
-                    </button>
+                  <!-- Caso 2: telefone digitado no form mas ainda não salvo -->
+                  <div
+                    v-else-if="phoneUnsaved && phoneE164Form"
+                    class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5"
+                  >
+                    <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                    <div>
+                      <p class="text-[0.83rem] font-semibold text-amber-700">Salve para verificar</p>
+                      <p class="text-[0.75rem] text-amber-600 mt-0.5">
+                        Clique em "Salvar alterações" antes de iniciar a verificação pelo WhatsApp.<br/>
+                        <span class="font-semibold">Número que será salvo: +{{ selectedCountry.dial }} {{ phoneDDD }} {{ phoneLocal }}</span>
+                      </p>
+                    </div>
+                  </div>
 
-                    <!-- Botão já verifiquei / refresh -->
+                  <!-- Caso 3: telefone salvo, verificação pendente -->
+                  <div
+                    v-else-if="savedPhone && !isLinked"
+                    class="bg-[#fffbf0] border border-amber-200 rounded-xl p-4"
+                  >
+                    <div class="flex items-start gap-3 mb-3.5">
+                      <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="#d97706"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                      </div>
+                      <div>
+                        <p class="text-[0.85rem] font-semibold text-amber-800">Verificação pendente</p>
+                        <p class="text-[0.75rem] text-amber-700 mt-0.5 leading-relaxed">
+                          Envie uma mensagem de verificação para <strong>+{{ savedPhone }}</strong> e conclua pelo WhatsApp.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        class="flex items-center gap-2 text-[0.8rem] font-semibold px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl border-none cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="verifying"
+                        @click="sendVerification"
+                      >
+                        <svg v-if="verifying"  class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                        <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        {{ verifying ? 'Enviando...' : 'Enviar código por WhatsApp' }}
+                      </button>
+
+                      <button
+                        class="flex items-center gap-2 text-[0.8rem] font-semibold px-4 py-2 bg-white hover:bg-[#f7f5f0] text-amber-700 border border-amber-300 rounded-xl cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="refreshingLinked"
+                        @click="refreshLinked"
+                      >
+                        <svg v-if="refreshingLinked" class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                        <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        {{ refreshingLinked ? 'Verificando...' : 'Já verifiquei' }}
+                      </button>
+                    </div>
+
+                    <p v-if="verifySuccess" class="text-[0.75rem] text-amber-700 font-medium mt-2.5 flex items-center gap-1.5">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      Mensagem enviada! Conclua a verificação no WhatsApp e clique em "Já verifiquei".
+                    </p>
+                    <p v-if="verifyError"  class="text-[0.75rem] text-red-500 mt-2.5">{{ verifyError }}</p>
+                    <p v-if="refreshError" class="text-[0.75rem] text-red-500 mt-2.5">{{ refreshError }}</p>
+                  </div>
+
+                  <!-- Caso 4: verificado ✓ -->
+                  <div
+                    v-else-if="savedPhone && isLinked"
+                    class="flex items-center gap-3 bg-[#f0faf7] border border-[#c5e8df] rounded-xl px-4 py-3"
+                  >
+                    <div class="w-7 h-7 rounded-lg bg-[#079272] flex items-center justify-center flex-shrink-0">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-[0.83rem] font-semibold text-[#079272]">WhatsApp verificado</p>
+                      <p class="text-[0.72rem] text-[#5a9e8a] mt-0.5">+{{ savedPhone }} está vinculado ao bot.</p>
+                    </div>
                     <button
-                      class="flex items-center gap-2 text-[0.8rem] font-semibold px-4 py-2 bg-white hover:bg-[#f7f5f0] text-amber-700 border border-amber-300 rounded-xl cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="text-[0.72rem] font-medium text-[#5a9e8a] hover:text-[#079272] border-none bg-transparent cursor-pointer underline flex-shrink-0"
                       :disabled="refreshingLinked"
                       @click="refreshLinked"
-                    >
-                      <svg v-if="refreshingLinked" class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                      <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                      {{ refreshingLinked ? 'Verificando...' : 'Já verifiquei' }}
-                    </button>
+                    >{{ refreshingLinked ? '...' : 'Atualizar' }}</button>
                   </div>
-
-                  <!-- Feedbacks do bloco de verificação -->
-                  <p v-if="verifySuccess" class="text-[0.75rem] text-amber-700 font-medium mt-2.5 flex items-center gap-1.5">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                    Mensagem enviada! Conclua a verificação no WhatsApp e clique em "Já verifiquei".
-                  </p>
-                  <p v-if="verifyError" class="text-[0.75rem] text-red-500 mt-2.5">{{ verifyError }}</p>
-                  <p v-if="refreshError" class="text-[0.75rem] text-red-500 mt-2.5">{{ refreshError }}</p>
                 </div>
-
-                <!-- Caso 4: verificado ✓ -->
-                <div
-                  v-else-if="savedPhone && isLinked"
-                  class="flex items-center gap-3 bg-[#f0faf7] border border-[#c5e8df] rounded-xl px-4 py-3"
-                >
-                  <div class="w-7 h-7 rounded-lg bg-[#079272] flex items-center justify-center flex-shrink-0">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-[0.83rem] font-semibold text-[#079272]">WhatsApp verificado</p>
-                    <p class="text-[0.72rem] text-[#5a9e8a] mt-0.5">{{ savedPhone }} está vinculado ao bot.</p>
-                  </div>
-                  <!-- Botão para re-verificar caso mude o número -->
-                  <button
-                    class="text-[0.72rem] font-medium text-[#5a9e8a] hover:text-[#079272] border-none bg-transparent cursor-pointer underline flex-shrink-0"
-                    :disabled="refreshingLinked"
-                    @click="refreshLinked"
-                  >{{ refreshingLinked ? '...' : 'Atualizar' }}</button>
-                </div>
-                <!-- ── Fim bloco verificação ─────────── -->
+                <!-- ── Fim bloco verificação ─────────────────────────────── -->
 
                 <!-- Nascimento -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -636,22 +780,29 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                     >
                       #{{ tag }}
                       <button
-                        class="w-3.5 h-3.5 rounded-full bg-[#c5e8df] hover:bg-red-200 flex items-center justify-center border-none cursor-pointer transition-colors flex-shrink-0"
-                        @click="removeInterest(tag)"
+                        type="button"
+                        class="w-3.5 h-3.5 rounded-full bg-[#c5e8df] hover:bg-red-200 hover:text-red-600 flex items-center justify-center border-none cursor-pointer transition-colors flex-shrink-0 ml-0.5"
+                        @click.stop="removeInterest(tag)"
+                        :title="`Remover ${tag}`"
                       >
-                        <svg width="7" height="7" viewBox="0 0 10 10"><line x1="2" y1="2" x2="8" y2="8" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="2" x2="2" y2="8" stroke="currentColor" stroke-width="1.5"/></svg>
+                        <svg width="7" height="7" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
+                          <line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/>
+                        </svg>
                       </button>
                     </span>
                   </div>
                   <div class="flex gap-2">
                     <input
-                      v-model="interestInput" type="text" placeholder="Ex: tecnologia, saúde, finanças"
+                      v-model="interestInput"
+                      type="text"
+                      placeholder="Ex: tecnologia, saúde, finanças"
                       class="flex-1 h-10 px-3 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"
                       :disabled="interests.length >= 10"
                       @keydown.enter.prevent="addInterest"
                       @keydown.188.prevent="addInterest"
                     />
                     <button
+                      type="button"
                       class="h-10 px-4 text-sm font-semibold bg-[#f7f5f0] text-[#555] hover:bg-[#e8e4dc] rounded-xl border-none cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       :disabled="!interestInput.trim() || interests.length >= 10"
                       @click="addInterest"
@@ -684,6 +835,36 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
               </div>
             </div>
 
+            <!-- Newsletter / Oportunidades -->
+            <div class="bg-white border border-[#e8e4dc] rounded-2xl p-6">
+              <h2 class="text-[0.88rem] font-bold text-[#111] tracking-[-0.01em] mb-1">Newsletter</h2>
+              <p class="text-[0.78rem] text-[#aaa] mb-4 leading-relaxed">
+                Receba oportunidades de bolsas, eventos e vagas diretamente no seu e-mail.
+              </p>
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <p class="text-[0.85rem] font-medium text-[#333]">Receber newsletter de oportunidades</p>
+                  <p class="text-[0.75rem] text-[#aaa] mt-0.5">
+                    Enviado para <strong class="text-[#555]">{{ currentUser?.email }}</strong>
+                  </p>
+                </div>
+                <div
+                  class="relative rounded-full transition-colors duration-200 flex-shrink-0 cursor-pointer"
+                  style="width: 40px; height: 22px;"
+                  :style="{ background: infoForm.opportunities ? '#079272' : '#ddd' }"
+                  @click="infoForm.opportunities = !infoForm.opportunities"
+                >
+                  <div
+                    class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
+                    :style="{ transform: infoForm.opportunities ? 'translateX(20px)' : 'translateX(2px)' }"
+                  ></div>
+                </div>
+              </div>
+              <p class="text-[0.68rem] text-[#bbb] mt-3">
+                Você pode alterar isso a qualquer momento. Clique em "Salvar alterações" para confirmar.
+              </p>
+            </div>
+
             <!-- Dados somente leitura -->
             <div class="bg-white border border-[#e8e4dc] rounded-2xl p-6">
               <h2 class="text-[0.88rem] font-bold text-[#111] tracking-[-0.01em] mb-4">Dados da conta</h2>
@@ -707,7 +888,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
             </div>
           </div>
 
-          <!-- ── Tab: Notificações ────────────────────── -->
+          <!-- ── Tab: Notificações ──────────────────────────────────────────── -->
           <div v-else-if="activeTab === 'notifications'" class="flex flex-col gap-5">
             <div class="bg-white border border-[#e8e4dc] rounded-2xl p-6">
               <h2 class="text-[0.88rem] font-bold text-[#111] tracking-[-0.01em] mb-1">Preferências de notificação</h2>
@@ -716,10 +897,10 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
               <div class="flex flex-col gap-1">
                 <label
                   v-for="pref in [
-                    { key: 'notify_comments',      label: 'Alguém comentou no meu post',         desc: 'Notificação toda vez que um novo comentário chegar.' },
-                    { key: 'notify_replies',        label: 'Alguém respondeu meu comentário',      desc: 'Notificação quando alguém responder diretamente a você.' },
-                    { key: 'notify_likes',          label: 'Alguém curtiu meu post ou comentário', desc: 'Pode gerar muitas notificações em posts populares.' },
-                    { key: 'notify_post_approved',  label: 'Meu post foi aprovado ou rejeitado',   desc: 'Informado quando um manager revisar sua publicação.' },
+                    { key: 'notify_comments',     label: 'Alguém comentou no meu post',         desc: 'Notificação toda vez que um novo comentário chegar.'          },
+                    { key: 'notify_replies',       label: 'Alguém respondeu meu comentário',      desc: 'Notificação quando alguém responder diretamente a você.'      },
+                    { key: 'notify_likes',         label: 'Alguém curtiu meu post ou comentário', desc: 'Pode gerar muitas notificações em posts populares.'           },
+                    { key: 'notify_post_approved', label: 'Meu post foi aprovado ou rejeitado',   desc: 'Informado quando um manager revisar sua publicação.'          },
                   ]"
                   :key="pref.key"
                   class="flex items-center justify-between gap-4 py-4 border-b border-[#f7f5f0] last:border-0 cursor-pointer"
@@ -730,13 +911,13 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                   </div>
                   <div
                     class="relative rounded-full transition-colors duration-200 flex-shrink-0 cursor-pointer"
-                    style="width:40px;height:22px;"
-                    :style="{ background: notifForm[pref.key] ? '#079272' : '#ddd' }"
-                    @click="notifForm[pref.key] = !notifForm[pref.key]"
+                    style="width: 40px; height: 22px;"
+                    :style="{ background: notifForm[pref.key as keyof typeof notifForm] ? '#079272' : '#ddd' }"
+                    @click="(notifForm[pref.key as keyof typeof notifForm] as boolean) = !(notifForm[pref.key as keyof typeof notifForm] as boolean)"
                   >
                     <div
                       class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
-                      :style="{ transform: notifForm[pref.key] ? 'translateX(20px)' : 'translateX(2px)' }"
+                      :style="{ transform: notifForm[pref.key as keyof typeof notifForm] ? 'translateX(20px)' : 'translateX(2px)' }"
                     ></div>
                   </div>
                 </label>
@@ -761,39 +942,54 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
             </div>
           </div>
 
-          <!-- ── Tab: Segurança ──────────────────────── -->
+          <!-- ── Tab: Segurança ─────────────────────────────────────────────── -->
           <div v-else-if="activeTab === 'security'" class="flex flex-col gap-5">
             <div class="bg-white border border-[#e8e4dc] rounded-2xl p-6">
               <h2 class="text-[0.88rem] font-bold text-[#111] tracking-[-0.01em] mb-5">Alterar senha</h2>
               <div class="flex flex-col gap-4">
 
-                <div v-for="field in [
-                  { model: 'current_password', label: 'Senha atual',          show: 'current', placeholder: '••••••••' },
-                  { model: 'new_password',      label: 'Nova senha',           show: 'new',     placeholder: 'Mínimo 8 caracteres' },
-                  { model: 'confirm_password',  label: 'Confirmar nova senha', show: 'confirm', placeholder: 'Repita a nova senha' },
-                ]" :key="field.model">
+                <div
+                  v-for="field in [
+                    { model: 'current_password', label: 'Senha atual',          show: 'current', placeholder: '••••••••'             },
+                    { model: 'new_password',      label: 'Nova senha',           show: 'new',     placeholder: 'Mínimo 8 caracteres'  },
+                    { model: 'confirm_password',  label: 'Confirmar nova senha', show: 'confirm', placeholder: 'Repita a nova senha'   },
+                  ]"
+                  :key="field.model"
+                >
                   <div>
                     <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">{{ field.label }}</label>
                     <div class="relative">
                       <input
-                        v-model="pwForm[field.model]"
-                        :type="showPw[field.show] ? 'text' : 'password'"
+                        v-model="pwForm[field.model as keyof typeof pwForm]"
+                        :type="showPw[field.show as keyof typeof showPw] ? 'text' : 'password'"
                         :placeholder="field.placeholder"
                         class="w-full h-11 px-4 pr-11 text-sm text-[#111] bg-[#f7f5f0] border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"
                         :class="pwErrors[field.model] ? 'border-red-400' : 'border-transparent'"
                       />
-                      <button class="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#bbb] hover:text-[#555] border-none bg-transparent cursor-pointer"
-                        @click="showPw[field.show] = !showPw[field.show]">
+                      <button
+                        type="button"
+                        class="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#bbb] hover:text-[#555] border-none bg-transparent cursor-pointer"
+                        @click="(showPw[field.show as keyof typeof showPw] as boolean) = !(showPw[field.show as keyof typeof showPw] as boolean)"
+                      >
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <template v-if="!showPw[field.show]"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></template>
-                          <template v-else><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></template>
+                          <template v-if="!showPw[field.show as keyof typeof showPw]">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                          </template>
+                          <template v-else>
+                            <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                          </template>
                         </svg>
                       </button>
                     </div>
+                    <!-- Password strength bar -->
                     <div v-if="field.model === 'new_password' && pwForm.new_password" class="mt-2 flex items-center gap-2">
                       <div class="flex gap-1 flex-1">
-                        <div v-for="i in 5" :key="i" class="h-1 flex-1 rounded-full transition-all duration-300"
-                          :style="{ background: i <= pwStrength ? pwStrengthColor : '#e8e4dc' }"></div>
+                        <div
+                          v-for="i in 5" :key="i"
+                          class="h-1 flex-1 rounded-full transition-all duration-300"
+                          :style="{ background: i <= pwStrength ? pwStrengthColor : '#e8e4dc' }"
+                        ></div>
                       </div>
                       <span class="text-[0.68rem] font-medium" :style="{ color: pwStrengthColor }">{{ pwStrengthLabel }}</span>
                     </div>
@@ -833,18 +1029,21 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                 Ao deletar sua conta, todos os seus dados, posts e comentários serão permanentemente removidos.
               </p>
               <button
-                class="flex items-center gap-2 text-[0.82rem] font-semibold px-5 py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 transition-colors cursor-pointer border-solid"
+                class="flex items-center gap-2 text-[0.82rem] font-semibold px-5 py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 transition-colors cursor-pointer"
                 @click="deleteModal = true"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14H6L5 6"/>
+                  <path d="M10 11v6"/><path d="M14 11v6"/>
+                  <path d="M9 6V4h6v2"/>
                 </svg>
                 Deletar minha conta
               </button>
             </div>
           </div>
 
-          <!-- ── Tab: Atividade ──────────────────────── -->
+          <!-- ── Tab: Atividade ─────────────────────────────────────────────── -->
           <div v-else-if="activeTab === 'activity'" class="flex flex-col gap-5">
 
             <!-- Stats -->
@@ -916,10 +1115,10 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                   </div>
 
                   <div class="flex-1 min-w-0">
-                    <p class="text-[0.85rem] font-semibold text-[#111] line-clamp-1"
-                      :class="post.approved ? 'group-hover:text-[#079272] transition-colors' : 'opacity-70'">
-                      {{ post.title }}
-                    </p>
+                    <p
+                      class="text-[0.85rem] font-semibold text-[#111] line-clamp-1"
+                      :class="post.approved ? 'group-hover:text-[#079272] transition-colors' : 'opacity-70'"
+                    >{{ post.title }}</p>
                     <p v-if="post.excerpt" class="text-[0.75rem] text-[#aaa] line-clamp-1 mt-0.5">{{ post.excerpt }}</p>
                     <div class="flex items-center gap-3 mt-1.5 text-[0.68rem] text-[#bbb] flex-wrap">
                       <span>{{ formatDate(post.created_at) }}</span>
@@ -931,14 +1130,17 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                         class="text-[0.62rem] font-semibold px-1.5 py-0.5 rounded-full"
                         :class="post.approved ? 'bg-[#e8f5f2] text-[#079272]' : 'bg-amber-50 text-amber-600'"
                       >{{ post.approved ? 'Publicado' : 'Em análise' }}</span>
-                      <span v-for="tag in (post.tags ?? []).slice(0, 2)" :key="tag"
-                        class="text-[0.6rem] px-1.5 py-0.5 bg-[#f7f5f0] text-[#999] rounded-full">#{{ tag }}</span>
+                      <span
+                        v-for="tag in (post.tags ?? []).slice(0, 2)" :key="tag"
+                        class="text-[0.6rem] px-1.5 py-0.5 bg-[#f7f5f0] text-[#999] rounded-full"
+                      >#{{ tag }}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
+            <!-- Comentários -->
             <div class="bg-white border border-[#e8e4dc] rounded-2xl p-6">
               <div class="flex items-center justify-between mb-5">
                 <h2 class="text-[0.88rem] font-bold text-[#111]">Meus comentários</h2>
@@ -953,10 +1155,10 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                 <div
                   v-for="comment in myComments" :key="comment.id"
                   class="py-3.5 flex items-start gap-3 group cursor-pointer"
-                  @click="router.push({ name: 'article', params: { slug: comment.id } })"
+                  @click="router.push({ name: 'article', params: { slug: comment.post_id } })"
                 >
                   <div class="flex-1 min-w-0">
-                    <p v-if="comment.message" class="text-[0.75rem] text-[#aaa] line-clamp-1 mt-0.5">{{ comment.message }}</p>
+                    <p v-if="comment.message" class="text-[0.8rem] text-[#444] line-clamp-2">{{ comment.message }}</p>
                     <div class="flex items-center gap-3 mt-1.5 text-[0.68rem] text-[#bbb] flex-wrap">
                       <span>{{ formatDate(comment.created_at) }}</span>
                       <span class="flex items-center gap-1">
@@ -965,10 +1167,12 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                       </span>
                     </div>
                   </div>
+                  <svg class="flex-shrink-0 text-[#ddd] group-hover:text-[#079272] transition-colors mt-1" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
                 </div>
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -982,8 +1186,8 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
 }
 @keyframes modalIn {
   from { opacity: 0; transform: scale(.95) translateY(8px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  to   { opacity: 1; transform: scale(1)   translateY(0);   }
 }
 .modal-enter-active, .modal-leave-active { transition: opacity .25s ease; }
-.modal-enter-from,  .modal-leave-to      { opacity: 0; }
+.modal-enter-from,   .modal-leave-to     { opacity: 0; }
 </style>
