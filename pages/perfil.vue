@@ -85,7 +85,6 @@ const savedPhone    = computed(() => currentUser.value?.phone ?? '')
 const isLinked      = computed(() => currentUser.value?.linked ?? false)
 const phoneUnsaved  = computed(() => phoneE164Form.value !== savedPhone.value)
 
-// 🆕 Validação de telefone: verifica se o E164 tem o comprimento mínimo esperado
 const phoneError = computed(() => {
   const e164 = phoneE164Form.value
   if (!e164) return null
@@ -108,12 +107,16 @@ watch(phoneCountry, (newCountry) => {
   phoneDisplay.value = maskDigits(digits, newCountry)
 })
 
-// ── Info form ─────────────────────────────────────────────────────────────────
+// ── Info form (with new fields) ──────────────────────────────────────────────
 const infoForm = ref({
   full_name: '', email: '', birthdate: '',
   public_title: '', bio: '', location: '',
   profile_picture_url: '',
   opportunities: false,
+  username: '',
+  organization: '',
+  instagram: '',
+  linkedin: '',
 })
 const originalInfo = ref<any>({})
 const infoErrors  = ref<Record<string, string>>({})
@@ -122,6 +125,29 @@ const infoSuccess = ref(false)
 const infoError   = ref<string | null>(null)
 const interestInput = ref('')
 const interests     = ref<string[]>([])
+
+// ── Social link normalisation ────────────────────────────────────────────────
+function normalizeInstagram(input: string): string {
+  if (!input) return ''
+  let url = input.trim()
+  if (url.startsWith('@')) url = url.slice(1)
+  if (url.includes('instagram.com')) {
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+    return url
+  }
+  return `https://instagram.com/${url.replace(/^@/, '')}`
+}
+
+function normalizeLinkedIn(input: string): string {
+  if (!input) return ''
+  let url = input.trim()
+  if (url.includes('linkedin.com')) {
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+    return url
+  }
+  const clean = url.replace(/^\/+/, '')
+  return `https://linkedin.com/in/${clean}`
+}
 
 function syncInfoForm(u: any) {
   if (!u) return
@@ -133,6 +159,10 @@ function syncInfoForm(u: any) {
   infoForm.value.location            = u.location            ?? ''
   infoForm.value.profile_picture_url = u.profile_picture_url ?? ''
   infoForm.value.opportunities       = u.opportunities       ?? false
+  infoForm.value.username            = u.username            ?? ''
+  infoForm.value.organization        = u.organization        ?? ''
+  infoForm.value.instagram           = u.instagram           ?? ''
+  infoForm.value.linkedin            = u.linkedin            ?? ''
   interests.value                    = u.interests ? [...u.interests] : []
 
   const parsed       = storedToDisplay(u.phone ?? '')
@@ -150,6 +180,10 @@ function syncInfoForm(u: any) {
     opportunities: infoForm.value.opportunities,
     interests: [...interests.value],
     phone: phoneE164Form.value,
+    username: infoForm.value.username,
+    organization: infoForm.value.organization,
+    instagram: infoForm.value.instagram,
+    linkedin: infoForm.value.linkedin,
   }
 }
 watch(currentUser, syncInfoForm, { immediate: true })
@@ -165,7 +199,7 @@ function removeInterest(tag: string) {
   interests.value = interests.value.filter(t => t !== tag)
 }
 
-// ── Validation (inclui telefone) ─────────────────────────────────────────────
+// ── Validation (inclui telefone, username, social links) ─────────────────────
 function validateInfo() {
   infoErrors.value = {}
   if (!infoForm.value.email.trim()) infoErrors.value.email = 'Email é obrigatório.'
@@ -173,7 +207,17 @@ function validateInfo() {
   if (infoForm.value.full_name.length > 255) infoErrors.value.full_name = 'Máximo 255 caracteres.'
   if (infoForm.value.bio.length > 500) infoErrors.value.bio = 'Máximo 500 caracteres.'
 
-  // 🆕 Validação do telefone
+  if (infoForm.value.username && !/^[a-zA-Z0-9_]{3,30}$/.test(infoForm.value.username)) {
+    infoErrors.value.username = 'Usuário deve ter 3-30 caracteres, apenas letras, números e underscore.'
+  }
+
+  if (infoForm.value.instagram && !/^https?:\/\/(www\.)?instagram\.com\/[^\/]+$/.test(normalizeInstagram(infoForm.value.instagram))) {
+    infoErrors.value.instagram = 'URL do Instagram inválida.'
+  }
+  if (infoForm.value.linkedin && !/^https?:\/\/(www\.)?linkedin\.com\/in\/[^\/]+$/.test(normalizeLinkedIn(infoForm.value.linkedin))) {
+    infoErrors.value.linkedin = 'URL do LinkedIn inválida.'
+  }
+
   if (phoneE164Form.value && phoneError.value) {
     infoErrors.value.phone = phoneError.value
   }
@@ -196,6 +240,10 @@ const infoChanged = computed(() => {
     opportunities: infoForm.value.opportunities,
     interests: [...interests.value].sort(),
     phone: phoneE164Form.value,
+    username: infoForm.value.username,
+    organization: infoForm.value.organization,
+    instagram: infoForm.value.instagram,
+    linkedin: infoForm.value.linkedin,
   }
   const original = {
     full_name: originalInfo.value.full_name ?? '',
@@ -208,12 +256,16 @@ const infoChanged = computed(() => {
     opportunities: originalInfo.value.opportunities ?? false,
     interests: [...(originalInfo.value.interests ?? [])].sort(),
     phone: originalInfo.value.phone ?? '',
+    username: originalInfo.value.username ?? '',
+    organization: originalInfo.value.organization ?? '',
+    instagram: originalInfo.value.instagram ?? '',
+    linkedin: originalInfo.value.linkedin ?? '',
   }
 
   return JSON.stringify(current) !== JSON.stringify(original)
 })
 
-// ── Save info ─────────────────────────────────────────────────────────────────
+// ── Save info (inclui novos campos) ──────────────────────────────────────────
 async function saveInfo() {
   if (!validateInfo()) return
   infoSaving.value = true; infoError.value = null; infoSuccess.value = false
@@ -229,6 +281,11 @@ async function saveInfo() {
   if (infoForm.value.location.trim())            payload.location            = infoForm.value.location.trim()
   if (infoForm.value.profile_picture_url.trim()) payload.profile_picture_url = infoForm.value.profile_picture_url.trim()
   if (phoneE164Form.value && !phoneError.value)  payload.phone               = phoneE164Form.value
+  if (infoForm.value.username.trim())            payload.username            = infoForm.value.username.trim()
+  if (infoForm.value.organization.trim())        payload.organization        = infoForm.value.organization.trim()
+  if (infoForm.value.instagram.trim())           payload.instagram           = normalizeInstagram(infoForm.value.instagram)
+  if (infoForm.value.linkedin.trim())            payload.linkedin            = normalizeLinkedIn(infoForm.value.linkedin)
+
   try {
     await patch('/users/me', payload)
     await fetchMe()
@@ -243,6 +300,10 @@ async function saveInfo() {
       opportunities: infoForm.value.opportunities,
       interests: [...interests.value],
       phone: phoneE164Form.value,
+      username: infoForm.value.username,
+      organization: infoForm.value.organization,
+      instagram: infoForm.value.instagram,
+      linkedin: infoForm.value.linkedin,
     }
     infoSuccess.value = true
     setTimeout(() => { infoSuccess.value = false }, 3000)
@@ -250,8 +311,8 @@ async function saveInfo() {
     if (e?.response?.status === 429) {
       infoError.value = 'Você fez muitas alterações em pouco tempo. Tente novamente em alguns minutos.'
     } else if (e?.response?.status === 409) {
-      infoError.value = 'Email ou número de telefone já em uso.'
-    } else if(e?.response?.status === 404) {
+      infoError.value = 'Email, usuário ou número de telefone já em uso.'
+    } else if (e?.response?.status === 404) {
       infoError.value = 'Número de telefone não existe ou não está cadastrado no WhatsApp.'
     } else {
       infoError.value = 'Erro ao salvar. Tente novamente.'
@@ -771,8 +832,43 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                 </div>
                 <!-- ── fim verificação ──────────────────────────────────── -->
 
-                <!-- Nascimento -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Nascimento + New fields -->
+                <div class="grid grid-cols-1 gap-4">
+                  <!-- Row 1: Username + Organization -->
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">Usuário</label>
+                      <input v-model="infoForm.username" type="text" placeholder="exemplo_usuario" maxlength="30"
+                        class="w-full h-11 px-4 text-sm text-[#111] bg-[#f7f5f0] border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"
+                        :class="infoErrors.username ? 'border-red-400' : 'border-transparent'"/>
+                      <p v-if="infoErrors.username" class="text-xs text-red-500 mt-1">{{ infoErrors.username }}</p>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">Organização / Instituição</label>
+                      <input v-model="infoForm.organization" type="text" placeholder="Ex: Universidade, Empresa" maxlength="255"
+                        class="w-full h-11 px-4 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"/>
+                    </div>
+                  </div>
+
+                  <!-- Row 2: Instagram + LinkedIn -->
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">Instagram</label>
+                      <input v-model="infoForm.instagram" type="text" placeholder="https://instagram.com/usuario ou @usuario"
+                        class="w-full h-11 px-4 text-sm text-[#111] bg-[#f7f5f0] border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"
+                        :class="infoErrors.instagram ? 'border-red-400' : 'border-transparent'"/>
+                      <p v-if="infoErrors.instagram" class="text-xs text-red-500 mt-1">{{ infoErrors.instagram }}</p>
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">LinkedIn</label>
+                      <input v-model="infoForm.linkedin" type="text" placeholder="https://linkedin.com/in/usuario ou usuario"
+                        class="w-full h-11 px-4 text-sm text-[#111] bg-[#f7f5f0] border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"
+                        :class="infoErrors.linkedin ? 'border-red-400' : 'border-transparent'"/>
+                      <p v-if="infoErrors.linkedin" class="text-xs text-red-500 mt-1">{{ infoErrors.linkedin }}</p>
+                    </div>
+                  </div>
+
+                  <!-- Row 3: Birthdate (single column) -->
                   <div>
                     <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">Data de nascimento</label>
                     <input v-model="infoForm.birthdate" type="date"
@@ -1043,9 +1139,8 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
               </div>
               <div v-else class="flex flex-col divide-y divide-[#f7f5f0]">
                 <div v-for="p in myPosts" :key="p.id"
-                  class="py-3.5 flex items-start gap-3 group"
-                  :class="p.approved ? 'cursor-pointer' : 'cursor-default'"
-                  @click="p.approved && p.slug && router.push(`/feed/${p.slug || p.id}`)">
+                  class="py-3.5 flex items-start gap-3 group cursor-pointer"
+                  @click="router.push(`/feed/${p.slug || p.id}`)">
                   <div v-if="p.cover_url" class="w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden border border-[#e8e4dc]">
                     <img :src="p.cover_url" :alt="p.title" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
                   </div>
@@ -1053,8 +1148,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                   </div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-[0.85rem] font-semibold text-[#111] line-clamp-1"
-                      :class="p.approved ? 'group-hover:text-[#079272] transition-colors' : 'opacity-70'">{{ p.title }}</p>
+                    <p class="text-[0.85rem] font-semibold text-[#111] line-clamp-1">{{ p.title }}</p>
                     <p v-if="p.excerpt" class="text-[0.75rem] text-[#aaa] line-clamp-1 mt-0.5">{{ p.excerpt }}</p>
                     <div class="flex items-center gap-3 mt-1.5 text-[0.68rem] text-[#bbb] flex-wrap">
                       <span>{{ formatDate(p.created_at) }}</span>
@@ -1083,7 +1177,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
               <div v-else class="flex flex-col divide-y divide-[#f7f5f0]">
                 <div v-for="c in myComments" :key="c.id"
                   class="py-3.5 flex items-start gap-3 group cursor-pointer"
-                  @click="router.push({ name: 'article', params: { slug: c.post_id } })">
+                  @click="router.push(`/feed/${c.post_slug || c.post_id}`)">
                   <div class="flex-1 min-w-0">
                     <p v-if="c.message" class="text-[0.8rem] text-[#444] line-clamp-2">{{ c.message }}</p>
                     <div class="flex items-center gap-3 mt-1.5 text-[0.68rem] text-[#bbb] flex-wrap">
