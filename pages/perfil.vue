@@ -141,6 +141,7 @@ const infoForm = ref({
   profile_picture_url: '',
   opportunities: false,
 })
+const originalInfo = ref<any>({})  // snapshot para detecção de mudanças
 const infoErrors  = ref<Record<string, string>>({})
 const infoSaving  = ref(false)
 const infoSuccess = ref(false)
@@ -163,6 +164,20 @@ function syncInfoForm(u: any) {
   const parsed       = storedToDisplay(u.phone ?? '')
   phoneCountry.value = parsed.country
   phoneDisplay.value = parsed.display
+
+  // Guarda snapshot dos dados originais
+  originalInfo.value = {
+    full_name: infoForm.value.full_name,
+    email: infoForm.value.email,
+    birthdate: infoForm.value.birthdate,
+    public_title: infoForm.value.public_title,
+    bio: infoForm.value.bio,
+    location: infoForm.value.location,
+    profile_picture_url: infoForm.value.profile_picture_url,
+    opportunities: infoForm.value.opportunities,
+    interests: [...interests.value],
+    phone: phoneE164Form.value,
+  }
 }
 watch(currentUser, syncInfoForm, { immediate: true })
 
@@ -187,26 +202,36 @@ function validateInfo() {
   return !Object.keys(infoErrors.value).length
 }
 
-// ── infoChanged ───────────────────────────────────────────────────────────────
+// ── infoChanged (comparação com snapshot original) ────────────────────────────
 const infoChanged = computed(() => {
-  const u = currentUser.value
-  if (!u) return false
-  const bdOrig = u.birthdate ? new Date(u.birthdate).toISOString().split('T')[0] : ''
-  const interestsChanged =
-    JSON.stringify(interests.value.slice().sort()) !==
-    JSON.stringify((u.interests ?? []).slice().sort())
-  return (
-    infoForm.value.full_name           !== (u.full_name           ?? '') ||
-    infoForm.value.email               !== (u.email               ?? '') ||
-    infoForm.value.birthdate           !== bdOrig                        ||
-    infoForm.value.public_title        !== (u.public_title        ?? '') ||
-    infoForm.value.bio                 !== (u.bio                 ?? '') ||
-    infoForm.value.location            !== (u.location            ?? '') ||
-    infoForm.value.profile_picture_url !== (u.profile_picture_url ?? '') ||
-    infoForm.value.opportunities       !== (u.opportunities       ?? false) ||
-    phoneUnsaved.value                                                   ||
-    interestsChanged
-  )
+  if (!currentUser.value) return false
+
+  const current = {
+    full_name: infoForm.value.full_name,
+    email: infoForm.value.email,
+    birthdate: infoForm.value.birthdate,
+    public_title: infoForm.value.public_title,
+    bio: infoForm.value.bio,
+    location: infoForm.value.location,
+    profile_picture_url: infoForm.value.profile_picture_url,
+    opportunities: infoForm.value.opportunities,
+    interests: [...interests.value].sort(),
+    phone: phoneE164Form.value,
+  }
+  const original = {
+    full_name: originalInfo.value.full_name ?? '',
+    email: originalInfo.value.email ?? '',
+    birthdate: originalInfo.value.birthdate ?? '',
+    public_title: originalInfo.value.public_title ?? '',
+    bio: originalInfo.value.bio ?? '',
+    location: originalInfo.value.location ?? '',
+    profile_picture_url: originalInfo.value.profile_picture_url ?? '',
+    opportunities: originalInfo.value.opportunities ?? false,
+    interests: [...(originalInfo.value.interests ?? [])].sort(),
+    phone: originalInfo.value.phone ?? '',
+  }
+
+  return JSON.stringify(current) !== JSON.stringify(original)
 })
 
 // ── Save info ─────────────────────────────────────────────────────────────────
@@ -228,6 +253,19 @@ async function saveInfo() {
   try {
     await patch('/users/me', payload)
     await fetchMe()
+    // Atualiza snapshot após salvar com sucesso
+    originalInfo.value = {
+      full_name: infoForm.value.full_name,
+      email: infoForm.value.email,
+      birthdate: infoForm.value.birthdate,
+      public_title: infoForm.value.public_title,
+      bio: infoForm.value.bio,
+      location: infoForm.value.location,
+      profile_picture_url: infoForm.value.profile_picture_url,
+      opportunities: infoForm.value.opportunities,
+      interests: [...interests.value],
+      phone: phoneE164Form.value,
+    }
     infoSuccess.value = true
     setTimeout(() => { infoSuccess.value = false }, 3000)
   } catch (e: any) {
@@ -236,6 +274,31 @@ async function saveInfo() {
     infoSaving.value = false
   }
 }
+
+// ── Auto-save do toggle de newsletter ─────────────────────────────────────────
+let updatingOpportunities = false
+watch(() => infoForm.value.opportunities, async (newVal, oldVal) => {
+  if (updatingOpportunities) return
+  if (newVal === oldVal) return
+  if (!currentUser.value) return
+
+  updatingOpportunities = true
+  try {
+    await patch('/users/me', { opportunities: newVal })
+    await fetchMe()
+    // Atualiza o snapshot para que o botão principal não fique ativo
+    originalInfo.value.opportunities = newVal
+    infoSuccess.value = true
+    setTimeout(() => { infoSuccess.value = false }, 2000)
+  } catch {
+    // Reverte visualmente o toggle em caso de erro
+    infoForm.value.opportunities = oldVal
+    infoError.value = 'Erro ao salvar preferência de newsletter.'
+    setTimeout(() => { infoError.value = null }, 3000)
+  } finally {
+    updatingOpportunities = false
+  }
+})
 
 // ── WhatsApp verification ─────────────────────────────────────────────────────
 const verifying        = ref(false)
