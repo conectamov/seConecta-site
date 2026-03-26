@@ -1045,7 +1045,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                 <div v-for="p in myPosts" :key="p.id"
                   class="py-3.5 flex items-start gap-3 group"
                   :class="p.approved ? 'cursor-pointer' : 'cursor-default'"
-                  @click="p.approved && p.slug && router.push(`/article/${p.slug || p.id}`)">
+                  @click="p.approved && p.slug && router.push(`/feed/${p.slug || p.id}`)">
                   <div v-if="p.cover_url" class="w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden border border-[#e8e4dc]">
                     <img :src="p.cover_url" :alt="p.title" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
                   </div>
