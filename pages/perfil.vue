@@ -269,7 +269,13 @@ async function saveInfo() {
     infoSuccess.value = true
     setTimeout(() => { infoSuccess.value = false }, 3000)
   } catch (e: any) {
-    infoError.value = e?.response?.status === 409 ? 'Email já em uso.' : 'Erro ao salvar. Tente novamente.'
+    if (e?.response?.status === 429) {
+      infoError.value = 'Você fez muitas alterações em pouco tempo. Tente novamente em alguns minutos.'
+    } else if (e?.response?.status === 409) {
+      infoError.value = 'Email ou número de telefone já em uso.'
+    } else {
+      infoError.value = 'Erro ao salvar. Tente novamente.'
+    }
   } finally {
     infoSaving.value = false
   }
