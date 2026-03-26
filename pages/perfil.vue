@@ -10,43 +10,31 @@ const activeTab = ref('info')
 
 // ── Country definitions ───────────────────────────────────────────────────────
 const COUNTRIES = [
-  { code: 'BR', flag: '🇧🇷', dial: '55',  placeholder: '(38) 98825-2013' },
-  { code: 'US', flag: '🇺🇸', dial: '1',   placeholder: '(555) 867-5309'  },
-  { code: 'PT', flag: '🇵🇹', dial: '351', placeholder: '912 345 678'     },
-  { code: 'AR', flag: '🇦🇷', dial: '54',  placeholder: '(11) 2345-6789'  },
-  { code: 'MX', flag: '🇲🇽', dial: '52',  placeholder: '(55) 1234-5678'  },
-  { code: 'CO', flag: '🇨🇴', dial: '57',  placeholder: '(300) 123-4567'  },
+  { code: 'BR', flag: '🇧🇷', dial: '55',  placeholder: '(38) 98825-2013', minDigits: 12 },
+  { code: 'US', flag: '🇺🇸', dial: '1',   placeholder: '(555) 867-5309',  minDigits: 11 },
+  { code: 'PT', flag: '🇵🇹', dial: '351', placeholder: '912 345 678',     minDigits: 12 },
+  { code: 'AR', flag: '🇦🇷', dial: '54',  placeholder: '(11) 2345-6789',  minDigits: 12 },
+  { code: 'MX', flag: '🇲🇽', dial: '52',  placeholder: '(55) 1234-5678',  minDigits: 12 },
+  { code: 'CO', flag: '🇨🇴', dial: '57',  placeholder: '(300) 123-4567',  minDigits: 12 },
 ]
 
 const phoneCountry    = ref('BR')
-const phoneDisplay    = ref('')  // e.g. "(38) 98825-2013"
-
+const phoneDisplay    = ref('')
 const selectedCountry = computed(() => COUNTRIES.find(c => c.code === phoneCountry.value) ?? COUNTRIES[0])
 
-// ─────────────────────────────────────────────────────────────────────────────
-// maskDigits: raw local digits (no country code) → formatted display string.
-//
-// BR progressive masking:
-//   typing 3  → "(38) "        (DDD complete on 2nd digit, space added)
-//   typing 6  → "(38) 9882"
-//   typing 10 → "(38) 8825-2013"   (8 local digits — landline format)
-//   typing 11 → "(38) 98825-2013"  (9 local digits — mobile with nono dígito)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Máscaras e conversão (mesmo código original) ─────────────────────────────
 function maskDigits(digits: string, country: string): string {
   const d = digits.replace(/\D/g, '')
   if (!d) return ''
-
   if (country === 'BR') {
     if (d.length <= 2) return `(${d}`
     const area  = d.slice(0, 2)
     const local = d.slice(2)
     if (!local) return `(${area}) `
-    // 9 local digits = mobile (nono dígito); split 5+4. Otherwise 4+4.
     const split = local.length >= 9 ? 5 : 4
     if (local.length <= split) return `(${area}) ${local}`
     return `(${area}) ${local.slice(0, split)}-${local.slice(split, split + 4)}`
   }
-
   if (country === 'US') {
     if (d.length <= 3) return `(${d}`
     const area = d.slice(0, 3)
@@ -55,25 +43,13 @@ function maskDigits(digits: string, country: string): string {
     if (rest.length <= 3) return `(${area}) ${rest}`
     return `(${area}) ${rest.slice(0, 3)}-${rest.slice(3, 7)}`
   }
-
-  // Generic: just digits
   return d
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// buildE164: display string + country → E.164 digits stored in DB (no +).
-//
-// BR "NONO DÍGITO" NORMALIZATION:
-//   Brazilian mobile numbers gained a leading 9 (~2012) → 9 local digits.
-//   Older WAHA/bot integrations match against the 8-digit form.
-//   Rule: if BR AND local digits = 9 AND starts with '9' → strip that leading 9.
-//   Example: user types "(38) 98825-2013" → stored as "553888252013" (8 local).
-// ─────────────────────────────────────────────────────────────────────────────
 function buildE164(): string {
   const c      = selectedCountry.value
   const digits = phoneDisplay.value.replace(/\D/g, '')
   if (!digits) return ''
-
   if (c.code === 'BR') {
     const area  = digits.slice(0, 2)
     let   local = digits.slice(2)
@@ -81,19 +57,12 @@ function buildE164(): string {
     if (!local) return ''
     return `${c.dial}${area}${local}`
   }
-
   return `${c.dial}${digits}`
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// storedToDisplay: E.164 string from DB → { country, display }.
-// Because we strip the 9 on save, stored BR mobiles have 8 local digits;
-// they display as "(38) 8825-2013" without the leading 9.
-// ─────────────────────────────────────────────────────────────────────────────
 function storedToDisplay(raw: string): { country: string; display: string } {
   if (!raw) return { country: 'BR', display: '' }
   const digits = raw.replace(/\D/g, '')
-  // Sort longest dial first so '351' matches before '1' etc.
   const sorted = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length)
   for (const c of sorted) {
     if (digits.startsWith(c.dial)) {
@@ -104,10 +73,6 @@ function storedToDisplay(raw: string): { country: string; display: string } {
   return { country: 'BR', display: maskDigits(digits.slice(2), 'BR') }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// willStripNine: true while user is typing a 9-digit BR mobile.
-// Shows a subtle note so the disappearing 9 doesn't surprise them.
-// ─────────────────────────────────────────────────────────────────────────────
 const willStripNine = computed(() => {
   if (phoneCountry.value !== 'BR') return false
   const d     = phoneDisplay.value.replace(/\D/g, '')
@@ -120,15 +85,24 @@ const savedPhone    = computed(() => currentUser.value?.phone ?? '')
 const isLinked      = computed(() => currentUser.value?.linked ?? false)
 const phoneUnsaved  = computed(() => phoneE164Form.value !== savedPhone.value)
 
+// 🆕 Validação de telefone: verifica se o E164 tem o comprimento mínimo esperado
+const phoneError = computed(() => {
+  const e164 = phoneE164Form.value
+  if (!e164) return null
+  const expected = selectedCountry.value.minDigits
+  if (e164.length !== expected) {
+    return `Número incompleto. Deve ter ${expected - selectedCountry.value.dial.length} dígitos após o código do país.`
+  }
+  return null
+})
+
 function onPhoneInput(e: Event) {
   const raw    = (e.target as HTMLInputElement).value
   const digits = raw.replace(/\D/g, '')
-  // Cap: BR max 11 digits (2 area + 9 local), others 13
   const max = phoneCountry.value === 'BR' ? 11 : 13
   phoneDisplay.value = maskDigits(digits.slice(0, max), phoneCountry.value)
 }
 
-// Re-mask when country changes (keep digits, apply new format)
 watch(phoneCountry, (newCountry) => {
   const digits = phoneDisplay.value.replace(/\D/g, '')
   phoneDisplay.value = maskDigits(digits, newCountry)
@@ -141,7 +115,7 @@ const infoForm = ref({
   profile_picture_url: '',
   opportunities: false,
 })
-const originalInfo = ref<any>({})  // snapshot para detecção de mudanças
+const originalInfo = ref<any>({})
 const infoErrors  = ref<Record<string, string>>({})
 const infoSaving  = ref(false)
 const infoSuccess = ref(false)
@@ -165,7 +139,6 @@ function syncInfoForm(u: any) {
   phoneCountry.value = parsed.country
   phoneDisplay.value = parsed.display
 
-  // Guarda snapshot dos dados originais
   originalInfo.value = {
     full_name: infoForm.value.full_name,
     email: infoForm.value.email,
@@ -192,13 +165,19 @@ function removeInterest(tag: string) {
   interests.value = interests.value.filter(t => t !== tag)
 }
 
-// ── Validation ────────────────────────────────────────────────────────────────
+// ── Validation (inclui telefone) ─────────────────────────────────────────────
 function validateInfo() {
   infoErrors.value = {}
   if (!infoForm.value.email.trim()) infoErrors.value.email = 'Email é obrigatório.'
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(infoForm.value.email)) infoErrors.value.email = 'Email inválido.'
   if (infoForm.value.full_name.length > 255) infoErrors.value.full_name = 'Máximo 255 caracteres.'
   if (infoForm.value.bio.length > 500) infoErrors.value.bio = 'Máximo 500 caracteres.'
+
+  // 🆕 Validação do telefone
+  if (phoneE164Form.value && phoneError.value) {
+    infoErrors.value.phone = phoneError.value
+  }
+
   return !Object.keys(infoErrors.value).length
 }
 
@@ -249,11 +228,10 @@ async function saveInfo() {
   if (infoForm.value.bio.trim())                 payload.bio                 = infoForm.value.bio.trim()
   if (infoForm.value.location.trim())            payload.location            = infoForm.value.location.trim()
   if (infoForm.value.profile_picture_url.trim()) payload.profile_picture_url = infoForm.value.profile_picture_url.trim()
-  if (phoneE164Form.value)                       payload.phone               = phoneE164Form.value
+  if (phoneE164Form.value && !phoneError.value)  payload.phone               = phoneE164Form.value
   try {
     await patch('/users/me', payload)
     await fetchMe()
-    // Atualiza snapshot após salvar com sucesso
     originalInfo.value = {
       full_name: infoForm.value.full_name,
       email: infoForm.value.email,
@@ -281,7 +259,7 @@ async function saveInfo() {
   }
 }
 
-// ── Auto-save do toggle de newsletter ─────────────────────────────────────────
+// ── Auto-save do toggle de newsletter (idêntico ao original) ─────────────────
 let updatingOpportunities = false
 watch(() => infoForm.value.opportunities, async (newVal, oldVal) => {
   if (updatingOpportunities) return
@@ -292,12 +270,10 @@ watch(() => infoForm.value.opportunities, async (newVal, oldVal) => {
   try {
     await patch('/users/me', { opportunities: newVal })
     await fetchMe()
-    // Atualiza o snapshot para que o botão principal não fique ativo
     originalInfo.value.opportunities = newVal
     infoSuccess.value = true
     setTimeout(() => { infoSuccess.value = false }, 2000)
   } catch {
-    // Reverte visualmente o toggle em caso de erro
     infoForm.value.opportunities = oldVal
     infoError.value = 'Erro ao salvar preferência de newsletter.'
     setTimeout(() => { infoError.value = null }, 3000)
@@ -306,7 +282,7 @@ watch(() => infoForm.value.opportunities, async (newVal, oldVal) => {
   }
 })
 
-// ── WhatsApp verification ─────────────────────────────────────────────────────
+// ── WhatsApp verification (idêntico ao original) ─────────────────────────────
 const verifying        = ref(false)
 const verifySuccess    = ref(false)
 const verifyError      = ref<string | null>(null)
@@ -679,7 +655,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                       class="w-full h-11 px-4 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"/>
                   </div>
 
-                  <div>
+                  <div class="overflow-hidden break-words">
                     <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">
                       Telefone (WhatsApp)
                       <span v-if="savedPhone && isLinked"
@@ -703,20 +679,19 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                       />
                     </div>
 
-                    <!--
-                      9-stripping notice: visible only while the user has typed a full
-                      9-digit BR mobile (starts with 9). Explains that the leading 9 will
-                      be removed before saving, matching what the bot expects.
-                    -->
+                    <!-- 9-stripping notice -->
                     <p v-if="willStripNine" class="text-[0.68rem] text-[#999] mt-1.5 flex items-center gap-1">
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                       O 9 inicial será removido ao salvar — formato esperado pelo bot.
                     </p>
+
+                    <!-- Exibição do erro de telefone -->
+                    <p v-if="phoneError" class="text-red-500 text-xs mt-1">{{ phoneError }}</p>
                   </div>
                 </div>
 
-                <!-- ── Bloco de verificação WhatsApp ──────────────────────── -->
-                <div>
+                <!-- ── Bloco de verificação WhatsApp ──────────────────────────────────────── -->
+                <div class="clear-both mt-4">
                   <!-- Caso 1: nenhum número em lugar algum -->
                   <div v-if="!savedPhone && !phoneE164Form"
                     class="flex items-start gap-3 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl px-4 py-3.5">
