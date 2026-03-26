@@ -22,7 +22,7 @@ const teamAdmin = [
     skills: ['FastAPI', 'Vue 3', 'PostgreSQL'], colorA: '#079272', colorB: '#0DA790',
   },
   {
-    id: 3, name: 'Jhenifer', role: 'Diretora de Mídia e Embaixadores',
+    id: 3, name: 'Jhenifer Mendes', role: 'Diretora de Mídia e Embaixadores',
     description: 'À frente de toda a comunicação visual e do programa de embaixadores. Conecta a identidade do SeConecta com estudantes em todo o Brasil através de design e conteúdo.',
     skills: ['Design', 'Mídias Sociais', 'Branding'], colorA: '#F59E0B', colorB: '#D97706',
   },
