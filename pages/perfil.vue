@@ -251,6 +251,8 @@ async function saveInfo() {
       infoError.value = 'Você fez muitas alterações em pouco tempo. Tente novamente em alguns minutos.'
     } else if (e?.response?.status === 409) {
       infoError.value = 'Email ou número de telefone já em uso.'
+    } else if(e?.response?.status === 404) {
+      infoError.value = 'Número de telefone não existe ou não está cadastrado no WhatsApp.'
     } else {
       infoError.value = 'Erro ao salvar. Tente novamente.'
     }
