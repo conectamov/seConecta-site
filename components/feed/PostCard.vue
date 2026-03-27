@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { useAxios } from '@/composables/useAxios'
+
 const props = defineProps<{ post: any; index: number }>()
 const emit = defineEmits<{ read: [post: any] }>()
 
 const { getUser, displayName, displayInitial } = useUserCache()
+const { post: apiPost, del } = useAxios()
 
-const liked = ref(false)
+const liked = ref(props.post.liked ?? false)
 const likeCount = ref(props.post.likes_count ?? 0)
 const saved = ref(false)
 const postAuthor = ref<any>(null)
@@ -13,10 +16,24 @@ onMounted(async () => {
   if (props.post.author_id) postAuthor.value = await getUser(props.post.author_id)
 })
 
-function toggleLike(e: Event) {
+async function toggleLike(e: Event) {
   e.stopPropagation()
-  liked.value = !liked.value
-  likeCount.value += liked.value ? 1 : -1
+  if (!props.post.id) return
+
+  try {
+    if (liked.value) {
+      await del(`/posts/${props.post.id}/like`)
+      liked.value = false
+      likeCount.value--
+    } else {
+      await apiPost(`/posts/${props.post.id}/like`, {})
+      liked.value = true
+      likeCount.value++
+    }
+  } catch (error) {
+    console.error('Erro ao curtir/descurtir:', error)
+    // Opcional: mostrar toast de erro
+  }
 }
 
 const formattedDate = computed(() => {
@@ -88,6 +105,7 @@ const visibleTags = computed(() => (props.post.tags ?? []).slice(0, 4))
     </div>
   </article>
 </template>
+
 <style scoped>
 @keyframes cardIn { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
 </style>

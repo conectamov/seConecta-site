@@ -83,6 +83,7 @@ async function fetchPost() {
     const res       = await get(`/posts/slug/${route.params.slug}`)
     post.value      = res.data
     likeCount.value = res.data.likes_count ?? 0
+    liked.value = res.data.liked ?? false
     if (res.data.author_id) postAuthor.value = await getUser(res.data.author_id)
     await fetchComments(true)
   } catch (e: any) {
@@ -223,6 +224,29 @@ async function approvePost(targetPost: any) {
   } finally { approving.value = false }
 }
 
+async function likePost() {
+  if (!post.value?.id) return
+  try {
+    await apiPost(`/posts/${post.value.id}/like`, {})
+    liked.value = true
+    likeCount.value++
+  } catch (e) {
+    console.error('Erro ao curtir:', e)
+  }
+}
+
+// Descurtir post
+async function unlikePost() {
+  if (!post.value?.id) return
+  try {
+    await del(`/posts/${post.value.id}/like`)
+    liked.value = false
+    likeCount.value--
+  } catch (e) {
+    console.error('Erro ao descurtir:', e)
+  }
+}
+
 watch(() => route.params.slug, fetchPost)
 onMounted(fetchPost)
 </script>
@@ -338,7 +362,7 @@ onMounted(fetchPost)
             <div class="text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#bbb] mb-1">Ações</div>
             <button class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#fff0f0] hover:text-[#e53e3e]"
               :class="{ '!bg-[#fff0f0] !text-[#e53e3e]': liked }"
-              @click="liked = !liked; likeCount += liked ? 1 : -1">
+              @click="liked ? unlikePost() : likePost()">
               <svg width="14" height="14" viewBox="0 0 24 24" :fill="liked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               {{ liked ? 'Curtido' : 'Curtir' }}
             </button>
