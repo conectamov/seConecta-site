@@ -33,6 +33,7 @@ const newMsg          = ref('')
 const submitting      = ref(false)
 const approving       = ref(false)
 
+
 const formattedDate = computed(() => {
   if (!post.value?.created_at) return ''
   return new Date(post.value.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -41,7 +42,16 @@ const readTime = computed(() => {
   const words = (post.value?.content_md || '').trim().split(/\s+/).filter(Boolean).length
   return `${Math.max(1, Math.ceil(words / 200))} min`
 })
-const isMyPost = computed(() => currentUser.value && post.value?.author_id === currentUser.value.id)
+const isMyPost = computed(() => {
+  if (!currentUser.value || !post.value) return false
+  return String(post.value.author_id) === String(currentUser.value.id)
+})
+
+const canEdit = computed(() => {
+  if (!currentUser.value) return false
+  return isMyPost.value || currentUser.value.is_superuser
+})
+
 const isManager = computed(() => currentUser.value?.is_manager || currentUser.value?.is_superuser)
 const authorDisplayName = computed(() => {
   if (isMyPost.value) return currentUser.value?.full_name || currentUser.value?.username || 'Você'
@@ -302,6 +312,14 @@ onMounted(fetchPost)
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>{{ commentsCount }}
               </span>
             </div>
+            <NuxtLink v-if="canEdit" :to="`/edit/${route.params.slug}`"
+                class="flex items-center gap-1.5 text-[0.78rem] font-semibold px-3 py-1.5 rounded-lg border border-white/20 text-white/70 hover:bg-white/10 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/>
+                  <polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/>
+                </svg>
+                Editar
+              </NuxtLink>
           </div>
         </div>
       </header>
