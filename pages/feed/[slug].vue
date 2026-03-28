@@ -54,9 +54,9 @@ const canEdit = computed(() => {
 
 const authorProfileUrl = computed(() => {
   if (isMyPost.value) {
-    return currentUser.value?.user_profile_url || null
+    return currentUser.value?.profile_picture_url || null
   }
-  return postAuthor.value?.user_profile_url || null
+  return postAuthor.value?.profile_picture_url || null
 })
 
 const isManager = computed(() => currentUser.value?.is_manager || currentUser.value?.is_superuser)
