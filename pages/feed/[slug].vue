@@ -52,6 +52,13 @@ const canEdit = computed(() => {
   return isMyPost.value || currentUser.value.is_superuser
 })
 
+const authorProfileUrl = computed(() => {
+  if (isMyPost.value) {
+    return currentUser.value?.user_profile_url || null
+  }
+  return postAuthor.value?.user_profile_url || null
+})
+
 const isManager = computed(() => currentUser.value?.is_manager || currentUser.value?.is_superuser)
 const authorDisplayName = computed(() => {
   if (isMyPost.value) return currentUser.value?.full_name || currentUser.value?.username || 'Você'
@@ -322,7 +329,15 @@ onMounted(fetchPost)
 
           <div class="flex items-center justify-between bg-white/5 border border-white/[0.08] rounded-t-xl p-4 md:p-5">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-sm font-bold">{{ authorDisplayInitial }}</div>
+              <div class="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-sm font-bold">
+                <img
+                  v-if="authorProfileUrl"
+                  :src="authorProfileUrl"
+                  :alt="authorDisplayName"
+                  class="w-full h-full object-cover"
+                />
+                <span v-else>{{ authorDisplayInitial }}</span>
+              </div>
               <div>
                 <div class="text-[0.88rem] font-semibold text-white">{{ authorDisplayName }}</div>
                 <div v-if="postAuthor?.username || (isMyPost && currentUser?.username)" class="text-[0.72rem] text-white/35">@{{ postAuthor?.username || currentUser?.username }}</div>
