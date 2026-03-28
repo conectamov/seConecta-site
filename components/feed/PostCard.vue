@@ -12,6 +12,19 @@ const likeCount = ref(props.post.likes_count ?? 0)
 const saved = ref(false)
 const postAuthor = ref<any>(null)
 
+const { currentUser } = useAuth()
+
+const isMyPost = computed(() => {
+  return currentUser.value?.id === props.post.author_id
+})
+
+const authorProfileUrl = computed(() => {
+  if (isMyPost.value) {
+    return currentUser.value?.profile_picture_url || null
+  }
+  return postAuthor.value?.profile_picture_url || null
+})
+
 onMounted(async () => {
   if (props.post.author_id) postAuthor.value = await getUser(props.post.author_id)
 })
@@ -59,7 +72,19 @@ const visibleTags = computed(() => (props.post.tags ?? []).slice(0, 4))
   >
     <div class="p-7 md:p-8 flex flex-col">
       <div class="flex items-center gap-3 mb-4 flex-wrap">
-        <div class="w-7 h-7 flex-shrink-0 rounded-full bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-[0.6rem] font-bold">{{ authorInitial }}</div>
+      <div class="w-7 h-7 flex-shrink-0 rounded-full overflow-hidden">
+        <img
+          v-if="authorProfileUrl"
+          :src="authorProfileUrl"
+          class="w-full h-full object-cover"
+        />
+        <div
+          v-else
+          class="w-full h-full bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-[0.6rem] font-bold"
+        >
+          {{ authorInitial }}
+        </div>
+      </div>
         <div class="flex items-center gap-2 text-[0.7rem] text-[#bbb] flex-wrap">
           <span class="text-[0.75rem] font-medium text-[#555]">{{ authorName }}</span>
           <span class="text-[#e8e4dc]">·</span>
