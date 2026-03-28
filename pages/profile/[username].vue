@@ -235,44 +235,56 @@
 </template>
 
 <script setup lang="ts">
-import type { UserPublicProfile, Post } from '~/types' // define your types
-
-definePageMeta({
-  layout: 'default', // or whatever layout you use
-})
+import type { UserPublicProfile, Post } from '~/types'
+import { useAxios } from '~/composables/useAxios' // adjust path if needed
 
 const route = useRoute()
 const username = computed(() => route.params.username as string)
 
-// Fetch user data using the username endpoint
-const {
-  data: user,
-  pending,
-  error,
-  refresh,
-} = useFetch<UserPublicProfile>(`/api/v1/users/username/${username.value}`, {
-  key: `user-username-${username.value}`,
-  immediate: true,
-  watch: [username],
-})
+// Use useAsyncData with useAxios for user profile
+const { data: user, pending: userPending, error: userError, refresh: refreshUser } = await useAsyncData(
+  `user-${username.value}`,
+  async () => {
+    const { get } = useAxios()
+    const response = await get(`/users/username/${username.value}`)
+    return response.data // adjust based on your API response structure
+  },
+  {
+    watch: [username],
+    immediate: true,
+  }
+)
 
-// Fetch user's approved posts (assuming endpoint: /api/v1/posts?user_id=...&approved=true)
-// We need the user id after we get the user, so we use a separate fetch that runs after user is loaded.
+// Extract user ID for posts
 const userId = computed(() => user.value?.id)
-const {
-  data: postsData,
-  pending: postsPending,
-  error: postsError,
-} = useFetch<{ data: Post[] }>(() => userId.value ? `/api/v1/posts` : null, {
-  query: { user_id: userId.value, approved: true },
-  key: `user-posts-${userId.value}`,
-  immediate: true,
-  watch: [userId],
+
+// Fetch posts only when userId is available
+const { data: postsData, pending: postsPending, error: postsError } = await useAsyncData(
+  `user-posts-${userId.value}`,
+  async () => {
+    if (!userId.value) return null
+    const { get } = useAxios()
+    const response = await get('/posts', {
+      params: { user_id: userId.value, approved: true },
+    })
+    return response.data // adjust based on your API response structure
+  },
+  {
+    watch: [userId],
+    immediate: true,
+  }
+)
+
+// Derive posts array (adjust if your API returns { data: [...] })
+const posts = computed(() => {
+  if (!postsData.value) return []
+  // If API returns an array directly:
+  return postsData.value
+  // If API returns { data: [...] }:
+  // return postsData.value.data || []
 })
 
-const posts = computed(() => postsData.value?.data ?? [])
-
-// Helper: user initial for avatar fallback
+// User initial for avatar fallback
 const userInitial = computed(() => {
   if (user.value?.full_name) return user.value.full_name.charAt(0).toUpperCase()
   if (user.value?.username) return user.value.username.charAt(0).toUpperCase()
