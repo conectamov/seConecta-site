@@ -64,6 +64,13 @@ const timeAgo = computed(() => {
   return new Date(props.comment.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 })
 
+const authorProfileUrl = computed(() => {
+  if (isMyComment.value) {
+    return props.currentUser?.profile_picture_url || null
+  }
+  return commentAuthor.value?.profile_picture_url || null
+})
+
 function handleStartReply() {
   if ((props.level ?? 0) < 5) { localReplyingTo.value = props.comment.id; emit('start-reply', props.comment.id) }
 }
@@ -95,10 +102,21 @@ function handleReplyInput(e: Event) { emit('update:reply-msg', (e.target as HTML
 <template>
   <div :class="['comment-item', { 'reply': (level ?? 0) > 0 }]">
     <div class="flex items-start gap-3">
+    <div class="w-9 h-9 flex-shrink-0 rounded-full overflow-hidden">
+      <img
+        v-if="authorProfileUrl"
+        :src="authorProfileUrl"
+        alt="Avatar do autor"
+        class="w-full h-full object-cover"
+      />
       <div
-        class="w-9 h-9 flex-shrink-0 rounded-full bg-gradient-to-br flex items-center justify-center text-white text-xs font-bold"
+        v-else
+        class="w-full h-full bg-gradient-to-br flex items-center justify-center text-white text-xs font-bold"
         :class="isMyComment ? 'from-[#079272] to-[#2464E8]' : 'from-[#555] to-[#888]'"
-      >{{ userInitial }}</div>
+      >
+        {{ userInitial }}
+      </div>
+    </div>
 
       <div class="flex-1 min-w-0">
         <div class="flex items-baseline gap-2 mb-1.5 flex-wrap">
