@@ -11,7 +11,7 @@ const post        = ref<any>(null)
 const postAuthor  = ref<any>(null)
 const loadingPost = ref(true)
 const errorPost   = ref<string | null>(null)
-const liked       = ref(false)
+const liked = ref(props.post.liked_by_me ?? false)
 const likeCount   = ref(0)
 const saved       = ref(false)
 

@@ -16,8 +16,8 @@ const matches = [
   { init: 'C', color: '#F59E0B' },
 ]
 const stats = [
-  { value: '+44', label: 'Estudantes ativos' },
-  { value: '12', label: 'Estados alcançados' },
+  { value: '+52', label: 'Estudantes ativos' },
+  { value: '17', label: 'Estados alcançados' },
 ]
 </script>
 

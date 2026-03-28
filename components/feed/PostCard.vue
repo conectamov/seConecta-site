@@ -7,7 +7,7 @@ const emit = defineEmits<{ read: [post: any] }>()
 const { getUser, displayName, displayInitial } = useUserCache()
 const { post: apiPost, del } = useAxios()
 
-const liked = ref(props.post.liked ?? false)
+const liked = ref(props.post.liked_by_me ?? false)
 const likeCount = ref(props.post.likes_count ?? 0)
 const saved = ref(false)
 const postAuthor = ref<any>(null)
