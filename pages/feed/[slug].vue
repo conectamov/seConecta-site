@@ -360,17 +360,40 @@ onMounted(fetchPost)
         <aside class="pt-12 sticky top-20 hidden md:flex flex-col gap-4">
           <div class="bg-white border border-[#e8e4dc] rounded-xl p-5 flex flex-col gap-2">
             <div class="text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#bbb] mb-1">Ações</div>
-            <button class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#fff0f0] hover:text-[#e53e3e]"
+
+            <button
+              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#fff0f0] hover:text-[#e53e3e]"
               :class="{ '!bg-[#fff0f0] !text-[#e53e3e]': liked }"
-              @click="liked ? unlikePost() : likePost()"> 
-              <svg width="14" height="14" viewBox="0 0 24 24" :fill="liked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              @click="liked ? unlikePost() : likePost()"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" :fill="liked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
               {{ liked ? 'Curtido' : 'Curtir' }}
             </button>
-            <button class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#e8f5f2] hover:text-[#079272]"
-              :class="{ '!bg-[#e8f5f2] !text-[#079272]': saved }" @click="saved = !saved">
-              <svg width="14" height="14" viewBox="0 0 24 24" :fill="saved ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+
+            <button
+              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#e8f5f2] hover:text-[#079272]"
+              :class="{ '!bg-[#e8f5f2] !text-[#079272]': saved }"
+              @click="saved = !saved"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" :fill="saved ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              </svg>
               {{ saved ? 'Salvo ✓' : 'Salvar' }}
             </button>
+
+            <NuxtLink
+              v-if="canEdit"
+              :to="`/edit/${route.params.slug}`"
+              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#e8f5f2] hover:text-[#079272]"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/>
+                <polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/>
+              </svg>
+              Editar
+            </NuxtLink>
           </div>
           <div class="bg-white border border-[#e8e4dc] rounded-xl p-5">
             <div class="text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#bbb] mb-3">Stats</div>

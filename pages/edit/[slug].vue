@@ -209,18 +209,32 @@ onMounted(fetchPost)
       <div v-else class="bg-white rounded-2xl border border-[#e8e4dc] shadow-sm overflow-hidden">
         <!-- Header -->
         <div class="px-6 pt-6 pb-4 border-b border-[#f7f5f0] flex items-center justify-between gap-4 flex-wrap">
-          <div>
+        <div class="flex flex-col">
+            <button
+            class="inline-flex items-center gap-1.5 text-[0.75rem] text-[#888] border-none bg-transparent cursor-pointer hover:text-[#079272] transition-colors mb-3"
+            @click="router.push(`/feed/${route.params.slug}`)"
+            >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="19" y1="12" x2="5" y2="12"/>
+                <polyline points="12 19 5 12 12 5"/>
+            </svg>
+            Voltar
+            </button>
+
             <h1 class="text-[1.1rem] font-extrabold text-[#111] tracking-[-0.02em]">Editar post</h1>
             <p class="text-[0.75rem] text-[#aaa] mt-0.5">Atualize seu conteúdo e mantenha a comunidade informada</p>
-          </div>
-          <div class="flex items-center gap-3">
+        </div>
+
+        <div class="flex items-center gap-3">
             <span class="text-[0.72rem] text-[#bbb]">{{ wordCount }} palavras · ~{{ readTime }}min leitura</span>
             <button
-              class="px-5 py-2.5 rounded-xl text-[0.85rem] font-bold text-white bg-gradient-to-r from-[#079272] to-[#0DA790] hover:shadow-[0_4px_16px_rgba(7,146,114,0.3)] hover:-translate-y-0.5 transition-all border-none cursor-pointer disabled:opacity-50"
-              :disabled="submitting || submitSuccess" @click="handleSubmit">
-              {{ submitting ? 'Salvando…' : 'Salvar alterações' }}
+            class="px-5 py-2.5 rounded-xl text-[0.85rem] font-bold text-white bg-gradient-to-r from-[#079272] to-[#0DA790] hover:shadow-[0_4px_16px_rgba(7,146,114,0.3)] hover:-translate-y-0.5 transition-all border-none cursor-pointer disabled:opacity-50"
+            :disabled="submitting || submitSuccess"
+            @click="handleSubmit"
+            >
+            {{ submitting ? 'Salvando…' : 'Salvar alterações' }}
             </button>
-          </div>
+        </div>
         </div>
 
         <!-- Mensagens -->
