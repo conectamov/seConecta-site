@@ -420,14 +420,16 @@ onMounted(fetchPost)
           </div>
         </aside>
       </div>
-
       <!-- Comentários -->
       <div class="max-w-[760px] mx-auto px-6 md:px-8 pb-28">
         <div class="flex items-center gap-3 mb-8 pb-5 border-b border-[#e8e4dc]">
           <h2 class="text-lg font-bold text-[#111] tracking-[-0.02em]">Comentários</h2>
-          <span class="text-[0.72rem] font-semibold px-2.5 py-0.5 bg-[#f7f5f0] border border-[#e8e4dc] text-[#888] rounded-full">{{ commentsCount }}</span>
+          <span class="text-[0.72rem] font-semibold px-2.5 py-0.5 bg-[#f7f5f0] border border-[#e8e4dc] text-[#888] rounded-full">
+            {{ commentsCount }}
+          </span>
         </div>
 
+        <!-- INPUT DE COMENTÁRIO -->
         <div v-if="isAuthenticated" class="flex gap-3 mb-10">
           <div class="w-9 h-9 flex-shrink-0 rounded-full overflow-hidden">
             <img
@@ -443,19 +445,49 @@ onMounted(fetchPost)
               {{ currentUserInitial }}
             </div>
           </div>
-          </div>
+
           <div class="flex-1 flex flex-col gap-2">
-            <textarea v-model="newMsg" rows="3" placeholder="Escreva um comentário..."
-              class="w-full text-[0.88rem] font-light p-3.5 bg-white border border-[#e8e4dc] rounded-xl resize-none text-[#111] outline-none transition-colors focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/10"></textarea>
-            <button class="self-end text-[0.78rem] font-semibold px-5 py-2 bg-[#079272] text-white rounded-lg border-none cursor-pointer hover:bg-[#068060] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-              :disabled="!newMsg.trim() || submitting" @click="submitComment">
-              <svg v-if="submitting" class="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            <textarea
+              v-model="newMsg"
+              rows="3"
+              placeholder="Escreva um comentário..."
+              class="w-full text-[0.88rem] font-light p-3.5 bg-white border border-[#e8e4dc] rounded-xl resize-none text-[#111] outline-none transition-colors focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/10"
+            ></textarea>
+
+            <button
+              class="self-end text-[0.78rem] font-semibold px-5 py-2 bg-[#079272] text-white rounded-lg border-none cursor-pointer hover:bg-[#068060] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              :disabled="!newMsg.trim() || submitting"
+              @click="submitComment"
+            >
+              <svg
+                v-if="submitting"
+                class="animate-spin"
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
               {{ submitting ? 'Publicando...' : 'Publicar' }}
             </button>
           </div>
         </div>
-        <div v-else class="mb-8 p-4 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl text-sm text-center text-[#888]">
-          <button class="text-[#079272] font-semibold hover:underline border-none bg-transparent cursor-pointer" @click="router.push('/login')">Faça login</button> para comentar.
+
+        <!-- NÃO LOGADO -->
+        <div
+          v-else
+          class="mb-8 p-4 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl text-sm text-center text-[#888]"
+        >
+          <button
+            class="text-[#079272] font-semibold hover:underline border-none bg-transparent cursor-pointer"
+            @click="router.push('/login')"
+          >
+            Faça login
+          </button>
+          para comentar.
         </div>
 
         <div v-if="loadingComments && comments.length === 0" class="flex flex-col gap-4">
@@ -467,7 +499,7 @@ onMounted(fetchPost)
               <div class="h-3.5 w-4/5 bg-[#f0ece5] rounded"></div>
             </div>
           </div>
-        </div>
+        </div>  
 
         <div v-else-if="!loadingComments && comments.length === 0" class="py-12 text-center text-sm text-[#aaa]">
           Nenhum comentário ainda. Seja o primeiro!
