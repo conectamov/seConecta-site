@@ -429,7 +429,21 @@ onMounted(fetchPost)
         </div>
 
         <div v-if="isAuthenticated" class="flex gap-3 mb-10">
-          <div class="w-9 h-9 flex-shrink-0 rounded-full bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-xs font-bold">{{ currentUserInitial }}</div>
+          <div class="w-9 h-9 flex-shrink-0 rounded-full overflow-hidden">
+            <img
+              v-if="currentUser?.profile_picture_url"
+              :src="currentUser.profile_picture_url"
+              alt="Seu avatar"
+              class="w-full h-full object-cover"
+            />
+            <div
+              v-else
+              class="w-full h-full bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-xs font-bold"
+            >
+              {{ currentUserInitial }}
+            </div>
+          </div>
+          </div>
           <div class="flex-1 flex flex-col gap-2">
             <textarea v-model="newMsg" rows="3" placeholder="Escreva um comentário..."
               class="w-full text-[0.88rem] font-light p-3.5 bg-white border border-[#e8e4dc] rounded-xl resize-none text-[#111] outline-none transition-colors focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/10"></textarea>
