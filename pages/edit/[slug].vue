@@ -3,8 +3,36 @@ definePageMeta({ middleware: 'auth' })
 
 const route = useRoute()
 const router = useRouter()
-const { get, patch } = useAxios()
+const { get, patch, del } = useAxios()
 const { currentUser } = useAuth()
+
+const showDeleteModal = ref(false)
+const deletingPost = ref(false)
+
+function openDeleteModal() {
+  showDeleteModal.value = true
+}
+
+function closeDeleteModal() {
+  if (deletingPost.value) return
+  showDeleteModal.value = false
+}
+
+async function confirmDeletePost() {
+  if (!post.value?.id || deletingPost.value) return
+
+  deletingPost.value = true
+  try {
+    await del(`/posts/${post.value.id}`)
+    await router.push('/feed')
+  } catch (err: any) {
+    submitError.value =
+      err?.response?.data?.detail || 'Erro ao deletar o post. Tente novamente.'
+  } finally {
+    deletingPost.value = false
+    showDeleteModal.value = false
+  }
+}
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -226,6 +254,14 @@ onMounted(fetchPost)
         </div>
 
         <div class="flex items-center gap-3">
+            <button
+              v-if="!submitting"
+              class="px-5 py-2.5 rounded-xl text-[0.85rem] font-bold text-white bg-red-600 hover:bg-red-700 transition-all border-none cursor-pointer disabled:opacity-50"
+              :disabled="deletingPost"
+              @click="openDeleteModal"
+            >
+              Deletar post
+            </button>
             <span class="text-[0.72rem] text-[#bbb]">{{ wordCount }} palavras · ~{{ readTime }}min leitura</span>
             <button
             class="px-5 py-2.5 rounded-xl text-[0.85rem] font-bold text-white bg-gradient-to-r from-[#079272] to-[#0DA790] hover:shadow-[0_4px_16px_rgba(7,146,114,0.3)] hover:-translate-y-0.5 transition-all border-none cursor-pointer disabled:opacity-50"
@@ -318,6 +354,43 @@ onMounted(fetchPost)
       </div>
     </main>
   </div>
+  <!-- Modal deletar post -->
+  <Transition name="fade">
+    <div
+      v-if="showDeleteModal"
+      class="fixed inset-0 z-[999] flex items-center justify-center px-4 bg-black/50 backdrop-blur-[2px]"
+      @click.self="closeDeleteModal"
+    >
+      <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[#e8e4dc] p-6">
+        <h3 class="text-[1.05rem] font-extrabold text-[#111] tracking-[-0.02em]">
+          Deletar post?
+        </h3>
+
+        <p class="mt-2 text-sm text-[#666] leading-relaxed">
+          Essa ação é permanente. O post será removido e não poderá ser recuperado.
+        </p>
+
+        <div class="mt-6 flex justify-end gap-3">
+          <button
+            class="px-4 py-2 rounded-xl text-sm font-semibold bg-[#f7f5f0] text-[#555] hover:bg-[#efe9df] transition-colors border-none cursor-pointer"
+            :disabled="deletingPost"
+            @click="closeDeleteModal"
+          >
+            Cancelar
+          </button>
+
+          <button
+            class="px-4 py-2 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors border-none cursor-pointer disabled:opacity-50"
+            :disabled="deletingPost"
+            @click="confirmDeletePost"
+          >
+            {{ deletingPost ? 'Deletando…' : 'Sim, deletar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
 </template>
 
 <style scoped>
@@ -325,4 +398,14 @@ onMounted(fetchPost)
 .slide-fade-leave-active { transition: all 0.12s ease; }
 .slide-fade-enter-from { opacity: 0; transform: translateY(6px); }
 .slide-fade-leave-to { opacity: 0; transform: translateY(-4px); }
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 </style>
