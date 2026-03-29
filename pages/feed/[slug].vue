@@ -1,72 +1,261 @@
 <script setup lang="ts">
-import type { UserPublicProfile, Post } from '~/types'
-import { useAxios } from '~/composables/useAxios'
+definePageMeta({ middleware: 'auth' })
 
-const route = useRoute()
-const username = computed(() => route.params.username as string)
+const route  = useRoute()
+const router = useRouter()
+const { get, post: apiPost, patch, del } = useAxios()
+const { currentUser, isAuthenticated } = useAuth()
+const { getUser, displayName, displayInitial } = useUserCache()
 
-// Fetch user by username
-const { data: user, pending, error, refresh } = await useAsyncData(
-  `user-${username.value}`,
-  async () => {
-    const { get } = useAxios()
-    const response = await get(`/users/username/${username.value}`)
-    // If your API wraps user inside { data: {...} }, uncomment the next line:
-    // return response.data.data
-    // Otherwise, if it returns the user object directly:
-    return response.data
-  },
-  {
-    watch: [username],
-    immediate: true,
-  }
-)
+const post        = ref<any>(null)
+const postAuthor  = ref<any>(null)
+const loadingPost = ref(true)
+const errorPost   = ref<string | null>(null)
+const liked = ref(false)
+const likeCount   = ref(0)
+const saved       = ref(false)
 
-// Extract user ID for posts
-const userId = computed(() => user.value?.id)
+const comments        = ref<any[]>([])
+const commentsCount   = ref(0)
+const loadingComments = ref(false)
+const commentPage     = ref(1)
+const commentHasMore  = ref(true)
+const COMMENT_LIMIT   = 10
 
-// Fetch user's approved posts
-const { data: postsData, pending: postsPending, error: postsError } = await useAsyncData(
-  `user-posts-${userId.value}`,
-  async () => {
-    if (!userId.value) return null
-    const { get } = useAxios()
-    const response = await get('/posts', {
-      params: { user_id: userId.value, approved: true },
-    })
-    // Adjust based on your API structure:
-    // If response.data is an array directly:
-    return response.data
-    // If response.data is { data: [...] }:
-    // return response.data.data
-  },
-  {
-    watch: [userId],
-    immediate: true,
-  }
-)
+const repliesMap      = ref(new Map())
+const editingId       = ref<any>(null)
+const editText        = ref('')
+const deletingId      = ref<any>(null)
+const replyingTo      = ref<any>(null)
+const replyMsg        = ref('')
+const submittingReply = ref(false)
+const newMsg          = ref('')
+const submitting      = ref(false)
+const approving       = ref(false)
 
-// Derive posts array (adjust if needed)
-const posts = computed(() => {
-  if (!postsData.value) return []
-  // If API returns an array directly:
-  return postsData.value
-  // If API returns { data: [...] }:
-  // return postsData.value.data || []
+
+const formattedDate = computed(() => {
+  if (!post.value?.created_at) return ''
+  return new Date(post.value.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+})
+const readTime = computed(() => {
+  const words = (post.value?.content_md || '').trim().split(/\s+/).filter(Boolean).length
+  return `${Math.max(1, Math.ceil(words / 200))} min`
+})
+const isMyPost = computed(() => {
+  if (!currentUser.value || !post.value) return false
+  return String(post.value.author_id) === String(currentUser.value.id)
 })
 
-// User initial for avatar fallback
-const userInitial = computed(() => {
-  if (user.value?.full_name) return user.value.full_name.charAt(0).toUpperCase()
-  if (user.value?.username) return user.value.username.charAt(0).toUpperCase()
-  return '?'
+const canEdit = computed(() => {
+  if (!currentUser.value) return false
+  return isMyPost.value || currentUser.value.is_superuser
 })
 
-function formatDate(dateStr?: string) {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+const authorProfileUrl = computed(() => {
+  if (isMyPost.value) {
+    return currentUser.value?.profile_picture_url || null
+  }
+  return postAuthor.value?.profile_picture_url || null
+})
+
+const isManager = computed(() => currentUser.value?.is_manager || currentUser.value?.is_superuser)
+const authorDisplayName = computed(() => {
+  if (isMyPost.value) return currentUser.value?.full_name || currentUser.value?.username || 'Você'
+  return displayName(postAuthor.value)
+})
+const authorDisplayInitial = computed(() => {
+  if (isMyPost.value) return (currentUser.value?.full_name || currentUser.value?.username || '?').charAt(0).toUpperCase()
+  return displayInitial(postAuthor.value)
+})
+const contentHtml = ref('')
+watch(() => post.value?.content_md, async (md) => {
+  if (!import.meta.client || !md) { contentHtml.value = ''; return }
+  try {
+    const { marked } = await import('marked')
+    const { default: DOMPurify } = await import('dompurify')
+    contentHtml.value = DOMPurify.sanitize(String(marked.parse(md)))
+  } catch { contentHtml.value = md || '' }
+}, { immediate: true })
+const currentUserInitial = computed(() =>
+  (currentUser.value?.full_name || currentUser.value?.username || '?').charAt(0).toUpperCase()
+)
+
+useSeoMeta({ title: computed(() => post.value ? `${post.value.title} — seConecta` : 'seConecta') })
+
+async function fetchPost() {
+  loadingPost.value = true
+  errorPost.value   = null
+  try {
+    const res       = await get(`/posts/slug/${route.params.slug}`)
+    post.value      = res.data
+    likeCount.value = res.data.likes_count ?? 0
+    liked.value = res.data.liked_by_me ?? false
+    if (res.data.author_id) postAuthor.value = await getUser(res.data.author_id)
+    await fetchComments(true)
+  } catch (e: any) {
+    errorPost.value = e?.response?.status === 404 ? 'Post não encontrado.' : 'Erro ao carregar o post.'
+  } finally {
+    loadingPost.value = false
+  }
 }
+
+async function fetchComments(reset = false) {
+  if (!post.value?.id) return
+  if (reset) { commentPage.value = 1; comments.value = []; repliesMap.value.clear() }
+  loadingComments.value = true
+  try {
+    const res = await get(`/comments/post/${post.value.id}`, { params: { page: commentPage.value, limit: COMMENT_LIMIT } })
+    let data = [], count = 0
+    if (Array.isArray(res.data)) { data = res.data; count = res.data.length }
+    else if (res.data?.data) { data = res.data.data; count = res.data.count ?? data.length }
+    commentsCount.value  = count
+    comments.value.push(...data)
+    commentHasMore.value = data.length === COMMENT_LIMIT
+  } catch (e) { console.error('Erro ao carregar comentários:', e) }
+  finally { loadingComments.value = false }
+}
+
+async function fetchReplies(commentId: any, openAfterLoad = false) {
+  if (repliesMap.value.has(commentId) && !openAfterLoad) {
+    repliesMap.value.get(commentId).open = !repliesMap.value.get(commentId).open
+    return
+  }
+  repliesMap.value.set(commentId, { data: [], loading: true, open: openAfterLoad })
+  try {
+    const res     = await get(`/comments/${commentId}/replies`)
+    const replies = res.data.data ?? []
+    repliesMap.value.set(commentId, { data: replies, loading: false, open: openAfterLoad })
+    const parent = findCommentById(commentId)
+    if (parent && replies.length) parent.replies_count = replies.length
+  } catch (e) {
+    repliesMap.value.set(commentId, { data: [], loading: false, open: openAfterLoad })
+  }
+}
+
+function findCommentById(id: any) {
+  let found = comments.value.find(c => c.id === id)
+  if (found) return found
+  for (const [, state] of repliesMap.value) { found = state.data.find((r: any) => r.id === id); if (found) return found }
+  return null
+}
+
+async function toggleReplies(commentId: any) { await fetchReplies(commentId, true) }
+
+async function submitComment() {
+  if (!newMsg.value.trim() || submitting.value) return
+  submitting.value = true
+  try {
+    const res = await apiPost('/comments/', { message: newMsg.value.trim(), post_id: post.value.id })
+    comments.value.unshift({ ...res.data, author_id: currentUser.value?.id })
+    commentsCount.value++
+    newMsg.value = ''
+    if (post.value) post.value.comments_count = commentsCount.value
+  } catch (e) { console.error('Erro ao publicar comentário:', e) }
+  finally { submitting.value = false }
+}
+
+async function submitReply(parentId: any) {
+  if (!replyMsg.value.trim() || submittingReply.value) return
+  submittingReply.value = true
+  try {
+    const res = await apiPost('/comments/', { message: replyMsg.value.trim(), post_id: post.value.id, parent_comment_id: parentId })
+    const parent = findCommentById(parentId)
+    if (parent) parent.replies_count = (parent.replies_count ?? 0) + 1
+    if (!repliesMap.value.has(parentId)) repliesMap.value.set(parentId, { data: [], loading: false, open: true })
+    const state = repliesMap.value.get(parentId)
+    state.data.unshift({ ...res.data, author_id: currentUser.value?.id })
+    state.open = true
+    replyMsg.value = ''; replyingTo.value = null
+  } catch (e) { console.error('Erro ao responder:', e) }
+  finally { submittingReply.value = false }
+}
+
+function startEdit(comment: any) { editingId.value = comment.id; editText.value = comment.message }
+
+async function saveEdit(commentId: any, parentId: any = null) {
+  if (!editText.value.trim()) return
+  try {
+    const res = await patch(`/comments/${commentId}`, { message: editText.value.trim() })
+    if (parentId) {
+      const state = repliesMap.value.get(parentId)
+      const reply = state?.data.find((r: any) => r.id === commentId)
+      if (reply) reply.message = res.data.message
+    } else {
+      const c = comments.value.find(c => c.id === commentId)
+      if (c) c.message = res.data.message
+    }
+  } catch (e) { console.error('Erro ao editar:', e) }
+  finally { editingId.value = null; editText.value = '' }
+}
+
+async function deleteComment(commentId: any, parentId: any = null) {
+  if (deletingId.value) return
+  deletingId.value = commentId
+  try {
+    await del(`/comments/${commentId}`)
+    if (parentId) {
+      const state = repliesMap.value.get(parentId)
+      if (state) {
+        state.data = state.data.filter((r: any) => r.id !== commentId)
+        const parent = findCommentById(parentId)
+        if (parent) parent.replies_count = Math.max(0, (parent.replies_count ?? 1) - 1)
+      }
+    } else {
+      comments.value = comments.value.filter(c => c.id !== commentId)
+      commentsCount.value = Math.max(0, commentsCount.value - 1)
+      repliesMap.value.delete(commentId)
+    }
+  } catch (e) { console.error('Erro ao deletar:', e) }
+  finally { deletingId.value = null }
+}
+
+async function loadMoreComments() {
+  if (!commentHasMore.value || loadingComments.value) return
+  commentPage.value++
+  await fetchComments()
+}
+
+async function approvePost(targetPost: any) {
+  if (approving.value) return
+  const { default: Swal } = await import('sweetalert2')
+  const result = await Swal.fire({ title: 'Aprovar post?', text: 'Esse post será publicado e ficará visível para todos.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Aprovar', cancelButtonText: 'Cancelar', confirmButtonColor: '#16a34a' })
+  if (!result.isConfirmed) return
+  approving.value = true
+  try {
+    await patch(`/posts/${targetPost.id}`, { approved: true })
+    if (post.value) post.value.approved = true
+    await Swal.fire({ icon: 'success', title: 'Post aprovado!', text: 'O post foi publicado com sucesso.', timer: 2000, showConfirmButton: false })
+  } catch (e: any) {
+    await Swal.fire({ icon: 'error', title: 'Erro ao aprovar', text: e?.response?.data?.detail || 'Não foi possível aprovar o post.' })
+  } finally { approving.value = false }
+}
+
+async function likePost() {
+  if (!post.value?.id) return
+  try {
+    await apiPost(`/posts/${post.value.id}/like`, {})
+    liked.value = true
+    likeCount.value++
+  } catch (e) {
+    console.error('Erro ao curtir:', e)
+  }
+}
+
+// Descurtir post
+async function unlikePost() {
+  if (!post.value?.id) return
+  try {
+    await del(`/posts/${post.value.id}/like`)
+    liked.value = false
+    likeCount.value--
+  } catch (e) {
+    console.error('Erro ao descurtir:', e)
+  }
+}
+
+watch(() => route.params.slug, fetchPost)
+onMounted(fetchPost)
 </script>
 
 <template>

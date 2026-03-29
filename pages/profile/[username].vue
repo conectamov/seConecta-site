@@ -164,15 +164,6 @@
 
         <!-- Stats & Posts -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Stats Card -->
-          <div class="bg-white border border-[#e8e4dc] rounded-2xl p-6 text-center">
-            <div class="text-3xl font-bold text-[#111]">{{ user.posts_count }}</div>
-            <div class="text-[0.72rem] text-[#aaa] mt-1">Publicações</div>
-            <div class="mt-4 pt-4 border-t border-[#f7f5f0] text-[0.75rem] text-[#999]">
-              Membro desde {{ formatDate(user.created_at) }}
-            </div>
-          </div>
-
           <!-- Posts List (2 columns on large screens) -->
           <div class="lg:col-span-2">
             <div class="bg-white border border-[#e8e4dc] rounded-2xl p-6">
