@@ -5,15 +5,16 @@ import { useAxios } from '~/composables/useAxios'
 const route = useRoute()
 const username = computed(() => route.params.username as string)
 
-// Fetch user by username
+// Fetch user by username (client‑only to ensure auth cookies)
 const { data: user, pending, error, refresh } = await useAsyncData(
   `user-${username.value}`,
   async () => {
+    if (!username.value) return null // Skip if username not ready
     const { get } = useAxios()
     const response = await get(`/users/username/${username.value}`)
     console.log('Raw user response:', response.data) // Debug
-    
-    // Handle possible nested structure: { data: {...} }
+
+    // Unwrap nested data if present
     if (response.data && typeof response.data === 'object' && 'data' in response.data) {
       return response.data.data
     }
@@ -22,13 +23,14 @@ const { data: user, pending, error, refresh } = await useAsyncData(
   {
     watch: [username],
     immediate: true,
+    server: false, // Only fetch on client
   }
 )
 
-// Extract user ID for posts (only if user exists)
+// Extract user ID for posts
 const userId = computed(() => user.value?.id)
 
-// Fetch user's approved posts
+// Fetch user's approved posts (client‑only as well)
 const { data: postsData, pending: postsPending, error: postsError } = await useAsyncData(
   `user-posts-${userId.value}`,
   async () => {
@@ -39,7 +41,6 @@ const { data: postsData, pending: postsPending, error: postsError } = await useA
     })
     console.log('Raw posts response:', response.data) // Debug
 
-    // Handle possible nested structure: { data: [...] }
     if (response.data && typeof response.data === 'object' && 'data' in response.data) {
       return response.data.data
     }
@@ -48,20 +49,18 @@ const { data: postsData, pending: postsPending, error: postsError } = await useA
   {
     watch: [userId],
     immediate: true,
+    server: false,
   }
 )
 
 // Derive posts array
 const posts = computed(() => {
   if (!postsData.value) return []
-  // If postsData.value is already an array (after unwrapping), return it
   if (Array.isArray(postsData.value)) return postsData.value
-  // Otherwise, try to extract array from possible wrapper
   if (postsData.value && Array.isArray(postsData.value.data)) return postsData.value.data
   return []
 })
 
-// User initial for avatar fallback
 const userInitial = computed(() => {
   if (user.value?.full_name) return user.value.full_name.charAt(0).toUpperCase()
   if (user.value?.username) return user.value.username.charAt(0).toUpperCase()
