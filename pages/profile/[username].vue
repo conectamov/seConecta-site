@@ -1,79 +1,3 @@
-<script setup lang="ts">
-import type { UserPublicProfile, Post } from '~/types'
-import { useAxios } from '~/composables/useAxios'
-
-const route = useRoute()
-const username = computed(() => route.params.username as string)
-
-// Fetch user by username (client‑only to ensure auth cookies)
-const { data: user, pending, error, refresh } = await useAsyncData(
-  `user-${username.value}`,
-  async () => {
-    if (!username.value) return null // Skip if username not ready
-    const { get } = useAxios()
-    const response = await get(`/users/username/${username.value}`)
-    console.log('Raw user response:', response.data) // Debug
-
-    // Unwrap nested data if present
-    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
-      return response.data.data
-    }
-    return response.data
-  },
-  {
-    watch: [username],
-    immediate: true,
-    server: false, // Only fetch on client
-  }
-)
-
-// Extract user ID for posts
-const userId = computed(() => user.value?.id)
-
-// Fetch user's approved posts (client‑only as well)
-const { data: postsData, pending: postsPending, error: postsError } = await useAsyncData(
-  `user-posts-${userId.value}`,
-  async () => {
-    if (!userId.value) return null
-    const { get } = useAxios()
-    const response = await get('/posts', {
-      params: { user_id: userId.value, approved: true },
-    })
-    console.log('Raw posts response:', response.data) // Debug
-
-    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
-      return response.data.data
-    }
-    return response.data
-  },
-  {
-    watch: [userId],
-    immediate: true,
-    server: false,
-  }
-)
-
-// Derive posts array
-const posts = computed(() => {
-  if (!postsData.value) return []
-  if (Array.isArray(postsData.value)) return postsData.value
-  if (postsData.value && Array.isArray(postsData.value.data)) return postsData.value.data
-  return []
-})
-
-const userInitial = computed(() => {
-  if (user.value?.full_name) return user.value.full_name.charAt(0).toUpperCase()
-  if (user.value?.username) return user.value.username.charAt(0).toUpperCase()
-  return '?'
-})
-
-function formatDate(dateStr?: string) {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-}
-</script>
-
 <template>
   <div class="min-h-screen bg-gradient-to-b from-white to-gray-50">
     <!-- Animated background elements (same as other pages) -->
@@ -262,7 +186,7 @@ function formatDate(dateStr?: string) {
               </div>
 
               <div v-else-if="postsError" class="text-center py-8 text-red-500 text-sm">
-                Erro ao carregar posts.
+                Erro ao carregar posts: {{ postsErrorMessage }}
               </div>
 
               <div v-else-if="!posts.length" class="text-center py-8 text-gray-500 text-sm">
@@ -309,3 +233,107 @@ function formatDate(dateStr?: string) {
     </div>
   </div>
 </template>
+
+<script setup lang="ts">
+import type { UserPublicProfile, Post } from '~/types'
+import { useAxios } from '~/composables/useAxios'
+
+const route = useRoute()
+const username = computed(() => route.params.username as string)
+
+// Fetch user (public endpoint, no auth needed)
+const { data: user, pending, error, refresh } = await useAsyncData(
+  `user-${username.value}`,
+  async () => {
+    if (!username.value) return null
+    const { get } = useAxios()
+    const response = await get(`/users/username/${username.value}`)
+    console.log('User API response:', response.data)
+    // Unwrap if nested
+    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+      return response.data.data
+    }
+    return response.data
+  },
+  {
+    watch: [username],
+    immediate: true,
+    server: false,
+  }
+)
+
+const userId = computed(() => user.value?.id)
+
+// Fetch posts – tries multiple possible endpoints and logs the working one
+const { data: postsData, pending: postsPending, error: postsError } = await useAsyncData(
+  `user-posts-${userId.value}`,
+  async () => {
+    if (!userId.value) return null
+    const { get } = useAxios()
+    let response
+    const endpoints = [
+      `/users/${userId.value}/posts?approved=true`,
+      `/posts?user_id=${userId.value}&approved=true`,
+      `/posts?author_id=${userId.value}&approved=true`,
+    ]
+    for (const url of endpoints) {
+      try {
+        response = await get(url)
+        console.log(`Posts endpoint ${url} succeeded:`, response.data)
+        break
+      } catch (err) {
+        console.warn(`Posts endpoint ${url} failed:`, err)
+      }
+    }
+    if (!response) throw new Error('No working posts endpoint found')
+    // Unwrap if needed
+    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+      return response.data.data
+    }
+    return response.data
+  },
+  {
+    watch: [userId],
+    immediate: true,
+    server: false,
+  }
+)
+
+const posts = computed(() => {
+  if (!postsData.value) return []
+  if (Array.isArray(postsData.value)) return postsData.value
+  if (postsData.value && Array.isArray(postsData.value.data)) return postsData.value.data
+  return []
+})
+
+// Helper to display error message in the UI
+const postsErrorMessage = computed(() => {
+  if (!postsError.value) return null
+  if (typeof postsError.value === 'object' && 'message' in postsError.value) return postsError.value.message
+  return String(postsError.value)
+})
+
+const userInitial = computed(() => {
+  if (user.value?.full_name) return user.value.full_name.charAt(0).toUpperCase()
+  if (user.value?.username) return user.value.username.charAt(0).toUpperCase()
+  return '?'
+})
+
+function formatDate(dateStr?: string) {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+}
+</script>
+
+<style scoped>
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px) translateX(0px); }
+  33% { transform: translateY(-20px) translateX(20px); }
+  66% { transform: translateY(20px) translateX(-20px); }
+}
+</style>
