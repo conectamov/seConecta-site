@@ -16,7 +16,7 @@ const { data: user, pending, error } = await useAsyncData(
     if (!username.value) return null // 🔴 prevents bad call
 
     const { get } = useAxios()
-    const res = await get(`/api/v1/users/username/${username.value}`)
+    const res = await get(`/users/username/${username.value}`)
 
     console.log('API RESPONSE:', res.data)
     return res.data
