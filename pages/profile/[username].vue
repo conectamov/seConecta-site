@@ -186,7 +186,7 @@
               </div>
 
               <div v-else-if="postsError" class="text-center py-8 text-red-500 text-sm">
-                Erro ao carregar posts: {{ postsErrorMessage }}
+                {{ postsErrorMessage }}
               </div>
 
               <div v-else-if="!posts.length" class="text-center py-8 text-gray-500 text-sm">
@@ -241,7 +241,7 @@ import { useAxios } from '~/composables/useAxios'
 const route = useRoute()
 const username = computed(() => route.params.username as string)
 
-// Fetch user (public endpoint, no auth needed)
+// Fetch user by username
 const { data: user, pending, error, refresh } = await useAsyncData(
   `user-${username.value}`,
   async () => {
@@ -249,7 +249,6 @@ const { data: user, pending, error, refresh } = await useAsyncData(
     const { get } = useAxios()
     const response = await get(`/users/username/${username.value}`)
     console.log('User API response:', response.data)
-    // Unwrap if nested
     if (response.data && typeof response.data === 'object' && 'data' in response.data) {
       return response.data.data
     }
@@ -264,33 +263,27 @@ const { data: user, pending, error, refresh } = await useAsyncData(
 
 const userId = computed(() => user.value?.id)
 
-// Fetch posts – tries multiple possible endpoints and logs the working one
+// Fetch posts by author_id using the /posts endpoint
 const { data: postsData, pending: postsPending, error: postsError } = await useAsyncData(
   `user-posts-${userId.value}`,
   async () => {
     if (!userId.value) return null
     const { get } = useAxios()
-    let response
-    const endpoints = [
-      `/users/${userId.value}/posts?approved=true`,
-      `/posts?user_id=${userId.value}&approved=true`,
-      `/posts?author_id=${userId.value}&approved=true`,
-    ]
-    for (const url of endpoints) {
-      try {
-        response = await get(url)
-        console.log(`Posts endpoint ${url} succeeded:`, response.data)
-        break
-      } catch (err) {
-        console.warn(`Posts endpoint ${url} failed:`, err)
+    try {
+      // Use the correct endpoint with author_id and approved=true
+      const response = await get('/posts', {
+        params: { author_id: userId.value, approved: true }
+      })
+      console.log('Posts response:', response.data)
+      // Unwrap the { data: [...] } wrapper
+      if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+        return response.data.data
       }
+      return response.data
+    } catch (err) {
+      console.error('Failed to fetch posts:', err)
+      throw err
     }
-    if (!response) throw new Error('No working posts endpoint found')
-    // Unwrap if needed
-    if (response.data && typeof response.data === 'object' && 'data' in response.data) {
-      return response.data.data
-    }
-    return response.data
   },
   {
     watch: [userId],
@@ -306,10 +299,12 @@ const posts = computed(() => {
   return []
 })
 
-// Helper to display error message in the UI
+// Error message for UI
 const postsErrorMessage = computed(() => {
   if (!postsError.value) return null
-  if (typeof postsError.value === 'object' && 'message' in postsError.value) return postsError.value.message
+  if (typeof postsError.value === 'object' && 'message' in postsError.value) {
+    return postsError.value.message
+  }
   return String(postsError.value)
 })
 
