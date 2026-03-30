@@ -90,6 +90,10 @@ const vAnimate = {
                   </div>
                 </div>
                 <p class="text-gray-700 text-lg leading-relaxed">Queremos inspirar o maior número de estudantes de qualquer origem. Por isso estamos criando uma rede social que divulga ativamente oportunidades e eventos através de um feed personalizado e redes sociais feito por nossos embaixadores.</p>
+                  <NuxtLink to="/feed" class="inline-flex items-center text-[#079272] font-semibold group-hover:underline no-underline">
+                    Acesse nosso feed 
+                    <svg class="w-5 h-5 ml-2 transform group-hover:translate-x-2 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                  </NuxtLink>
               </div>
             </div>
           </div>
@@ -108,10 +112,10 @@ const vAnimate = {
                   </div>
                 </div>
                 <p class="text-gray-700 text-lg leading-relaxed mb-6"><strong>Chatbot inteligente</strong> que envia oportunidades personalizadas diretamente no seu WhatsApp. Além disso, o Nexo conecta você a outros estudantes com perfis semelhantes, criando uma rede de apoio e colaboração.</p>
-                <div class="flex items-center text-[#2464E8] font-medium">
+                <a href="https://wa.me/558599783928?text=Olá!%20Quero%20receber%20as%20melhores%20oportunidades%20do%20seConecta" class="flex items-center text-[#2464E8] font-medium">
                   <span>Conheça o Nexo</span>
                   <svg class="w-5 h-5 ml-2 transform group-hover:translate-x-2 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
-                </div>
+                </a>
               </div>
             </div>
           </div>
@@ -206,7 +210,7 @@ const vAnimate = {
           <div class="relative group">
             <div class="absolute inset-0 bg-gradient-to-r from-[#079272] to-[#2464E8] rounded-2xl blur-xl opacity-70 group-hover:opacity-90 transition-opacity duration-300 animate-gradient"></div>
             <a class="relative w-full px-8 py-6 rounded-2xl text-white font-semibold text-lg bg-gradient-to-r from-[#079272] to-[#2464E8] hover:from-[#0aab8a] hover:to-[#2a76ff] transition-all duration-300 flex items-center justify-center gap-3 focus:outline-none transform hover:-translate-y-1 shadow-xl hover:shadow-2xl no-underline"
-              href="https://wa.me/558599783928?text=Olá!%20Quero%20participar%20do%20beta%20do%20Conecta" target="_blank" rel="noopener noreferrer">
+              href="https://wa.me/558599783928?text=Olá!%20Quero%20receber%20as%20melhores%20oportunidades%20do%20seConecta" target="_blank" rel="noopener noreferrer">
               <span class="relative z-10">Teste o Nexo no WhatsApp!</span>
               <svg class="w-5 h-5 relative z-10 transform group-hover:translate-x-2 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
             </a>

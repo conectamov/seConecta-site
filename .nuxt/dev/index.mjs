@@ -1,9 +1,14 @@
 import process from 'node:process';globalThis._importMeta_={url:import.meta.url,env:process.env};import { tmpdir } from 'node:os';
+<<<<<<< HEAD
 import { defineEventHandler, handleCacheHeaders, splitCookiesString, createEvent, fetchWithEvent, isEvent, eventHandler, setHeaders, sendRedirect, proxyRequest, getRequestHeader, setResponseHeaders, setResponseStatus, send, getRequestHeaders, setResponseHeader, appendResponseHeader, getRequestURL, getResponseHeader, removeResponseHeader, createError, getQuery as getQuery$1, readBody, createApp, createRouter as createRouter$1, toNodeListener, lazyEventHandler, getResponseStatus, getRouterParam, getResponseStatusText } from 'file:///home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/node_modules/h3/dist/index.mjs';
+=======
+import { defineEventHandler, handleCacheHeaders, splitCookiesString, createEvent, fetchWithEvent, isEvent, eventHandler, setHeaders, sendRedirect, proxyRequest, getRequestHeader, setResponseHeaders, setResponseStatus, send, getRequestHeaders, setResponseHeader, appendResponseHeader, getRequestURL, getResponseHeader, removeResponseHeader, createError, getQuery as getQuery$1, readBody, createApp, createRouter as createRouter$1, toNodeListener, lazyEventHandler, getResponseStatus, getRouterParam, getResponseStatusText } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/h3/dist/index.mjs';
+>>>>>>> 4c29043d9c5f2df4226927e6c7f5793f6208daa5
 import { Server } from 'node:http';
 import { resolve, dirname, join } from 'node:path';
 import nodeCrypto from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
+<<<<<<< HEAD
 import { escapeHtml } from 'file:///home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/node_modules/@vue/shared/dist/shared.cjs.js';
 import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'file:///home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/node_modules/vue-bundle-renderer/dist/runtime.mjs';
 import { parseURL, withoutBase, joinURL, getQuery, withQuery, withTrailingSlash, decodePath, withLeadingSlash, withoutTrailingSlash, joinRelativeURL } from 'file:///home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/node_modules/ufo/dist/index.mjs';
@@ -38,6 +43,42 @@ import { DeprecationsPlugin, PromisesPlugin, TemplateParamsPlugin, AliasSortingP
 import { walkResolver } from 'file:///home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/node_modules/unhead/dist/utils.mjs';
 
 const serverAssets = [{"baseName":"server","dir":"/home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/server/assets"}];
+=======
+import { escapeHtml } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/@vue/shared/dist/shared.cjs.js';
+import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/vue-bundle-renderer/dist/runtime.mjs';
+import { parseURL, withoutBase, joinURL, getQuery, withQuery, withTrailingSlash, decodePath, withLeadingSlash, withoutTrailingSlash, joinRelativeURL } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/ufo/dist/index.mjs';
+import { renderToString } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/vue/server-renderer/index.mjs';
+import destr, { destr as destr$1 } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/destr/dist/index.mjs';
+import { createHooks } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/hookable/dist/index.mjs';
+import { createFetch, Headers as Headers$1 } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/ofetch/dist/node.mjs';
+import { fetchNodeRequestHandler, callNodeRequestHandler } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/node-mock-http/dist/index.mjs';
+import { createStorage, prefixStorage } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/unstorage/dist/index.mjs';
+import unstorage_47drivers_47fs from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/unstorage/drivers/fs.mjs';
+import { digest } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/ohash/dist/index.mjs';
+import { klona } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/klona/dist/index.mjs';
+import defu, { defuFn } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/defu/dist/defu.mjs';
+import { snakeCase } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/scule/dist/index.mjs';
+import { getContext } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/unctx/dist/index.mjs';
+import { toRouteMatcher, createRouter } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/radix3/dist/index.mjs';
+import { readFile } from 'node:fs/promises';
+import consola, { consola as consola$1 } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/consola/dist/index.mjs';
+import { ErrorParser } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/youch-core/build/index.js';
+import { Youch } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/youch/build/index.js';
+import { SourceMapConsumer } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/source-map/source-map.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { stringify, uneval } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/devalue/index.js';
+import { captureRawStackTrace, parseRawStackTrace } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/errx/dist/index.js';
+import { isVNode, isRef, toValue } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/vue/index.mjs';
+import _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/@nuxt/vite-builder/dist/fix-stacktrace.mjs';
+import { promises } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname as dirname$1, resolve as resolve$1 } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/pathe/dist/index.mjs';
+import { createHead as createHead$1, propsToString, renderSSRHead } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/unhead/dist/server.mjs';
+import { DeprecationsPlugin, PromisesPlugin, TemplateParamsPlugin, AliasSortingPlugin } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/unhead/dist/plugins.mjs';
+import { walkResolver } from 'file:///home/marzeero/Downloads/seConecta-site/node_modules/unhead/dist/utils.mjs';
+
+const serverAssets = [{"baseName":"server","dir":"/home/marzeero/Downloads/seConecta-site/server/assets"}];
+>>>>>>> 4c29043d9c5f2df4226927e6c7f5793f6208daa5
 
 const assets$1 = createStorage();
 
@@ -49,11 +90,19 @@ const storage = createStorage({});
 
 storage.mount('/assets', assets$1);
 
+<<<<<<< HEAD
 storage.mount('root', unstorage_47drivers_47fs({"driver":"fs","readOnly":true,"base":"/home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site","watchOptions":{"ignored":[null]}}));
 storage.mount('src', unstorage_47drivers_47fs({"driver":"fs","readOnly":true,"base":"/home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/server","watchOptions":{"ignored":[null]}}));
 storage.mount('build', unstorage_47drivers_47fs({"driver":"fs","readOnly":false,"base":"/home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/.nuxt"}));
 storage.mount('cache', unstorage_47drivers_47fs({"driver":"fs","readOnly":false,"base":"/home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/.nuxt/cache"}));
 storage.mount('data', unstorage_47drivers_47fs({"driver":"fs","base":"/home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/.data/kv"}));
+=======
+storage.mount('root', unstorage_47drivers_47fs({"driver":"fs","readOnly":true,"base":"/home/marzeero/Downloads/seConecta-site","watchOptions":{"ignored":[null]}}));
+storage.mount('src', unstorage_47drivers_47fs({"driver":"fs","readOnly":true,"base":"/home/marzeero/Downloads/seConecta-site/server","watchOptions":{"ignored":[null]}}));
+storage.mount('build', unstorage_47drivers_47fs({"driver":"fs","readOnly":false,"base":"/home/marzeero/Downloads/seConecta-site/.nuxt"}));
+storage.mount('cache', unstorage_47drivers_47fs({"driver":"fs","readOnly":false,"base":"/home/marzeero/Downloads/seConecta-site/.nuxt/cache"}));
+storage.mount('data', unstorage_47drivers_47fs({"driver":"fs","base":"/home/marzeero/Downloads/seConecta-site/.data/kv"}));
+>>>>>>> 4c29043d9c5f2df4226927e6c7f5793f6208daa5
 
 function useStorage(base = "") {
   return base ? prefixStorage(storage, base) : storage;
@@ -2017,7 +2066,11 @@ async function errorHandler(error, event) {
   // H3 will handle fallback
 }
 
+<<<<<<< HEAD
 const rootDir = "/home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site";
+=======
+const rootDir = "/home/marzeero/Downloads/seConecta-site";
+>>>>>>> 4c29043d9c5f2df4226927e6c7f5793f6208daa5
 
 const appHead = {"meta":[{"name":"viewport","content":"width=device-width, initial-scale=1"},{"charset":"utf-8"},{"name":"description","content":"O seConecta é um ecossistema ed-tech que conecta estudantes a oportunidades e mobiliza uma rede de líderes estudantis que geram impacto."},{"name":"theme-color","content":"#079272"},{"name":"application-name","content":"seConecta"},{"name":"mobile-web-app-capable","content":"yes"},{"name":"apple-mobile-web-app-capable","content":"yes"},{"name":"apple-mobile-web-app-status-bar-style","content":"default"},{"name":"apple-mobile-web-app-title","content":"seConecta"},{"property":"og:type","content":"website"},{"property":"og:site_name","content":"seConecta"},{"property":"og:title","content":"seConecta — Conecte estudantes, multiplique oportunidades"},{"property":"og:description","content":"Encontre colegas com os mesmos objetivos acadêmicos e receba oportunidades de bolsas, estágios e editais personalizadas para o seu perfil."},{"property":"og:image","content":"https://seconecta.org/og-image.png"},{"property":"og:image:width","content":"1200"},{"property":"og:image:height","content":"630"},{"property":"og:locale","content":"pt_BR"},{"name":"twitter:card","content":"summary_large_image"},{"name":"twitter:title","content":"seConecta"},{"name":"twitter:description","content":"Conecte-se com estudantes que pensam como você."},{"name":"twitter:image","content":"https://seconecta.org/og-image.png"}],"link":[{"rel":"icon","type":"image/x-icon","href":"/favicon.ico"},{"rel":"icon","type":"image/png","sizes":"32x32","href":"/favicon-32.png"},{"rel":"apple-touch-icon","sizes":"180x180","href":"/apple-touch-icon.png"},{"rel":"manifest","href":"/manifest.webmanifest"},{"rel":"preconnect","href":"https://fonts.googleapis.com"},{"rel":"preconnect","href":"https://fonts.gstatic.com","crossorigin":""},{"rel":"stylesheet","href":"https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"}],"style":[],"script":[{"src":"https://kit.fontawesome.com/55ef797121.js","crossorigin":"anonymous","defer":true}],"noscript":[],"htmlAttrs":{"lang":"pt-BR"},"charset":"utf-8","viewport":"width=device-width, initial-scale=1","title":"seConecta — Conecte estudantes, multiplique oportunidades"};
 
@@ -2042,7 +2095,11 @@ const asyncContext = getContext("nuxt-dev", {
 	asyncContext: true,
 	AsyncLocalStorage
 });
+<<<<<<< HEAD
 const _80bI4Q5tSoT9Axv1TL83LeadInKtZLicuL82f1ey38 = (nitroApp) => {
+=======
+const _LWwsRSjlw34p5mRCBssssIYpnRmPwKEPhtskWeqk = (nitroApp) => {
+>>>>>>> 4c29043d9c5f2df4226927e6c7f5793f6208daa5
 	const handler = nitroApp.h3App.handler;
 	nitroApp.h3App.handler = (event) => {
 		return asyncContext.callAsync({
@@ -2116,7 +2173,11 @@ function onConsoleLog(callback) {
 }
 
 const plugins = [
+<<<<<<< HEAD
   _80bI4Q5tSoT9Axv1TL83LeadInKtZLicuL82f1ey38,
+=======
+  _LWwsRSjlw34p5mRCBssssIYpnRmPwKEPhtskWeqk,
+>>>>>>> 4c29043d9c5f2df4226927e6c7f5793f6208daa5
 _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 ];
 
@@ -2145,7 +2206,11 @@ function getAsset (id) {
 
 const METHODS = /* @__PURE__ */ new Set(["HEAD", "GET"]);
 const EncodingMap = { gzip: ".gz", br: ".br" };
+<<<<<<< HEAD
 const _vzJKIo = eventHandler((event) => {
+=======
+const _HzixG9 = eventHandler((event) => {
+>>>>>>> 4c29043d9c5f2df4226927e6c7f5793f6208daa5
   if (event.method && !METHODS.has(event.method)) {
     return;
   }
@@ -2287,9 +2352,15 @@ function publicAssetsURL(...path) {
 const APP_ROOT_OPEN_TAG = `<${appRootTag}${propsToString(appRootAttrs)}>`;
 const APP_ROOT_CLOSE_TAG = `</${appRootTag}>`;
 // @ts-expect-error file will be produced after app build
+<<<<<<< HEAD
 const getServerEntry = () => import('file:///home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/.nuxt//dist/server/server.mjs').then((r) => r.default || r);
 // @ts-expect-error file will be produced after app build
 const getClientManifest = () => import('file:///home/mastersons/Documentos/CRISTOREY/SeConectaThings/seConecta-site/.nuxt//dist/server/client.manifest.mjs').then((r) => r.default || r).then((r) => typeof r === "function" ? r() : r);
+=======
+const getServerEntry = () => import('file:///home/marzeero/Downloads/seConecta-site/.nuxt//dist/server/server.mjs').then((r) => r.default || r);
+// @ts-expect-error file will be produced after app build
+const getClientManifest = () => import('file:///home/marzeero/Downloads/seConecta-site/.nuxt//dist/server/client.manifest.mjs').then((r) => r.default || r).then((r) => typeof r === "function" ? r() : r);
+>>>>>>> 4c29043d9c5f2df4226927e6c7f5793f6208daa5
 // -- SSR Renderer --
 const getSSRRenderer = lazyCachedFunction(async () => {
 	// Load server bundle
@@ -2580,6 +2651,7 @@ async function getIslandContext(event) {
 	};
 }
 
+<<<<<<< HEAD
 const _lazy_7Cqglj = () => Promise.resolve().then(function () { return renderer; });
 
 const handlers = [
@@ -2587,6 +2659,15 @@ const handlers = [
   { route: '/__nuxt_error', handler: _lazy_7Cqglj, lazy: true, middleware: false, method: undefined },
   { route: '/__nuxt_island/**', handler: handler$1, lazy: false, middleware: false, method: undefined },
   { route: '/**', handler: _lazy_7Cqglj, lazy: true, middleware: false, method: undefined }
+=======
+const _lazy_OKTGeC = () => Promise.resolve().then(function () { return renderer; });
+
+const handlers = [
+  { route: '', handler: _HzixG9, lazy: false, middleware: true, method: undefined },
+  { route: '/__nuxt_error', handler: _lazy_OKTGeC, lazy: true, middleware: false, method: undefined },
+  { route: '/__nuxt_island/**', handler: handler$1, lazy: false, middleware: false, method: undefined },
+  { route: '/**', handler: _lazy_OKTGeC, lazy: true, middleware: false, method: undefined }
+>>>>>>> 4c29043d9c5f2df4226927e6c7f5793f6208daa5
 ];
 
 function createNitroApp() {

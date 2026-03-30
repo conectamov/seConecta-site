@@ -16,13 +16,13 @@ const matches = [
   { init: 'C', color: '#F59E0B' },
 ]
 const stats = [
-  { value: '+44', label: 'Estudantes ativos' },
-  { value: '12', label: 'Estados alcançados' },
+  { value: '+52', label: 'Estudantes ativos' },
+  { value: '17', label: 'Estados alcançados' },
 ]
 </script>
 
 <template>
-  <section class="relative overflow-hidden py-16 sm:py-20 md:py-24 px-4 sm:px-6 md:px-8 lg:px-16 xl:px-24" aria-label="Como o Conecta te ajuda">
+  <section class="relative overflow-hidden py-16 sm:py-20 md:py-24 px-4 sm:px-6 md:px-8 lg:px-16 xl:px-24" aria-label="Como o seConecta te ajuda">
     <div class="absolute inset-0 bg-gradient-to-b from-[#f8fafc] to-white"></div>
     <div class="absolute w-[380px] h-[380px] rounded-full blur-[80px] pointer-events-none bg-[radial-gradient(circle,rgba(7,146,114,0.08),transparent_70%)] top-[-60px] left-[-60px]"></div>
     <div class="absolute w-[420px] h-[420px] rounded-full blur-[80px] pointer-events-none bg-[radial-gradient(circle,rgba(36,100,232,0.07),transparent_70%)] bottom-[-80px] right-[-60px]"></div>

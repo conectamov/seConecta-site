@@ -66,7 +66,7 @@ watch(searchQuery, debounce(() => {
 onMounted(() => fetchPosts())
 
 function openArticle(post: any) {
-  router.push(`/article/${post.slug || post.id}`)
+  router.push(`/feed/${post.slug || post.id}`)
 }
 
 const feedTitle = computed(() => {

@@ -24,6 +24,7 @@ const emit = defineEmits([
 const { getUser, displayName, displayInitial } = useUserCache()
 const localReplyingTo = ref<any>(null)
 const commentAuthor = ref<any>(null)
+const showDeleteConfirm = ref(false) // 🆕 modal state
 
 onMounted(async () => {
   if (props.comment.author_id && props.comment.author_id !== props.currentUser?.id)
@@ -63,6 +64,13 @@ const timeAgo = computed(() => {
   return new Date(props.comment.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 })
 
+const authorProfileUrl = computed(() => {
+  if (isMyComment.value) {
+    return props.currentUser?.profile_picture_url || null
+  }
+  return commentAuthor.value?.profile_picture_url || null
+})
+
 function handleStartReply() {
   if ((props.level ?? 0) < 5) { localReplyingTo.value = props.comment.id; emit('start-reply', props.comment.id) }
 }
@@ -73,10 +81,20 @@ function handleLoadMore()      { emit('load-more-replies', props.comment.id) }
 function handleStartEdit()     { emit('start-edit', props.comment) }
 function handleSaveEdit()      { emit('save-edit', props.comment.id, props.parentId) }
 function handleCancelEdit()    { emit('cancel-edit') }
+
 function handleDelete() {
-  if (confirm('Tem certeza que deseja excluir este comentário?'))
-    emit('delete-comment', props.comment.id, props.parentId)
+  showDeleteConfirm.value = true  // 🆕 open modal instead of Swal
 }
+
+function confirmDelete() {
+  emit('delete-comment', props.comment.id, props.parentId)
+  showDeleteConfirm.value = false
+}
+
+function cancelDelete() {
+  showDeleteConfirm.value = false
+}
+
 function handleEditInput(e: Event)  { emit('update:edit-text', (e.target as HTMLTextAreaElement).value) }
 function handleReplyInput(e: Event) { emit('update:reply-msg', (e.target as HTMLTextAreaElement).value) }
 </script>
@@ -84,10 +102,21 @@ function handleReplyInput(e: Event) { emit('update:reply-msg', (e.target as HTML
 <template>
   <div :class="['comment-item', { 'reply': (level ?? 0) > 0 }]">
     <div class="flex items-start gap-3">
+    <div class="w-9 h-9 flex-shrink-0 rounded-full overflow-hidden">
+      <img
+        v-if="authorProfileUrl"
+        :src="authorProfileUrl"
+        alt="Avatar do autor"
+        class="w-full h-full object-cover"
+      />
       <div
-        class="w-9 h-9 flex-shrink-0 rounded-full bg-gradient-to-br flex items-center justify-center text-white text-xs font-bold"
+        v-else
+        class="w-full h-full bg-gradient-to-br flex items-center justify-center text-white text-xs font-bold"
         :class="isMyComment ? 'from-[#079272] to-[#2464E8]' : 'from-[#555] to-[#888]'"
-      >{{ userInitial }}</div>
+      >
+        {{ userInitial }}
+      </div>
+    </div>
 
       <div class="flex-1 min-w-0">
         <div class="flex items-baseline gap-2 mb-1.5 flex-wrap">
@@ -196,6 +225,40 @@ function handleReplyInput(e: Event) { emit('update:reply-msg', (e.target as HTML
         </div>
       </div>
     </div>
+
+    <!-- Custom Delete Confirmation Modal (aligned with site pattern) -->
+    <Transition name="modal">
+      <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="cancelDelete"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl p-7 max-w-[400px] w-full z-10" style="animation: modalIn .25s ease">
+          <div class="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-5">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e53e3e" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-[#111] mb-1">Excluir comentário?</h3>
+          <p class="text-sm font-light text-[#666] mb-5 leading-relaxed">
+            Esta ação é irreversível. O comentário será removido permanentemente.
+          </p>
+          <div class="flex gap-3">
+            <button
+              class="flex-1 text-sm font-semibold px-4 py-2.5 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors border-none cursor-pointer"
+              @click="confirmDelete"
+            >
+              Excluir
+            </button>
+            <button
+              class="flex-1 text-sm font-semibold px-4 py-2.5 bg-[#f7f5f0] text-[#555] rounded-xl hover:bg-[#e8e4dc] transition-colors border-none cursor-pointer"
+              @click="cancelDelete"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -205,4 +268,11 @@ function handleReplyInput(e: Event) { emit('update:reply-msg', (e.target as HTML
 textarea:focus { box-shadow: 0 0 0 3px rgba(7,146,114,0.1); }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 @media (max-width: 640px) { .comment-item.reply { margin-left: 0.25rem; } }
+
+.modal-enter-active, .modal-leave-active { transition: opacity .25s ease; }
+.modal-enter-from,   .modal-leave-to     { opacity: 0; }
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0);   }
+}
 </style>

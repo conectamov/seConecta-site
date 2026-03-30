@@ -1,220 +1,72 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'auth' })
+import type { UserPublicProfile, Post } from '~/types'
+import { useAxios } from '~/composables/useAxios'
 
-const route  = useRoute()
-const router = useRouter()
-const { get, post: apiPost, patch, del } = useAxios()
-const { currentUser, isAuthenticated } = useAuth()
-const { getUser, displayName, displayInitial } = useUserCache()
+const route = useRoute()
+const username = computed(() => route.params.username as string)
 
-const post        = ref<any>(null)
-const postAuthor  = ref<any>(null)
-const loadingPost = ref(true)
-const errorPost   = ref<string | null>(null)
-const liked       = ref(false)
-const likeCount   = ref(0)
-const saved       = ref(false)
-
-const comments        = ref<any[]>([])
-const commentsCount   = ref(0)
-const loadingComments = ref(false)
-const commentPage     = ref(1)
-const commentHasMore  = ref(true)
-const COMMENT_LIMIT   = 10
-
-const repliesMap      = ref(new Map())
-const editingId       = ref<any>(null)
-const editText        = ref('')
-const deletingId      = ref<any>(null)
-const replyingTo      = ref<any>(null)
-const replyMsg        = ref('')
-const submittingReply = ref(false)
-const newMsg          = ref('')
-const submitting      = ref(false)
-const approving       = ref(false)
-
-const formattedDate = computed(() => {
-  if (!post.value?.created_at) return ''
-  return new Date(post.value.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
-})
-const readTime = computed(() => {
-  const words = (post.value?.content_md || '').trim().split(/\s+/).filter(Boolean).length
-  return `${Math.max(1, Math.ceil(words / 200))} min`
-})
-const isMyPost = computed(() => currentUser.value && post.value?.author_id === currentUser.value.id)
-const isManager = computed(() => currentUser.value?.is_manager || currentUser.value?.is_superuser)
-const authorDisplayName = computed(() => {
-  if (isMyPost.value) return currentUser.value?.full_name || currentUser.value?.username || 'Você'
-  return displayName(postAuthor.value)
-})
-const authorDisplayInitial = computed(() => {
-  if (isMyPost.value) return (currentUser.value?.full_name || currentUser.value?.username || '?').charAt(0).toUpperCase()
-  return displayInitial(postAuthor.value)
-})
-const contentHtml = ref('')
-watch(() => post.value?.content_md, async (md) => {
-  if (!import.meta.client || !md) { contentHtml.value = ''; return }
-  try {
-    const { marked } = await import('marked')
-    const { default: DOMPurify } = await import('dompurify')
-    contentHtml.value = DOMPurify.sanitize(String(marked.parse(md)))
-  } catch { contentHtml.value = md || '' }
-}, { immediate: true })
-const currentUserInitial = computed(() =>
-  (currentUser.value?.full_name || currentUser.value?.username || '?').charAt(0).toUpperCase()
+// Fetch user by username
+const { data: user, pending, error, refresh } = await useAsyncData(
+  `user-${username.value}`,
+  async () => {
+    const { get } = useAxios()
+    const response = await get(`/users/username/${username.value}`)
+    // If your API wraps user inside { data: {...} }, uncomment the next line:
+    // return response.data.data
+    // Otherwise, if it returns the user object directly:
+    return response.data
+  },
+  {
+    watch: [username],
+    immediate: true,
+  }
 )
 
-useSeoMeta({ title: computed(() => post.value ? `${post.value.title} — seConecta` : 'seConecta') })
+// Extract user ID for posts
+const userId = computed(() => user.value?.id)
 
-async function fetchPost() {
-  loadingPost.value = true
-  errorPost.value   = null
-  try {
-    const res       = await get(`/posts/slug/${route.params.slug}`)
-    post.value      = res.data
-    likeCount.value = res.data.likes_count ?? 0
-    if (res.data.author_id) postAuthor.value = await getUser(res.data.author_id)
-    await fetchComments(true)
-  } catch (e: any) {
-    errorPost.value = e?.response?.status === 404 ? 'Post não encontrado.' : 'Erro ao carregar o post.'
-  } finally {
-    loadingPost.value = false
+// Fetch user's approved posts
+const { data: postsData, pending: postsPending, error: postsError } = await useAsyncData(
+  `user-posts-${userId.value}`,
+  async () => {
+    if (!userId.value) return null
+    const { get } = useAxios()
+    const response = await get('/posts', {
+      params: { user_id: userId.value, approved: true },
+    })
+    // Adjust based on your API structure:
+    // If response.data is an array directly:
+    return response.data
+    // If response.data is { data: [...] }:
+    // return response.data.data
+  },
+  {
+    watch: [userId],
+    immediate: true,
   }
+)
+
+// Derive posts array (adjust if needed)
+const posts = computed(() => {
+  if (!postsData.value) return []
+  // If API returns an array directly:
+  return postsData.value
+  // If API returns { data: [...] }:
+  // return postsData.value.data || []
+})
+
+// User initial for avatar fallback
+const userInitial = computed(() => {
+  if (user.value?.full_name) return user.value.full_name.charAt(0).toUpperCase()
+  if (user.value?.username) return user.value.username.charAt(0).toUpperCase()
+  return '?'
+})
+
+function formatDate(dateStr?: string) {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 }
-
-async function fetchComments(reset = false) {
-  if (!post.value?.id) return
-  if (reset) { commentPage.value = 1; comments.value = []; repliesMap.value.clear() }
-  loadingComments.value = true
-  try {
-    const res = await get(`/comments/post/${post.value.id}`, { params: { page: commentPage.value, limit: COMMENT_LIMIT } })
-    let data = [], count = 0
-    if (Array.isArray(res.data)) { data = res.data; count = res.data.length }
-    else if (res.data?.data) { data = res.data.data; count = res.data.count ?? data.length }
-    commentsCount.value  = count
-    comments.value.push(...data)
-    commentHasMore.value = data.length === COMMENT_LIMIT
-  } catch (e) { console.error('Erro ao carregar comentários:', e) }
-  finally { loadingComments.value = false }
-}
-
-async function fetchReplies(commentId: any, openAfterLoad = false) {
-  if (repliesMap.value.has(commentId) && !openAfterLoad) {
-    repliesMap.value.get(commentId).open = !repliesMap.value.get(commentId).open
-    return
-  }
-  repliesMap.value.set(commentId, { data: [], loading: true, open: openAfterLoad })
-  try {
-    const res     = await get(`/comments/${commentId}/replies`)
-    const replies = res.data.data ?? []
-    repliesMap.value.set(commentId, { data: replies, loading: false, open: openAfterLoad })
-    const parent = findCommentById(commentId)
-    if (parent && replies.length) parent.replies_count = replies.length
-  } catch (e) {
-    repliesMap.value.set(commentId, { data: [], loading: false, open: openAfterLoad })
-  }
-}
-
-function findCommentById(id: any) {
-  let found = comments.value.find(c => c.id === id)
-  if (found) return found
-  for (const [, state] of repliesMap.value) { found = state.data.find((r: any) => r.id === id); if (found) return found }
-  return null
-}
-
-async function toggleReplies(commentId: any) { await fetchReplies(commentId, true) }
-
-async function submitComment() {
-  if (!newMsg.value.trim() || submitting.value) return
-  submitting.value = true
-  try {
-    const res = await apiPost('/comments/', { message: newMsg.value.trim(), post_id: post.value.id })
-    comments.value.unshift({ ...res.data, author_id: currentUser.value?.id })
-    commentsCount.value++
-    newMsg.value = ''
-    if (post.value) post.value.comments_count = commentsCount.value
-  } catch (e) { console.error('Erro ao publicar comentário:', e) }
-  finally { submitting.value = false }
-}
-
-async function submitReply(parentId: any) {
-  if (!replyMsg.value.trim() || submittingReply.value) return
-  submittingReply.value = true
-  try {
-    const res = await apiPost('/comments/', { message: replyMsg.value.trim(), post_id: post.value.id, parent_comment_id: parentId })
-    const parent = findCommentById(parentId)
-    if (parent) parent.replies_count = (parent.replies_count ?? 0) + 1
-    if (!repliesMap.value.has(parentId)) repliesMap.value.set(parentId, { data: [], loading: false, open: true })
-    const state = repliesMap.value.get(parentId)
-    state.data.unshift({ ...res.data, author_id: currentUser.value?.id })
-    state.open = true
-    replyMsg.value = ''; replyingTo.value = null
-  } catch (e) { console.error('Erro ao responder:', e) }
-  finally { submittingReply.value = false }
-}
-
-function startEdit(comment: any) { editingId.value = comment.id; editText.value = comment.message }
-
-async function saveEdit(commentId: any, parentId: any = null) {
-  if (!editText.value.trim()) return
-  try {
-    const res = await patch(`/comments/${commentId}`, { message: editText.value.trim() })
-    if (parentId) {
-      const state = repliesMap.value.get(parentId)
-      const reply = state?.data.find((r: any) => r.id === commentId)
-      if (reply) reply.message = res.data.message
-    } else {
-      const c = comments.value.find(c => c.id === commentId)
-      if (c) c.message = res.data.message
-    }
-  } catch (e) { console.error('Erro ao editar:', e) }
-  finally { editingId.value = null; editText.value = '' }
-}
-
-async function deleteComment(commentId: any, parentId: any = null) {
-  if (deletingId.value) return
-  deletingId.value = commentId
-  try {
-    await del(`/comments/${commentId}`)
-    if (parentId) {
-      const state = repliesMap.value.get(parentId)
-      if (state) {
-        state.data = state.data.filter((r: any) => r.id !== commentId)
-        const parent = findCommentById(parentId)
-        if (parent) parent.replies_count = Math.max(0, (parent.replies_count ?? 1) - 1)
-      }
-    } else {
-      comments.value = comments.value.filter(c => c.id !== commentId)
-      commentsCount.value = Math.max(0, commentsCount.value - 1)
-      repliesMap.value.delete(commentId)
-    }
-  } catch (e) { console.error('Erro ao deletar:', e) }
-  finally { deletingId.value = null }
-}
-
-async function loadMoreComments() {
-  if (!commentHasMore.value || loadingComments.value) return
-  commentPage.value++
-  await fetchComments()
-}
-
-async function approvePost(targetPost: any) {
-  if (approving.value) return
-  const { default: Swal } = await import('sweetalert2')
-  const result = await Swal.fire({ title: 'Aprovar post?', text: 'Esse post será publicado e ficará visível para todos.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Aprovar', cancelButtonText: 'Cancelar', confirmButtonColor: '#16a34a' })
-  if (!result.isConfirmed) return
-  approving.value = true
-  try {
-    await patch(`/posts/${targetPost.id}`, { approved: true })
-    if (post.value) post.value.approved = true
-    await Swal.fire({ icon: 'success', title: 'Post aprovado!', text: 'O post foi publicado com sucesso.', timer: 2000, showConfirmButton: false })
-  } catch (e: any) {
-    await Swal.fire({ icon: 'error', title: 'Erro ao aprovar', text: e?.response?.data?.detail || 'Não foi possível aprovar o post.' })
-  } finally { approving.value = false }
-}
-
-watch(() => route.params.slug, fetchPost)
-onMounted(fetchPost)
 </script>
 
 <template>
@@ -288,7 +140,15 @@ onMounted(fetchPost)
 
           <div class="flex items-center justify-between bg-white/5 border border-white/[0.08] rounded-t-xl p-4 md:p-5">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-sm font-bold">{{ authorDisplayInitial }}</div>
+              <div class="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-sm font-bold">
+                <img
+                  v-if="authorProfileUrl"
+                  :src="authorProfileUrl"
+                  :alt="authorDisplayName"
+                  class="w-full h-full object-cover"
+                />
+                <span v-else>{{ authorDisplayInitial }}</span>
+              </div>
               <div>
                 <div class="text-[0.88rem] font-semibold text-white">{{ authorDisplayName }}</div>
                 <div v-if="postAuthor?.username || (isMyPost && currentUser?.username)" class="text-[0.72rem] text-white/35">@{{ postAuthor?.username || currentUser?.username }}</div>
@@ -302,6 +162,14 @@ onMounted(fetchPost)
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>{{ commentsCount }}
               </span>
             </div>
+            <NuxtLink v-if="canEdit" :to="`/edit/${route.params.slug}`"
+                class="flex items-center gap-1.5 text-[0.78rem] font-semibold px-3 py-1.5 rounded-lg border border-white/20 text-white/70 hover:bg-white/10 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/>
+                  <polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/>
+                </svg>
+                Editar
+              </NuxtLink>
           </div>
         </div>
       </header>
@@ -318,17 +186,40 @@ onMounted(fetchPost)
         <aside class="pt-12 sticky top-20 hidden md:flex flex-col gap-4">
           <div class="bg-white border border-[#e8e4dc] rounded-xl p-5 flex flex-col gap-2">
             <div class="text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#bbb] mb-1">Ações</div>
-            <button class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#fff0f0] hover:text-[#e53e3e]"
+
+            <button
+              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#fff0f0] hover:text-[#e53e3e]"
               :class="{ '!bg-[#fff0f0] !text-[#e53e3e]': liked }"
-              @click="liked = !liked; likeCount += liked ? 1 : -1">
-              <svg width="14" height="14" viewBox="0 0 24 24" :fill="liked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              @click="liked ? unlikePost() : likePost()"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" :fill="liked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
               {{ liked ? 'Curtido' : 'Curtir' }}
             </button>
-            <button class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#e8f5f2] hover:text-[#079272]"
-              :class="{ '!bg-[#e8f5f2] !text-[#079272]': saved }" @click="saved = !saved">
-              <svg width="14" height="14" viewBox="0 0 24 24" :fill="saved ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+
+            <button
+              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#e8f5f2] hover:text-[#079272]"
+              :class="{ '!bg-[#e8f5f2] !text-[#079272]': saved }"
+              @click="saved = !saved"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" :fill="saved ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+              </svg>
               {{ saved ? 'Salvo ✓' : 'Salvar' }}
             </button>
+
+            <NuxtLink
+              v-if="canEdit"
+              :to="`/edit/${route.params.slug}`"
+              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#e8f5f2] hover:text-[#079272]"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/>
+                <polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/>
+              </svg>
+              Editar
+            </NuxtLink>
           </div>
           <div class="bg-white border border-[#e8e4dc] rounded-xl p-5">
             <div class="text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#bbb] mb-3">Stats</div>
@@ -340,28 +231,74 @@ onMounted(fetchPost)
           </div>
         </aside>
       </div>
-
       <!-- Comentários -->
       <div class="max-w-[760px] mx-auto px-6 md:px-8 pb-28">
         <div class="flex items-center gap-3 mb-8 pb-5 border-b border-[#e8e4dc]">
           <h2 class="text-lg font-bold text-[#111] tracking-[-0.02em]">Comentários</h2>
-          <span class="text-[0.72rem] font-semibold px-2.5 py-0.5 bg-[#f7f5f0] border border-[#e8e4dc] text-[#888] rounded-full">{{ commentsCount }}</span>
+          <span class="text-[0.72rem] font-semibold px-2.5 py-0.5 bg-[#f7f5f0] border border-[#e8e4dc] text-[#888] rounded-full">
+            {{ commentsCount }}
+          </span>
         </div>
 
+        <!-- INPUT DE COMENTÁRIO -->
         <div v-if="isAuthenticated" class="flex gap-3 mb-10">
-          <div class="w-9 h-9 flex-shrink-0 rounded-full bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-xs font-bold">{{ currentUserInitial }}</div>
+          <div class="w-9 h-9 flex-shrink-0 rounded-full overflow-hidden">
+            <img
+              v-if="currentUser?.profile_picture_url"
+              :src="currentUser.profile_picture_url"
+              alt="Seu avatar"
+              class="w-full h-full object-cover"
+            />
+            <div
+              v-else
+              class="w-full h-full bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-xs font-bold"
+            >
+              {{ currentUserInitial }}
+            </div>
+          </div>
+
           <div class="flex-1 flex flex-col gap-2">
-            <textarea v-model="newMsg" rows="3" placeholder="Escreva um comentário..."
-              class="w-full text-[0.88rem] font-light p-3.5 bg-white border border-[#e8e4dc] rounded-xl resize-none text-[#111] outline-none transition-colors focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/10"></textarea>
-            <button class="self-end text-[0.78rem] font-semibold px-5 py-2 bg-[#079272] text-white rounded-lg border-none cursor-pointer hover:bg-[#068060] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-              :disabled="!newMsg.trim() || submitting" @click="submitComment">
-              <svg v-if="submitting" class="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            <textarea
+              v-model="newMsg"
+              rows="3"
+              placeholder="Escreva um comentário..."
+              class="w-full text-[0.88rem] font-light p-3.5 bg-white border border-[#e8e4dc] rounded-xl resize-none text-[#111] outline-none transition-colors focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/10"
+            ></textarea>
+
+            <button
+              class="self-end text-[0.78rem] font-semibold px-5 py-2 bg-[#079272] text-white rounded-lg border-none cursor-pointer hover:bg-[#068060] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+              :disabled="!newMsg.trim() || submitting"
+              @click="submitComment"
+            >
+              <svg
+                v-if="submitting"
+                class="animate-spin"
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
               {{ submitting ? 'Publicando...' : 'Publicar' }}
             </button>
           </div>
         </div>
-        <div v-else class="mb-8 p-4 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl text-sm text-center text-[#888]">
-          <button class="text-[#079272] font-semibold hover:underline border-none bg-transparent cursor-pointer" @click="router.push('/login')">Faça login</button> para comentar.
+
+        <!-- NÃO LOGADO -->
+        <div
+          v-else
+          class="mb-8 p-4 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl text-sm text-center text-[#888]"
+        >
+          <button
+            class="text-[#079272] font-semibold hover:underline border-none bg-transparent cursor-pointer"
+            @click="router.push('/login')"
+          >
+            Faça login
+          </button>
+          para comentar.
         </div>
 
         <div v-if="loadingComments && comments.length === 0" class="flex flex-col gap-4">
@@ -373,7 +310,7 @@ onMounted(fetchPost)
               <div class="h-3.5 w-4/5 bg-[#f0ece5] rounded"></div>
             </div>
           </div>
-        </div>
+        </div>  
 
         <div v-else-if="!loadingComments && comments.length === 0" class="py-12 text-center text-sm text-[#aaa]">
           Nenhum comentário ainda. Seja o primeiro!
