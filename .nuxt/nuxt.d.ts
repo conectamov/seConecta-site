@@ -1,7 +1,12 @@
+<<<<<<< HEAD
+=======
 /// <reference types="@nuxtjs/tailwindcss" />
 /// <reference types="@pinia/nuxt" />
+>>>>>>> 4c29043d9c5f2df4226927e6c7f5793f6208daa5
 /// <reference types="@vite-pwa/nuxt" />
 /// <reference types="@nuxt/telemetry" />
+/// <reference types="@nuxtjs/tailwindcss" />
+/// <reference types="@pinia/nuxt" />
 /// <reference path="types/nitro-layouts.d.ts" />
 /// <reference path="types/builder-env.d.ts" />
 /// <reference types="nuxt" />
