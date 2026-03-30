@@ -191,6 +191,10 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 Revisar posts
               </button>
+              <button class="w-full flex items-center gap-2.5 px-4 py-2.5 text-[0.8rem] text-[#555] hover:bg-[#f7f5f0] transition-colors cursor-pointer bg-transparent border-none text-left" @click="go('calendar'); showUserMenu = false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18"/><circle cx="12" cy="12" r="3"/></svg>
+                Calendário de eventos
+              </button>
               <div class="h-px bg-[#f7f5f0] mx-2 my-1"></div>
               <button class="w-full flex items-center gap-2.5 px-4 py-2.5 text-[0.8rem] text-red-500 hover:bg-red-50 transition-colors cursor-pointer bg-transparent border-none text-left" @click="handleLogout">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -272,6 +276,11 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               Novo post
             </button>
+            <button @click="go('calendar')" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[0.88rem] font-medium text-[#333] hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors border-none bg-transparent cursor-pointer text-left">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18"/><circle cx="12" cy="12" r="3"/></svg>
+              Calendário de eventos
+            </button>
+
             <div class="h-px bg-[#f7f5f0] my-2"></div>
             <button @click="go('sobre')" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[0.88rem] font-medium text-[#555] hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors border-none bg-transparent cursor-pointer text-left">Sobre</button>
             <button @click="go('embaixadores')" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[0.88rem] font-medium text-[#555] hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors border-none bg-transparent cursor-pointer text-left">Embaixadores</button>
