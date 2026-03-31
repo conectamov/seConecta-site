@@ -38,6 +38,22 @@ const formattedDate = computed(() => {
   if (!post.value?.created_at) return ''
   return new Date(post.value.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 })
+
+// 👇 NOVO: formatação do deadline
+const formattedDeadline = computed(() => {
+  if (!post.value?.deadline) return null
+  const deadlineDate = new Date(post.value.deadline)
+  if (isNaN(deadlineDate.getTime())) return null
+  return deadlineDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+})
+
+const isDeadlineExpired = computed(() => {
+  if (!post.value?.deadline) return false
+  const deadlineDate = new Date(post.value.deadline)
+  if (isNaN(deadlineDate.getTime())) return false
+  return deadlineDate < new Date()
+})
+
 const readTime = computed(() => {
   const words = (post.value?.content_md || '').trim().split(/\s+/).filter(Boolean).length
   return `${Math.max(1, Math.ceil(words / 200))} min`
@@ -242,7 +258,6 @@ async function likePost() {
   }
 }
 
-// Descurtir post
 async function unlikePost() {
   if (!post.value?.id) return
   try {
@@ -317,6 +332,20 @@ onMounted(fetchPost)
             <span class="flex items-center gap-1.5">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>{{ formattedDate }}
             </span>
+            <!-- 👇 NOVO: deadline -->
+            <template v-if="formattedDeadline">
+              <span class="text-white/15">·</span>
+              <span class="flex items-center gap-1.5" :class="{ 'text-red-400': isDeadlineExpired }">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Prazo: {{ formattedDeadline }}
+                <span v-if="isDeadlineExpired" class="text-[0.65rem] font-bold ml-1">(expirado)</span>
+              </span>
+            </template>
             <span v-if="isMyPost" class="text-[0.65rem] font-semibold px-2 py-0.5 rounded-full bg-[#079272]/20 text-[#079272]">Seu post</span>
           </div>
 
@@ -416,6 +445,11 @@ onMounted(fetchPost)
               class="flex justify-between py-2 text-[0.75rem] border-b border-[#f7f5f0] last:border-0">
               <span class="text-[#bbb]">{{ s.l }}</span>
               <strong class="text-[#111]">{{ s.v }}</strong>
+            </div>
+            <!-- 👇 NOVO: deadline nos stats (opcional) -->
+            <div v-if="formattedDeadline" class="flex justify-between py-2 text-[0.75rem] border-b border-[#f7f5f0]">
+              <span class="text-[#bbb]">Prazo</span>
+              <strong class="text-[#111]" :class="{ 'text-red-600': isDeadlineExpired }">{{ formattedDeadline }}</strong>
             </div>
           </div>
         </aside>

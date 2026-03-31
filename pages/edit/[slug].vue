@@ -43,7 +43,8 @@ const form = ref({
   content_md: '',
   excerpt: '',
   cover_url: '',
-  tags: [] as string[]
+  tags: [] as string[],
+  deadline: '' // 👈 novo campo
 })
 const tagInput = ref('')
 const submitting = ref(false)
@@ -78,6 +79,7 @@ async function fetchPost() {
     form.value.excerpt = post.value.excerpt || ''
     form.value.cover_url = post.value.cover_url || ''
     form.value.tags = post.value.tags || []
+    form.value.deadline = post.value.deadline || '' // 👈 preenche deadline existente
   } catch (err: any) {
     error.value = err?.response?.status === 404 ? 'Post não encontrado.' : 'Erro ao carregar o post.'
   } finally {
@@ -115,12 +117,20 @@ function validate() {
   if (form.value.cover_url && !/^https?:\/\/.+/.test(form.value.cover_url)) {
     errors.value.cover_url = 'URL inválida.'
   }
+  // Validação do deadline (se preenchido)
+  if (form.value.deadline) {
+    const deadlineDate = new Date(form.value.deadline)
+    if (isNaN(deadlineDate.getTime())) {
+      errors.value.deadline = 'Data inválida.'
+    }
+  }
   return !Object.keys(errors.value).length
 }
 
 watch(() => form.value.title, () => delete errors.value.title)
 watch(() => form.value.content_md, () => delete errors.value.content_md)
 watch(() => form.value.cover_url, () => delete errors.value.cover_url)
+watch(() => form.value.deadline, () => delete errors.value.deadline) // 👈 limpa erro ao editar
 
 // Estatísticas
 const wordCount = computed(() => form.value.content_md.trim().split(/\s+/).filter(Boolean).length)
@@ -155,6 +165,7 @@ async function handleSubmit() {
   if (form.value.excerpt.trim()) payload.excerpt = form.value.excerpt.trim()
   if (form.value.cover_url.trim()) payload.cover_url = form.value.cover_url.trim()
   if (form.value.tags.length) payload.tags = form.value.tags
+  if (form.value.deadline) payload.deadline = form.value.deadline // 👈 envia se preenchido
 
   try {
     await patch(`/posts/${post.value.id}`, payload)
@@ -237,23 +248,23 @@ onMounted(fetchPost)
       <div v-else class="bg-white rounded-2xl border border-[#e8e4dc] shadow-sm overflow-hidden">
         <!-- Header -->
         <div class="px-6 pt-6 pb-4 border-b border-[#f7f5f0] flex items-center justify-between gap-4 flex-wrap">
-        <div class="flex flex-col">
+          <div class="flex flex-col">
             <button
-            class="inline-flex items-center gap-1.5 text-[0.75rem] text-[#888] border-none bg-transparent cursor-pointer hover:text-[#079272] transition-colors mb-3"
-            @click="router.push(`/feed/${route.params.slug}`)"
+              class="inline-flex items-center gap-1.5 text-[0.75rem] text-[#888] border-none bg-transparent cursor-pointer hover:text-[#079272] transition-colors mb-3"
+              @click="router.push(`/feed/${route.params.slug}`)"
             >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="19" y1="12" x2="5" y2="12"/>
                 <polyline points="12 19 5 12 12 5"/>
-            </svg>
-            Voltar
+              </svg>
+              Voltar
             </button>
 
             <h1 class="text-[1.1rem] font-extrabold text-[#111] tracking-[-0.02em]">Editar post</h1>
             <p class="text-[0.75rem] text-[#aaa] mt-0.5">Atualize seu conteúdo e mantenha a comunidade informada</p>
-        </div>
+          </div>
 
-        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3">
             <button
               v-if="!submitting"
               class="px-5 py-2.5 rounded-xl text-[0.85rem] font-bold text-white bg-red-600 hover:bg-red-700 transition-all border-none cursor-pointer disabled:opacity-50"
@@ -264,13 +275,13 @@ onMounted(fetchPost)
             </button>
             <span class="text-[0.72rem] text-[#bbb]">{{ wordCount }} palavras · ~{{ readTime }}min leitura</span>
             <button
-            class="px-5 py-2.5 rounded-xl text-[0.85rem] font-bold text-white bg-gradient-to-r from-[#079272] to-[#0DA790] hover:shadow-[0_4px_16px_rgba(7,146,114,0.3)] hover:-translate-y-0.5 transition-all border-none cursor-pointer disabled:opacity-50"
-            :disabled="submitting || submitSuccess"
-            @click="handleSubmit"
+              class="px-5 py-2.5 rounded-xl text-[0.85rem] font-bold text-white bg-gradient-to-r from-[#079272] to-[#0DA790] hover:shadow-[0_4px_16px_rgba(7,146,114,0.3)] hover:-translate-y-0.5 transition-all border-none cursor-pointer disabled:opacity-50"
+              :disabled="submitting || submitSuccess"
+              @click="handleSubmit"
             >
-            {{ submitting ? 'Salvando…' : 'Salvar alterações' }}
+              {{ submitting ? 'Salvando…' : 'Salvar alterações' }}
             </button>
-        </div>
+          </div>
         </div>
 
         <!-- Mensagens -->
@@ -334,6 +345,21 @@ onMounted(fetchPost)
             <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Resumo <span class="text-[#bbb] font-normal">(opcional — gerado automaticamente se vazio)</span></label>
             <textarea v-model="form.excerpt" placeholder="Breve descrição do post…" rows="2"
               class="w-full px-4 py-2.5 rounded-xl border border-[#e8e4dc] text-[0.85rem] outline-none focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15 resize-none transition-all"></textarea>
+          </div>
+
+          <!-- 👇 NOVO CAMPO DE DEADLINE -->
+          <div>
+            <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">
+              Data limite <span class="text-[#bbb] font-normal">(opcional)</span>
+            </label>
+            <input
+              v-model="form.deadline"
+              type="datetime-local"
+              class="w-full px-4 py-2.5 rounded-xl border text-[0.85rem] outline-none transition-all"
+              :class="errors.deadline ? 'border-red-300 bg-red-50' : 'border-[#e8e4dc] focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15'"
+            />
+            <p v-if="errors.deadline" class="text-red-500 text-[0.73rem] mt-1">{{ errors.deadline }}</p>
+            <p class="text-[0.7rem] text-[#aaa] mt-1">Use este campo para informar o prazo de uma oportunidade (inscrição, evento, etc.)</p>
           </div>
 
           <!-- Tags -->
