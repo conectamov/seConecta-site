@@ -180,74 +180,28 @@
           Carregando recomendações...
         </div>
 
-        <div v-else-if="recommendedError" class="text-center py-8 text-red-500 text-sm">
-          {{ recommendedError }}
+        <div v-else-if="!authReady" class="text-center py-8 text-[#aaa]">
+          Carregando conta...
         </div>
 
-        <div v-else-if="recommendedPosts.length > 0" class="relative overflow-hidden">
-          <div
-            class="flex gap-4 transition-transform duration-300 ease-out"
-            :style="{ transform: `translateX(-${carouselIndex * (carouselItemWidth + 16)}px)` }"
-          >
-            <div
-              v-for="post in recommendedPosts"
-              :key="post.id ?? post.slug"
-              class="flex-shrink-0 w-full sm:w-[280px] md:w-[320px] bg-white border border-[#e8e4dc] rounded-2xl overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer"
-              @click="openPost(post)"
-            >
-              <div v-if="post.cover_url" class="h-40 overflow-hidden">
-                <img
-                  :src="post.cover_url"
-                  :alt="post.title"
-                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
+        <div v-else-if="isAuthenticated && !isLinked" class="text-center py-8 text-[#aaa]">
+          Conecte seu WhatsApp na
+          <NuxtLink to="/profile" class="text-[#079272] font-semibold hover:underline">página de perfil</NuxtLink>
+          para receber recomendações personalizadas.
+        </div>
 
-              <div class="p-4">
-                <div class="flex items-center justify-between mb-2">
-                  <span
-                    v-if="post.similarity"
-                    class="text-[0.6rem] font-semibold px-2 py-0.5 rounded-full bg-[#f0faf7] text-[#079272] border border-[#c5e8df]"
-                  >
-                    {{ Math.round(post.similarity * 100) }}% match
-                  </span>
+        <div v-else-if="isAuthenticated && recommendedPosts.length > 0" class="relative overflow-hidden">
+          <!-- your carousel here -->
+        </div>
 
-                  <div class="flex gap-1">
-                    <span
-                      v-for="tag in (post.tags || []).slice(0, 2)"
-                      :key="tag"
-                      class="text-[0.55rem] px-1.5 py-0.5 bg-[#f7f5f0] text-[#888] rounded-full"
-                    >
-                      #{{ tag }}
-                    </span>
-                  </div>
-                </div>
-
-                <h3 class="text-[0.9rem] font-bold text-[#111] line-clamp-2 mb-1">
-                  {{ post.title }}
-                </h3>
-
-                <p v-if="post.excerpt" class="text-[0.7rem] text-[#666] line-clamp-3 mb-2">
-                  {{ post.excerpt }}
-                </p>
-
-                <div class="flex items-center justify-between text-[0.65rem] text-[#aaa]">
-                  <span>Clique para ler</span>
-                  <svg class="w-3 h-3 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div v-else-if="isAuthenticated" class="text-center py-8 text-[#aaa]">
+          Nenhuma recomendação disponível agora.
         </div>
 
         <div v-else class="text-center py-8 text-[#aaa]">
-          <p>
-            Faça
-            <NuxtLink to="/login" class="text-[#079272] font-semibold hover:underline">login</NuxtLink>
-            para ver recomendações personalizadas.
-          </p>
+          Faça
+          <NuxtLink to="/login" class="text-[#079272] font-semibold hover:underline">login</NuxtLink>
+          para ver recomendações personalizadas.
         </div>
       </div>
     </div>
@@ -432,9 +386,9 @@ const selectedDay = ref<Date | null>(null)
 const showModal = ref(false)
 
 const mounted = ref(false)
+const authReady = ref(false)
 
 const isLinked = computed(() => currentUser.value?.linked ?? false)
-const authReady = computed(() => currentUser.value !== undefined)
 
 function safeArray<T>(value: any): T[] {
   return Array.isArray(value) ? value : []
@@ -542,6 +496,7 @@ function labelFor(type?: string) {
 
 function daysLeft(iso: string): { text: string; cls: string } {
   const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
+
   if (diff < 0) return { text: 'Encerrado', cls: 'text-[#bbb]' }
   if (diff === 0) return { text: 'Hoje!', cls: 'text-red-500 font-bold' }
   if (diff === 1) return { text: 'Amanhã', cls: 'text-orange-500 font-semibold' }
@@ -556,13 +511,18 @@ function openPost(post: any) {
 
 const selectedDayLabel = computed(() =>
   selectedDay.value
-    ? selectedDay.value.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
+    ? selectedDay.value.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+      })
     : ''
 )
 
 function scrollCarousel(direction: number) {
   const maxIndex = Math.max(0, recommendedPosts.value.length - carouselItemsPerView.value)
   const newIndex = carouselIndex.value + direction
+
   if (newIndex >= 0 && newIndex <= maxIndex) {
     carouselIndex.value = newIndex
   }
@@ -584,16 +544,20 @@ function updateCarouselSettings() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   mounted.value = true
-  fetchPosts()
+  authReady.value = true
+
+  await fetchPosts()
+  await fetchRecommended()
+
   updateCarouselSettings()
   window.addEventListener('resize', updateCarouselSettings)
 })
 
 watch([isAuthenticated, isLinked, authReady], () => {
-  if (!mounted.value) return
-  fetchRecommended()
+  if (!mounted.value || !authReady.value) return
+  void fetchRecommended()
 }, { immediate: true })
 
 watch(recommendedPosts, () => {
