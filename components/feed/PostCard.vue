@@ -210,26 +210,6 @@ async function toggleLike(e: Event) {
         {{ post.excerpt }}
       </p>
 
-      <div v-if="hasDeadline && deadlineInfo" class="mb-4 rounded-xl border px-3 py-2.5" :class="deadlineCardClass">
-        <div class="flex items-start gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mt-0.5 flex-shrink-0">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-          <div class="min-w-0">
-            <p class="text-[0.72rem] font-semibold leading-none mb-1">
-              <span v-if="isExpired">Prazo expirado</span>
-              <span v-else>Prazos da oportunidade</span>
-            </p>
-            <p class="text-[0.76rem] opacity-90 leading-snug">
-              {{ deadlineInfo.label }}
-            </p>
-          </div>
-        </div>
-      </div>
-
       <div v-if="visibleTags.length > 0" class="flex flex-wrap gap-1.5 mb-4">
         <span
           v-for="tag in visibleTags"
