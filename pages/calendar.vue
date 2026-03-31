@@ -116,7 +116,7 @@
         </div>
       </div>
 
-      <!-- NEW: Recommended Posts Carousel -->
+      <!-- Recommended Posts Carousel (only if user is authenticated and linked) -->
       <div v-if="recommendedPosts.length > 0" class="mt-12">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-[1.2rem] font-bold text-[#111] tracking-[-0.02em]">
@@ -190,6 +190,16 @@
         </div>
       </div>
 
+      <!-- Prompt for non‑logged‑in users -->
+      <div v-else-if="!isAuthenticated && !recommendedLoading" class="mt-12 text-center py-8 text-[#aaa]">
+        <p>Faça <NuxtLink to="/login" class="text-[#079272] font-semibold hover:underline">login</NuxtLink> para ver recomendações personalizadas.</p>
+      </div>
+
+      <!-- Prompt for logged‑in but not linked users -->
+      <div v-else-if="isAuthenticated && !isLinked && !recommendedLoading && !recommendedPosts.length" class="mt-12 text-center py-8 text-[#aaa]">
+        <p>Conecte seu WhatsApp na <NuxtLink to="/profile" class="text-[#079272] font-semibold hover:underline">página de perfil</NuxtLink> para receber recomendações personalizadas.</p>
+      </div>
+
       <!-- Loading state for recommendations -->
       <div v-else-if="recommendedLoading" class="mt-12 text-center py-8 text-[#aaa]">
         <svg class="animate-spin w-5 h-5 inline-block mr-2 text-[#079272]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -198,12 +208,7 @@
         Carregando recomendações...
       </div>
 
-      <!-- Empty state -->
-      <div v-else-if="!recommendedLoading && recommendedPosts.length === 0 && !recommendedError" class="mt-12 text-center py-8 text-[#aaa]">
-        Nenhuma recomendação no momento. Explore mais oportunidades para personalizar seu feed.
-      </div>
-
-      <!-- Error state -->
+      <!-- Fallback if recommendations fail (should not happen with conditions) -->
       <div v-else-if="recommendedError" class="mt-12 text-center py-8 text-red-500 text-sm">
         {{ recommendedError }}
       </div>
@@ -319,14 +324,16 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useAxios } from '~/composables/useAxios'
+import { useAuth } from '~/composables/useAuth'
 import { useRouter } from 'nuxt/app'
 import VCalendar from 'v-calendar'
 import 'v-calendar/style.css'
 
 useSeoMeta({ title: 'Calendário de Oportunidades — seConecta' })
-definePageMeta({ middleware: 'auth' })
+// No middleware – page is public
 
 const { get } = useAxios()
+const { currentUser, isAuthenticated } = useAuth()
 const router = useRouter()
 
 // Color and label maps (unchanged)
@@ -369,13 +376,15 @@ const recommendedError = ref<string | null>(null)
 
 // Carousel
 const carouselIndex = ref(0)
-const carouselItemsPerView = ref(3) // adjust based on screen size
-const carouselItemWidth = ref(320) // approximate width of each card + gap (16px)
-// We'll compute dynamic width later, but for simplicity we use fixed width and responsive breakpoints in CSS.
+const carouselItemsPerView = ref(3)
+const carouselItemWidth = ref(320)
 
 // Calendar modal
 const selectedDay = ref<Date | null>(null)
 const showModal = ref(false)
+
+// Derived auth info
+const isLinked = computed(() => currentUser.value?.linked ?? false)
 
 // Fetch all posts with deadlines
 async function fetchPosts() {
@@ -392,17 +401,31 @@ async function fetchPosts() {
   }
 }
 
-// Fetch recommended posts
+// Fetch recommended posts – only if authenticated and linked
 async function fetchRecommended() {
+  if (!isAuthenticated.value || !isLinked.value) {
+    recommendedLoading.value = false
+    recommendedPosts.value = []
+    recommendedError.value = null
+    return
+  }
+
   recommendedLoading.value = true
   recommendedError.value = null
   try {
     const res = await get('/posts/get-feed-posts')
     const data = res.data.data ?? []
     recommendedPosts.value = data
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error fetching recommendations:', err)
-    recommendedError.value = 'Não foi possível carregar recomendações.'
+    // If the error is 429 (not linked) we handle it gracefully; other errors show a message
+    if (err?.response?.status === 429) {
+      // Already handled by the condition above, but just in case:
+      recommendedError.value = null
+      recommendedPosts.value = []
+    } else {
+      recommendedError.value = 'Não foi possível carregar recomendações.'
+    }
   } finally {
     recommendedLoading.value = false
   }
@@ -410,6 +433,11 @@ async function fetchRecommended() {
 
 onMounted(() => {
   fetchPosts()
+  fetchRecommended()
+})
+
+// Re‑fetch recommendations if auth state changes
+watch([isAuthenticated, isLinked], () => {
   fetchRecommended()
 })
 
@@ -490,13 +518,20 @@ function scrollCarousel(direction: number) {
   }
 }
 
-// Optional: adjust carousel items per view on window resize (simple approach)
+// Responsive carousel settings
 if (process.client) {
   const updateCarouselSettings = () => {
     const width = window.innerWidth
-    if (width < 640) carouselItemsPerView.value = 1
-    else if (width < 1024) carouselItemsPerView.value = 2
-    else carouselItemsPerView.value = 3
+    if (width < 640) {
+      carouselItemsPerView.value = 1
+      carouselItemWidth.value = width - 32 // approx card width on mobile
+    } else if (width < 1024) {
+      carouselItemsPerView.value = 2
+      carouselItemWidth.value = 280
+    } else {
+      carouselItemsPerView.value = 3
+      carouselItemWidth.value = 320
+    }
   }
   updateCarouselSettings()
   window.addEventListener('resize', updateCarouselSettings)
@@ -504,7 +539,7 @@ if (process.client) {
 </script>
 
 <style scoped>
-/* Same styles as before, plus carousel */
+/* (styles unchanged) */
 .seconecta-calendar {
   --vc-font-family: 'Outfit', sans-serif;
   --vc-rounded-full: 10px;
