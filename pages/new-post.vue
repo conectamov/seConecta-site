@@ -5,7 +5,14 @@ useSeoMeta({ title: 'Novo Post — seConecta' })
 const router = useRouter()
 const { post: apiPost } = useAxios()
 
-const form = ref({ title: '', content_md: '', excerpt: '', cover_url: '', tags: [] as string[] })
+const form = ref({
+  title: '',
+  content_md: '',
+  excerpt: '',
+  cover_url: '',
+  tags: [] as string[],
+  deadline: '' // 👈 campo novo (string vazia = não definido)
+})
 const tagInput = ref('')
 const submitting = ref(false)
 const error = ref<string | null>(null)
@@ -37,12 +44,22 @@ function validate() {
   else if (form.value.title.length > 256) errors.value.title = 'Máximo 256 caracteres.'
   if (!form.value.content_md.trim()) errors.value.content_md = 'O conteúdo é obrigatório.'
   if (form.value.cover_url && !/^https?:\/\/.+/.test(form.value.cover_url)) errors.value.cover_url = 'URL inválida.'
+
+  // Validação do deadline (se preenchido)
+  if (form.value.deadline) {
+    const deadlineDate = new Date(form.value.deadline)
+    if (isNaN(deadlineDate.getTime())) {
+      errors.value.deadline = 'Data inválida.'
+    }
+  }
+
   return !Object.keys(errors.value).length
 }
 
 watch(() => form.value.title, () => delete errors.value.title)
 watch(() => form.value.content_md, () => delete errors.value.content_md)
 watch(() => form.value.cover_url, () => delete errors.value.cover_url)
+watch(() => form.value.deadline, () => delete errors.value.deadline) // 👈 limpa erro ao editar
 
 const wordCount = computed(() => form.value.content_md.trim().split(/\s+/).filter(Boolean).length)
 const readTime = computed(() => Math.max(1, Math.ceil(wordCount.value / 200)))
@@ -60,10 +77,15 @@ watch(() => form.value.content_md, async (md) => {
 async function handleSubmit() {
   if (!validate()) return
   submitting.value = true; error.value = null
-  const payload: Record<string, any> = { title: form.value.title.trim(), content_md: form.value.content_md.trim() }
+  const payload: Record<string, any> = {
+    title: form.value.title.trim(),
+    content_md: form.value.content_md.trim()
+  }
   if (form.value.excerpt.trim()) payload.excerpt = form.value.excerpt.trim()
   if (form.value.cover_url.trim()) payload.cover_url = form.value.cover_url.trim()
   if (form.value.tags.length) payload.tags = form.value.tags
+  if (form.value.deadline) payload.deadline = form.value.deadline // 👈 envia como string (ex: "2025-12-31T23:59")
+
   try {
     await apiPost('/posts/', payload)
     success.value = true
@@ -194,6 +216,21 @@ const topics = [
             <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Resumo <span class="text-[#bbb] font-normal">(opcional — gerado automaticamente se vazio)</span></label>
             <textarea v-model="form.excerpt" placeholder="Breve descrição do post…" rows="2"
               class="w-full px-4 py-2.5 rounded-xl border border-[#e8e4dc] text-[0.85rem] outline-none focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15 resize-none transition-all"></textarea>
+          </div>
+
+          <!-- 👇 NOVO CAMPO DE DEADLINE -->
+          <div>
+            <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">
+              Data limite <span class="text-[#bbb] font-normal">(opcional)</span>
+            </label>
+            <input
+              v-model="form.deadline"
+              type="datetime-local"
+              class="w-full px-4 py-2.5 rounded-xl border text-[0.85rem] outline-none transition-all"
+              :class="errors.deadline ? 'border-red-300 bg-red-50' : 'border-[#e8e4dc] focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15'"
+            />
+            <p v-if="errors.deadline" class="text-red-500 text-[0.73rem] mt-1">{{ errors.deadline }}</p>
+            <p class="text-[0.7rem] text-[#aaa] mt-1">Use este campo para informar o prazo de uma oportunidade (inscrição, evento, etc.)</p>
           </div>
 
           <!-- Tags -->
