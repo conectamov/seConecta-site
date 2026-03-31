@@ -322,7 +322,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useAxios } from '~/composables/useAxios'
 import { useAuth } from '~/composables/useAuth'
 import { useRouter } from 'nuxt/app'
@@ -330,102 +330,60 @@ import VCalendar from 'v-calendar'
 import 'v-calendar/style.css'
 
 useSeoMeta({ title: 'Calendário de Oportunidades — seConecta' })
-// No middleware – page is public
 
 const { get } = useAxios()
 const { currentUser, isAuthenticated } = useAuth()
 const router = useRouter()
 
-// Color and label maps (unchanged)
-const COLOR_MAP: Record<string, string> = {
-  oportunidade: '#2464E8',
-  camp:  '#F59E0B',
-  olimpiada: '#079272',
-  pesquisa: '#8B5CF6',
-  evento: '#EC4899',
-  workshop: '#059669',
-  default: '#079272',
-}
-const TYPE_LABELS: Record<string, string> = {
-  oportunidade: 'Bolsa',
-  camp:  'Summer Camp',
-  olimpiada: 'Olimpíada',
-  pesquisa: 'Estágio',
-  evento: 'Evento',
-  workshop: 'Workshop',
-}
-const MODALITY_ICON: Record<string, string> = {
-  online: 'fa-globe',
-  presencial: 'fa-location-dot',
-  híbrido: 'fa-arrows-spin',
-}
-const MONTHS_PT = [
-  'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
-]
-
-// State
 const posts = ref<any[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 
-// Recommended posts state
 const recommendedPosts = ref<any[]>([])
 const recommendedLoading = ref(false)
 const recommendedError = ref<string | null>(null)
 
-// Carousel
-const carouselIndex = ref(0)
-const carouselItemsPerView = ref(3)
-const carouselItemWidth = ref(320)
-
-// Calendar modal
-const selectedDay = ref<Date | null>(null)
-const showModal = ref(false)
-
-// Derived auth info
 const isLinked = computed(() => currentUser.value?.linked ?? false)
+const authReady = computed(() => currentUser.value !== null && currentUser.value !== undefined)
 
-// Fetch all posts with deadlines
 async function fetchPosts() {
   loading.value = true
   error.value = null
+
   try {
     const res = await get('/posts/', { params: { limit: 300, approved: true } })
     const all = (res.data.data ?? res.data ?? []) as any[]
     posts.value = all.filter((p: any) => !!p.deadline)
   } catch (err) {
+    console.error('Error fetching posts:', err)
     error.value = 'Não foi possível carregar as oportunidades.'
   } finally {
     loading.value = false
   }
 }
 
-// Fetch recommended posts – only if authenticated and linked
 async function fetchRecommended() {
-  if (!isAuthenticated.value || !isLinked.value) {
-    recommendedLoading.value = false
+  if (!authReady.value || !isAuthenticated.value || !isLinked.value) {
     recommendedPosts.value = []
     recommendedError.value = null
+    recommendedLoading.value = false
     return
   }
 
   recommendedLoading.value = true
   recommendedError.value = null
+
   try {
     const res = await get('/posts/get-feed-posts')
-    const data = res.data.data ?? []
-    recommendedPosts.value = data
+    recommendedPosts.value = res.data.data ?? []
   } catch (err: any) {
     console.error('Error fetching recommendations:', err)
-    // If the error is 429 (not linked) we handle it gracefully; other errors show a message
-    if (err?.response?.status === 429) {
-      // Already handled by the condition above, but just in case:
-      recommendedError.value = null
+    if (err?.response?.status === 401 || err?.response?.status === 429) {
       recommendedPosts.value = []
-    } else {
-      recommendedError.value = 'Não foi possível carregar recomendações.'
+      recommendedError.value = null
+      return
     }
+    recommendedError.value = 'Não foi possível carregar recomendações.'
   } finally {
     recommendedLoading.value = false
   }
@@ -433,109 +391,11 @@ async function fetchRecommended() {
 
 onMounted(() => {
   fetchPosts()
+})
+
+watch([authReady, isAuthenticated, isLinked], () => {
   fetchRecommended()
-})
-
-// Re‑fetch recommendations if auth state changes
-watch([isAuthenticated, isLinked], () => {
-  fetchRecommended()
-})
-
-// Calendar attributes (unchanged)
-const attributes = computed(() =>
-  posts.value.map((post, i) => ({
-    key: `post-${i}`,
-    dates: new Date(post.deadline),
-    dot: {
-      color: 'green',
-      style: { backgroundColor: colorFor(post.post_type) },
-    },
-    popover: { label: post.title },
-    customData: post,
-  }))
-)
-
-function handleDayClick(day: any) {
-  selectedDay.value = day.date
-  showModal.value = true
-}
-
-const selectedPosts = computed(() => {
-  if (!selectedDay.value) return []
-  const key = toKey(selectedDay.value)
-  return posts.value.filter(p => toKey(new Date(p.deadline)) === key)
-})
-
-const upcomingPosts = computed(() => {
-  const now = Date.now()
-  const limit = now + 30 * 86_400_000
-  return posts.value
-    .filter(p => {
-      const t = new Date(p.deadline).getTime()
-      return t >= now && t <= limit
-    })
-    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-    .slice(0, 10)
-})
-
-function toKey(date: Date) {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
-}
-
-function colorFor(type?: string) {
-  return COLOR_MAP[type?.toLowerCase() ?? ''] ?? COLOR_MAP.default
-}
-
-function labelFor(type?: string) {
-  return TYPE_LABELS[type?.toLowerCase() ?? ''] ?? type ?? '—'
-}
-
-function daysLeft(iso: string): { text: string; cls: string } {
-  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
-  if (diff < 0) return { text: 'Encerrado', cls: 'text-[#bbb]' }
-  if (diff === 0) return { text: 'Hoje!', cls: 'text-red-500 font-bold' }
-  if (diff === 1) return { text: 'Amanhã', cls: 'text-orange-500 font-semibold' }
-  if (diff <= 7) return { text: `${diff} dias`, cls: 'text-orange-400 font-medium' }
-  return { text: `${diff} dias`, cls: 'text-[#888]' }
-}
-
-function openPost(post: any) {
-  showModal.value = false
-  router.push(`/article/${post.slug || post.id}`)
-}
-
-const selectedDayLabel = computed(() =>
-  selectedDay.value
-    ? selectedDay.value.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
-    : ''
-)
-
-// Carousel navigation
-function scrollCarousel(direction: number) {
-  const newIndex = carouselIndex.value + direction
-  if (newIndex >= 0 && newIndex <= recommendedPosts.value.length - carouselItemsPerView.value) {
-    carouselIndex.value = newIndex
-  }
-}
-
-// Responsive carousel settings
-if (process.client) {
-  const updateCarouselSettings = () => {
-    const width = window.innerWidth
-    if (width < 640) {
-      carouselItemsPerView.value = 1
-      carouselItemWidth.value = width - 32 // approx card width on mobile
-    } else if (width < 1024) {
-      carouselItemsPerView.value = 2
-      carouselItemWidth.value = 280
-    } else {
-      carouselItemsPerView.value = 3
-      carouselItemWidth.value = 320
-    }
-  }
-  updateCarouselSettings()
-  window.addEventListener('resize', updateCarouselSettings)
-}
+}, { immediate: true })
 </script>
 
 <style scoped>
