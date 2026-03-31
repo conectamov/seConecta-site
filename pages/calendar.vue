@@ -13,7 +13,7 @@
         </div>
       </div>
 
-      <!-- Main grid (calendar + upcoming) -->
+      <!-- Main grid -->
       <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
         <!-- Calendar card -->
         <div class="bg-white border border-[#e8e4dc] rounded-2xl shadow-sm overflow-hidden">
@@ -63,10 +63,7 @@
                 v-show="type !== 'default'"
                 class="flex items-center gap-1.5"
               >
-                <span
-                  class="w-2 h-2 rounded-full flex-shrink-0"
-                  :style="{ background: color }"
-                ></span>
+                <span class="w-2 h-2 rounded-full flex-shrink-0" :style="{ background: color }"></span>
                 <span class="text-[0.7rem] text-[#888]">{{ labelFor(type) }}</span>
               </div>
             </div>
@@ -146,126 +143,113 @@
         </div>
       </div>
 
-      <!-- Recommended posts -->
-      <ClientOnly>
-        <div v-if="recommendedPosts.length > 0" class="mt-12">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-[1.2rem] font-bold text-[#111] tracking-[-0.02em]">
-              Recomendado para você
-            </h2>
-            <div class="flex gap-2">
-              <button
-                @click="scrollCarousel(-1)"
-                class="w-8 h-8 rounded-full border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                :disabled="carouselIndex === 0"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="15 18 9 12 15 6" />
-                </svg>
-              </button>
+      <!-- Recommendations -->
+      <div class="mt-12">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-[1.2rem] font-bold text-[#111] tracking-[-0.02em]">
+            Recomendado para você
+          </h2>
 
-              <button
-                @click="scrollCarousel(1)"
-                class="w-8 h-8 rounded-full border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                :disabled="carouselIndex >= Math.max(0, recommendedPosts.length - carouselItemsPerView)"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div class="relative overflow-hidden">
-            <div
-              class="flex gap-4 transition-transform duration-300 ease-out"
-              :style="{ transform: `translateX(-${carouselIndex * (carouselItemWidth + 16)}px)` }"
+          <div class="flex gap-2">
+            <button
+              @click="scrollCarousel(-1)"
+              class="w-8 h-8 rounded-full border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="carouselIndex === 0"
             >
-              <div
-                v-for="post in recommendedPosts"
-                :key="post.id ?? post.slug"
-                class="flex-shrink-0 w-full sm:w-[280px] md:w-[320px] bg-white border border-[#e8e4dc] rounded-2xl overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer"
-                @click="openPost(post)"
-              >
-                <div v-if="post.cover_url" class="h-40 overflow-hidden">
-                  <img
-                    :src="post.cover_url"
-                    :alt="post.title"
-                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
 
-                <div class="p-4">
-                  <div class="flex items-center justify-between mb-2">
-                    <span
-                      v-if="post.similarity"
-                      class="text-[0.6rem] font-semibold px-2 py-0.5 rounded-full bg-[#f0faf7] text-[#079272] border border-[#c5e8df]"
-                    >
-                      {{ Math.round(post.similarity * 100) }}% match
-                    </span>
-
-                    <div class="flex gap-1">
-                      <span
-                        v-for="tag in (post.tags || []).slice(0, 2)"
-                        :key="tag"
-                        class="text-[0.55rem] px-1.5 py-0.5 bg-[#f7f5f0] text-[#888] rounded-full"
-                      >
-                        #{{ tag }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <h3 class="text-[0.9rem] font-bold text-[#111] line-clamp-2 mb-1">
-                    {{ post.title }}
-                  </h3>
-
-                  <p v-if="post.excerpt" class="text-[0.7rem] text-[#666] line-clamp-3 mb-2">
-                    {{ post.excerpt }}
-                  </p>
-
-                  <div class="flex items-center justify-between text-[0.65rem] text-[#aaa]">
-                    <span>Clique para ler</span>
-                    <svg class="w-3 h-3 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <button
+              @click="scrollCarousel(1)"
+              class="w-8 h-8 rounded-full border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="carouselIndex >= Math.max(0, recommendedPosts.length - carouselItemsPerView)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        <!-- Prompt for non-logged-in users -->
-        <div v-else-if="!isAuthenticated && !recommendedLoading" class="mt-12 text-center py-8 text-[#aaa]">
-          <p>
-            Faça
-            <NuxtLink to="/login" class="text-[#079272] font-semibold hover:underline">login</NuxtLink>
-            para ver recomendações personalizadas.
-          </p>
-        </div>
-
-        <!-- Prompt for logged-in but not linked users -->
-        <div v-else-if="isAuthenticated && !isLinked && !recommendedLoading && !recommendedPosts.length" class="mt-12 text-center py-8 text-[#aaa]">
-          <p>
-            Conecte seu WhatsApp na
-            <NuxtLink to="/profile" class="text-[#079272] font-semibold hover:underline">página de perfil</NuxtLink>
-            para receber recomendações personalizadas.
-          </p>
-        </div>
-
-        <!-- Loading state for recommendations -->
-        <div v-else-if="recommendedLoading" class="mt-12 text-center py-8 text-[#aaa]">
+        <div v-if="recommendedLoading" class="text-center py-8 text-[#aaa]">
           <svg class="animate-spin w-5 h-5 inline-block mr-2 text-[#079272]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path d="M21 12a9 9 0 1 1-6.219-8.56" />
           </svg>
           Carregando recomendações...
         </div>
 
-        <!-- Fallback if recommendations fail -->
-        <div v-else-if="recommendedError" class="mt-12 text-center py-8 text-red-500 text-sm">
+        <div v-else-if="recommendedError" class="text-center py-8 text-red-500 text-sm">
           {{ recommendedError }}
         </div>
-      </ClientOnly>
+
+        <div v-else-if="recommendedPosts.length > 0" class="relative overflow-hidden">
+          <div
+            class="flex gap-4 transition-transform duration-300 ease-out"
+            :style="{ transform: `translateX(-${carouselIndex * (carouselItemWidth + 16)}px)` }"
+          >
+            <div
+              v-for="post in recommendedPosts"
+              :key="post.id ?? post.slug"
+              class="flex-shrink-0 w-full sm:w-[280px] md:w-[320px] bg-white border border-[#e8e4dc] rounded-2xl overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer"
+              @click="openPost(post)"
+            >
+              <div v-if="post.cover_url" class="h-40 overflow-hidden">
+                <img
+                  :src="post.cover_url"
+                  :alt="post.title"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              </div>
+
+              <div class="p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <span
+                    v-if="post.similarity"
+                    class="text-[0.6rem] font-semibold px-2 py-0.5 rounded-full bg-[#f0faf7] text-[#079272] border border-[#c5e8df]"
+                  >
+                    {{ Math.round(post.similarity * 100) }}% match
+                  </span>
+
+                  <div class="flex gap-1">
+                    <span
+                      v-for="tag in (post.tags || []).slice(0, 2)"
+                      :key="tag"
+                      class="text-[0.55rem] px-1.5 py-0.5 bg-[#f7f5f0] text-[#888] rounded-full"
+                    >
+                      #{{ tag }}
+                    </span>
+                  </div>
+                </div>
+
+                <h3 class="text-[0.9rem] font-bold text-[#111] line-clamp-2 mb-1">
+                  {{ post.title }}
+                </h3>
+
+                <p v-if="post.excerpt" class="text-[0.7rem] text-[#666] line-clamp-3 mb-2">
+                  {{ post.excerpt }}
+                </p>
+
+                <div class="flex items-center justify-between text-[0.65rem] text-[#aaa]">
+                  <span>Clique para ler</span>
+                  <svg class="w-3 h-3 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="text-center py-8 text-[#aaa]">
+          <p>
+            Faça
+            <NuxtLink to="/login" class="text-[#079272] font-semibold hover:underline">login</NuxtLink>
+            para ver recomendações personalizadas.
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Modal -->
@@ -361,6 +345,7 @@
                     </div>
                     <span class="text-[0.68rem] text-[#aaa]">{{ post.author_name }}</span>
                   </div>
+
                   <div v-else></div>
 
                   <div class="flex items-center gap-1 text-[0.68rem]" :class="daysLeft(post.deadline).cls">
@@ -390,12 +375,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useAxios } from '~/composables/useAxios'
 import { useAuth } from '~/composables/useAuth'
 import { useRouter } from 'nuxt/app'
-import VCalendar from 'v-calendar'
-import 'v-calendar/style.css'
 
 useSeoMeta({ title: 'Calendário de Oportunidades — seConecta' })
 
@@ -449,6 +432,7 @@ const selectedDay = ref<Date | null>(null)
 const showModal = ref(false)
 
 const mounted = ref(false)
+
 const isLinked = computed(() => currentUser.value?.linked ?? false)
 const authReady = computed(() => currentUser.value !== undefined)
 
@@ -558,7 +542,6 @@ function labelFor(type?: string) {
 
 function daysLeft(iso: string): { text: string; cls: string } {
   const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
-
   if (diff < 0) return { text: 'Encerrado', cls: 'text-[#bbb]' }
   if (diff === 0) return { text: 'Hoje!', cls: 'text-red-500 font-bold' }
   if (diff === 1) return { text: 'Amanhã', cls: 'text-orange-500 font-semibold' }
