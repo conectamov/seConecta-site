@@ -2,14 +2,71 @@
   <div class="min-h-screen bg-[#ffffff] w-screen">
     <div class="max-w-[1180px] mx-auto px-4 md:px-8 py-10 mt-4">
       <!-- Header -->
-      <div class="mb-8 flex items-center justify-center mt-4">
-        <div class="flex flex-col gap-3 mb-1">
+      <div class="mb-6 flex items-center justify-center mt-4">
+        <div class="flex flex-col gap-3 mb-1 text-center">
           <h1 class="text-[1.5rem] font-bold text-[#111] tracking-[-0.025em]">
             Calendário de Oportunidades
           </h1>
           <p class="text-[0.85rem] text-[#999]">
             Clique em qualquer dia marcado para ver os detalhes
           </p>
+        </div>
+      </div>
+
+      <!-- Tag filters -->
+      <div class="mb-6 bg-white border border-[#e8e4dc] rounded-2xl shadow-sm p-4 md:p-5">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+          <div>
+            <p class="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-[#bbb]">
+              Filtros por tag
+            </p>
+            <p class="text-[0.8rem] text-[#666] mt-1">
+              Ordenado pelas tags mais frequentes nas oportunidades.
+            </p>
+          </div>
+
+          <div v-if="selectedTag !== 'all'" class="flex items-center gap-2">
+            <span class="text-[0.75rem] text-[#888]">
+              Filtro ativo:
+            </span>
+            <span class="text-[0.75rem] font-semibold px-2.5 py-1 rounded-full bg-[#f0faf7] text-[#079272] border border-[#c5e8df]">
+              {{ selectedTagLabel }}
+            </span>
+            <button
+              class="text-[0.75rem] font-semibold px-3 py-1.5 rounded-lg border border-[#e8e4dc] text-[#666] hover:border-[#079272] hover:text-[#079272] bg-white transition-colors"
+              @click="selectedTag = 'all'"
+            >
+              Limpar
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button
+            class="px-3 py-1.5 rounded-full text-[0.75rem] font-semibold border transition-colors"
+            :class="selectedTag === 'all'
+              ? 'bg-[#0d0d0d] text-white border-[#0d0d0d]'
+              : 'bg-white text-[#666] border-[#e8e4dc] hover:border-[#079272] hover:text-[#079272]'"
+            @click="selectedTag = 'all'"
+          >
+            Todas
+            <span class="ml-1 text-[0.7rem] opacity-70">({{ posts.length }})</span>
+          </button>
+
+          <button
+            v-for="tag in visibleTagOptions"
+            :key="tag.key"
+            class="px-3 py-1.5 rounded-full text-[0.75rem] font-semibold border transition-colors whitespace-nowrap"
+            :class="selectedTag === tag.key
+              ? 'bg-[#079272] text-white border-[#079272]'
+              : 'bg-white text-[#666] border-[#e8e4dc] hover:border-[#079272] hover:text-[#079272]'"
+            @click="selectedTag = tag.key"
+          >
+            #{{ tag.label }}
+            <span class="ml-1 text-[0.7rem]" :class="selectedTag === tag.key ? 'opacity-90' : 'text-[#aaa]'">
+              ({{ tag.count }})
+            </span>
+          </button>
         </div>
       </div>
 
@@ -74,7 +131,9 @@
         <div class="bg-white border border-[#e8e4dc] rounded-2xl shadow-sm overflow-hidden">
           <div class="px-5 py-4 border-b border-[#f0ece5]">
             <h2 class="text-[0.88rem] font-bold text-[#111]">Próximos 30 dias</h2>
-            <p class="text-[0.7rem] text-[#aaa] mt-0.5">Deadlines se aproximando</p>
+            <p class="text-[0.7rem] text-[#aaa] mt-0.5">
+              Deadlines se aproximando
+            </p>
           </div>
 
           <div v-if="loading" class="p-5 flex justify-center">
@@ -87,7 +146,7 @@
             v-else-if="(upcomingPosts?.length ?? 0) === 0"
             class="px-5 py-10 text-center text-[0.8rem] text-[#bbb]"
           >
-            Nenhum deadline nos próximos 30 dias
+            Nenhum deadline nos próximos 30 dias para este filtro
           </div>
 
           <div v-else class="divide-y divide-[#f7f5f0]">
@@ -133,11 +192,11 @@
           </div>
 
           <div
-            v-if="!loading && (posts?.length ?? 0) > 0"
+            v-if="!loading && (filteredPosts?.length ?? 0) > 0"
             class="border-t border-[#f7f5f0] px-5 py-3 text-center"
           >
             <p class="text-[0.65rem] text-[#ccc]">
-              {{ posts?.length ?? 0 }} oportunidade{{ (posts?.length ?? 0) !== 1 ? 's' : '' }} com deadline
+              {{ filteredPosts?.length ?? 0 }} oportunidade{{ (filteredPosts?.length ?? 0) !== 1 ? 's' : '' }} neste filtro
             </p>
           </div>
         </div>
@@ -146,15 +205,20 @@
       <!-- Recommendations -->
       <div class="mt-12">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-[1.2rem] font-bold text-[#111] tracking-[-0.02em]">
-            Recomendado para você
-          </h2>
+          <div>
+            <h2 class="text-[1.2rem] font-bold text-[#111] tracking-[-0.02em]">
+              Recomendado para você
+            </h2>
+            <p class="text-[0.75rem] text-[#aaa] mt-1">
+              {{ selectedTag === 'all' ? 'Personalizado para o seu perfil.' : `Filtrado pela tag ${selectedTagLabel}.` }}
+            </p>
+          </div>
 
           <div class="flex gap-2">
             <button
               @click="scrollCarousel(-1)"
               class="w-8 h-8 rounded-full border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="carouselIndex === 0"
+              :disabled="carouselIndex === 0 || recommendedLoading"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="15 18 9 12 15 6" />
@@ -164,7 +228,7 @@
             <button
               @click="scrollCarousel(1)"
               class="w-8 h-8 rounded-full border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="carouselIndex >= Math.max(0, recommendedPosts.length - carouselItemsPerView)"
+              :disabled="recommendedLoading || carouselIndex >= Math.max(0, recommendedDisplayPosts.length - carouselItemsPerView)"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="9 18 15 12 9 6" />
@@ -190,12 +254,70 @@
           para receber recomendações personalizadas.
         </div>
 
-        <div v-else-if="isAuthenticated && recommendedPosts.length > 0" class="relative overflow-hidden">
-          <!-- your carousel here -->
+        <div v-else-if="recommendedDisplayPosts.length > 0" class="relative overflow-hidden">
+          <div
+            class="flex gap-4 transition-transform duration-300 ease-out"
+            :style="{ transform: `translateX(-${carouselIndex * (carouselItemWidth + 16)}px)` }"
+          >
+            <div
+              v-for="post in recommendedDisplayPosts"
+              :key="post.id ?? post.slug"
+              class="flex-shrink-0 w-full sm:w-[280px] md:w-[320px] bg-white border border-[#e8e4dc] rounded-2xl overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer"
+              @click="openPost(post)"
+            >
+              <div v-if="post.cover_url" class="h-40 overflow-hidden">
+                <img
+                  :src="post.cover_url"
+                  :alt="post.title"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              </div>
+
+              <div class="p-4">
+                <div class="flex items-center justify-between mb-2">
+                  <span
+                    v-if="post.similarity"
+                    class="text-[0.6rem] font-semibold px-2 py-0.5 rounded-full bg-[#f0faf7] text-[#079272] border border-[#c5e8df]"
+                  >
+                    {{ Math.round(post.similarity * 100) }}% match
+                  </span>
+
+                  <div class="flex gap-1">
+                    <span
+                      v-for="tag in (post.tags || []).slice(0, 2)"
+                      :key="tag"
+                      class="text-[0.55rem] px-1.5 py-0.5 bg-[#f7f5f0] text-[#888] rounded-full"
+                    >
+                      #{{ tag }}
+                    </span>
+                  </div>
+                </div>
+
+                <h3 class="text-[0.9rem] font-bold text-[#111] line-clamp-2 mb-1">
+                  {{ post.title }}
+                </h3>
+
+                <p v-if="post.excerpt" class="text-[0.7rem] text-[#666] line-clamp-3 mb-2">
+                  {{ post.excerpt }}
+                </p>
+
+                <div class="flex items-center justify-between text-[0.65rem] text-[#aaa]">
+                  <span>Clique para ler</span>
+                  <svg class="w-3 h-3 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="isAuthenticated" class="text-center py-8 text-[#aaa]">
-          Nenhuma recomendação disponível agora.
+          {{
+            selectedTag === 'all'
+              ? 'Nenhuma recomendação disponível agora.'
+              : `Nenhuma recomendação encontrada para ${selectedTagLabel}.`
+          }}
         </div>
 
         <div v-else class="text-center py-8 text-[#aaa]">
@@ -247,7 +369,9 @@
                   <line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
               </div>
-              <p class="text-[0.82rem] text-[#bbb]">Nenhuma oportunidade encontrada neste dia</p>
+              <p class="text-[0.82rem] text-[#bbb]">
+                Nenhuma oportunidade encontrada neste dia
+              </p>
             </div>
 
             <div v-else class="flex flex-col gap-3">
@@ -336,7 +460,7 @@ import { useRouter } from 'nuxt/app'
 
 useSeoMeta({ title: 'Calendário de Oportunidades — seConecta' })
 
-const { get, post } = useAxios()
+const { get, post: apiPost } = useAxios()
 const { currentUser, isAuthenticated } = useAuth()
 const router = useRouter()
 
@@ -388,11 +512,76 @@ const showModal = ref(false)
 const mounted = ref(false)
 const authReady = ref(false)
 
+const selectedTag = ref<string>('all')
+
 const isLinked = computed(() => currentUser.value?.linked ?? false)
 
 function safeArray<T>(value: any): T[] {
   return Array.isArray(value) ? value : []
 }
+
+function normalizeTag(tag: string) {
+  return String(tag ?? '').trim().toLowerCase()
+}
+
+function postHasTag(post: any, tagKey: string) {
+  const tags = safeArray<string>(post?.tags).map(normalizeTag)
+  return tags.includes(tagKey)
+}
+
+const tagOptions = computed(() => {
+  const map = new Map<string, { key: string; label: string; count: number }>()
+
+  for (const post of safeArray<any>(posts.value)) {
+    const seen = new Set<string>()
+    for (const raw of safeArray<string>(post?.tags)) {
+      const clean = String(raw ?? '').trim()
+      const key = normalizeTag(clean)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+
+      const existing = map.get(key)
+      if (existing) {
+        existing.count += 1
+      } else {
+        map.set(key, {
+          key,
+          label: clean || key,
+          count: 1,
+        })
+      }
+    }
+  }
+
+  return [...map.values()].sort((a, b) => {
+    const countDiff = b.count - a.count
+    if (countDiff !== 0) return countDiff
+    return a.label.localeCompare(b.label, 'pt-BR')
+  })
+})
+
+const visibleTagOptions = computed(() => tagOptions.value.slice(0, 12))
+
+const selectedTagLabel = computed(() => {
+  if (selectedTag.value === 'all') return 'todas as tags'
+  return tagOptions.value.find(t => t.key === selectedTag.value)?.label ?? selectedTag.value
+})
+
+const filteredPosts = computed<any[]>(() => {
+  const source = safeArray<any>(posts.value)
+
+  if (selectedTag.value === 'all') return source
+  const key = normalizeTag(selectedTag.value)
+  return source.filter(post => postHasTag(post, key))
+})
+
+const recommendedDisplayPosts = computed<any[]>(() => {
+  const source = safeArray<any>(recommendedPosts.value)
+
+  if (selectedTag.value === 'all') return source
+  const key = normalizeTag(selectedTag.value)
+  return source.filter(post => postHasTag(post, key))
+})
 
 async function fetchPosts() {
   loading.value = true
@@ -423,38 +612,51 @@ async function fetchRecommended() {
   recommendedError.value = null
 
   try {
-    const res = await post('/posts/get-feed-posts', {})
-    const data = safeArray<any>(res.data?.data ?? res.data ?? [])
+    let data: any[] = []
+
+    try {
+      const res = await apiPost('/posts/get-feed-posts', {})
+      data = safeArray<any>(res.data?.data ?? res.data ?? [])
+    } catch (err: any) {
+      const status = err?.response?.status
+      if (status === 405) {
+        const res = await get('/posts/get-feed-posts')
+        data = safeArray<any>(res.data?.data ?? res.data ?? [])
+      } else {
+        throw err
+      }
+    }
+
     recommendedPosts.value = data
     carouselIndex.value = 0
   } catch (err: any) {
     console.error('Error fetching recommendations:', err)
+    recommendedPosts.value = []
 
     const status = err?.response?.status
-    if (status === 401 || status === 429 || status === 405) {
-      recommendedPosts.value = []
+    if (status === 401 || status === 429) {
       recommendedError.value = null
-      return
+    } else {
+      recommendedError.value = 'Não foi possível carregar recomendações.'
     }
-
-    recommendedPosts.value = []
-    recommendedError.value = 'Não foi possível carregar recomendações.'
   } finally {
     recommendedLoading.value = false
   }
 }
 
 const attributes = computed(() =>
-  safeArray<any>(posts.value).map((post, i) => ({
-    key: `post-${i}`,
-    dates: new Date(post.deadline),
-    dot: {
-      color: 'green',
-      style: { backgroundColor: colorFor(post.post_type) },
-    },
-    popover: { label: post.title },
-    customData: post,
-  }))
+  filteredPosts.value
+    .filter(post => !!post?.deadline)
+    .map((post, i) => ({
+      key: `post-${i}`,
+      dates: new Date(post.deadline),
+      dot: {
+        color: 'green',
+        style: { backgroundColor: colorFor(post.post_type) },
+      },
+      popover: { label: post.title },
+      customData: post,
+    }))
 )
 
 function handleDayClick(day: any) {
@@ -465,11 +667,11 @@ function handleDayClick(day: any) {
 const selectedPosts = computed(() => {
   if (!selectedDay.value) return []
   const key = toKey(selectedDay.value)
-  return safeArray<any>(posts.value).filter(p => toKey(new Date(p.deadline)) === key)
+  return filteredPosts.value.filter(p => toKey(new Date(p.deadline)) === key)
 })
 
 const upcomingPosts = computed<any[]>(() => {
-  const source = safeArray<any>(posts.value)
+  const source = filteredPosts.value
   const now = Date.now()
   const limit = now + 30 * 86_400_000
 
@@ -496,7 +698,6 @@ function labelFor(type?: string) {
 
 function daysLeft(iso: string): { text: string; cls: string } {
   const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
-
   if (diff < 0) return { text: 'Encerrado', cls: 'text-[#bbb]' }
   if (diff === 0) return { text: 'Hoje!', cls: 'text-red-500 font-bold' }
   if (diff === 1) return { text: 'Amanhã', cls: 'text-orange-500 font-semibold' }
@@ -520,7 +721,7 @@ const selectedDayLabel = computed(() =>
 )
 
 function scrollCarousel(direction: number) {
-  const maxIndex = Math.max(0, recommendedPosts.value.length - carouselItemsPerView.value)
+  const maxIndex = Math.max(0, recommendedDisplayPosts.value.length - carouselItemsPerView.value)
   const newIndex = carouselIndex.value + direction
 
   if (newIndex >= 0 && newIndex <= maxIndex) {
@@ -544,13 +745,27 @@ function updateCarouselSettings() {
   }
 }
 
-onMounted(async () => {
+const filteredCountText = computed(() => {
+  const n = filteredPosts.value.length
+  return `${n} oportunidade${n !== 1 ? 's' : ''}`
+})
+
+watch(selectedTag, () => {
+  carouselIndex.value = 0
+})
+
+watch(recommendedDisplayPosts, () => {
+  const maxIndex = Math.max(0, recommendedDisplayPosts.value.length - carouselItemsPerView.value)
+  if (carouselIndex.value > maxIndex) {
+    carouselIndex.value = maxIndex
+  }
+})
+
+onMounted(() => {
   mounted.value = true
   authReady.value = true
 
-  await fetchPosts()
-  await fetchRecommended()
-
+  fetchPosts()
   updateCarouselSettings()
   window.addEventListener('resize', updateCarouselSettings)
 })
@@ -559,13 +774,6 @@ watch([isAuthenticated, isLinked, authReady], () => {
   if (!mounted.value || !authReady.value) return
   void fetchRecommended()
 }, { immediate: true })
-
-watch(recommendedPosts, () => {
-  const maxIndex = Math.max(0, recommendedPosts.value.length - carouselItemsPerView.value)
-  if (carouselIndex.value > maxIndex) {
-    carouselIndex.value = maxIndex
-  }
-})
 
 onBeforeUnmount(() => {
   if (import.meta.client) {
