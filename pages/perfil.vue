@@ -10,7 +10,7 @@ const activeTab = ref('info')
 
 // ── Country definitions ───────────────────────────────────────────────────────
 const COUNTRIES = [
-  { code: 'BR', flag: '🇧🇷', dial: '55',  placeholder: '(38) 98825-2013', minDigits: 12 },
+  { code: 'BR', flag: '🇧🇷', dial: '55',  placeholder: '(11) 1234-5678', minDigits: 12 },
   { code: 'US', flag: '🇺🇸', dial: '1',   placeholder: '(555) 867-5309',  minDigits: 11 },
   { code: 'PT', flag: '🇵🇹', dial: '351', placeholder: '912 345 678',     minDigits: 12 },
   { code: 'AR', flag: '🇦🇷', dial: '54',  placeholder: '(11) 2345-6789',  minDigits: 12 },
