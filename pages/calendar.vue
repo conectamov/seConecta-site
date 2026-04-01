@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-[#ffffff] w-screen">
     <div class="max-w-[1180px] mx-auto px-4 md:px-8 py-10 mt-4">
       <!-- Header -->
-      <div class="mb-6 flex items-center justify-center mt-4">
+      <div class="mb-8 flex items-center justify-center mt-4">
         <div class="flex flex-col gap-3 mb-1 text-center">
           <h1 class="text-[1.5rem] font-bold text-[#111] tracking-[-0.025em]">
             Calendário de Oportunidades
@@ -10,63 +10,6 @@
           <p class="text-[0.85rem] text-[#999]">
             Clique em qualquer dia marcado para ver os detalhes
           </p>
-        </div>
-      </div>
-
-      <!-- Tag filters -->
-      <div class="mb-6 bg-white border border-[#e8e4dc] rounded-2xl shadow-sm p-4 md:p-5">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-          <div>
-            <p class="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-[#bbb]">
-              Filtros por tag
-            </p>
-            <p class="text-[0.8rem] text-[#666] mt-1">
-              Ordenado pelas tags mais frequentes nas oportunidades.
-            </p>
-          </div>
-
-          <div v-if="selectedTag !== 'all'" class="flex items-center gap-2">
-            <span class="text-[0.75rem] text-[#888]">
-              Filtro ativo:
-            </span>
-            <span class="text-[0.75rem] font-semibold px-2.5 py-1 rounded-full bg-[#f0faf7] text-[#079272] border border-[#c5e8df]">
-              {{ selectedTagLabel }}
-            </span>
-            <button
-              class="text-[0.75rem] font-semibold px-3 py-1.5 rounded-lg border border-[#e8e4dc] text-[#666] hover:border-[#079272] hover:text-[#079272] bg-white transition-colors"
-              @click="selectedTag = 'all'"
-            >
-              Limpar
-            </button>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap gap-2">
-          <button
-            class="px-3 py-1.5 rounded-full text-[0.75rem] font-semibold border transition-colors"
-            :class="selectedTag === 'all'
-              ? 'bg-[#0d0d0d] text-white border-[#0d0d0d]'
-              : 'bg-white text-[#666] border-[#e8e4dc] hover:border-[#079272] hover:text-[#079272]'"
-            @click="selectedTag = 'all'"
-          >
-            Todas
-            <span class="ml-1 text-[0.7rem] opacity-70">({{ posts.length }})</span>
-          </button>
-
-          <button
-            v-for="tag in visibleTagOptions"
-            :key="tag.key"
-            class="px-3 py-1.5 rounded-full text-[0.75rem] font-semibold border transition-colors whitespace-nowrap"
-            :class="selectedTag === tag.key
-              ? 'bg-[#079272] text-white border-[#079272]'
-              : 'bg-white text-[#666] border-[#e8e4dc] hover:border-[#079272] hover:text-[#079272]'"
-            @click="selectedTag = tag.key"
-          >
-            #{{ tag.label }}
-            <span class="ml-1 text-[0.7rem]" :class="selectedTag === tag.key ? 'opacity-90' : 'text-[#aaa]'">
-              ({{ tag.count }})
-            </span>
-          </button>
         </div>
       </div>
 
@@ -115,13 +58,12 @@
             </p>
             <div class="flex flex-wrap gap-x-4 gap-y-2">
               <div
-                v-for="(color, type) in COLOR_MAP"
-                :key="type"
-                v-show="type !== 'default'"
+                v-for="item in CATEGORY_ORDER"
+                :key="item.key"
                 class="flex items-center gap-1.5"
               >
-                <span class="w-2 h-2 rounded-full flex-shrink-0" :style="{ background: color }"></span>
-                <span class="text-[0.7rem] text-[#888]">{{ labelFor(type) }}</span>
+                <span class="w-2 h-2 rounded-full flex-shrink-0" :style="{ background: CATEGORY_MAP[item.key].color }"></span>
+                <span class="text-[0.7rem] text-[#888]">{{ CATEGORY_MAP[item.key].label }}</span>
               </div>
             </div>
           </div>
@@ -146,7 +88,7 @@
             v-else-if="(upcomingPosts?.length ?? 0) === 0"
             class="px-5 py-10 text-center text-[0.8rem] text-[#bbb]"
           >
-            Nenhum deadline nos próximos 30 dias para este filtro
+            Nenhum deadline nos próximos 30 dias
           </div>
 
           <div v-else class="divide-y divide-[#f7f5f0]">
@@ -166,23 +108,26 @@
               </div>
 
               <div class="flex-1 min-w-0">
-                <p class="text-[0.82rem] font-semibold text-[#111] group-hover:text-[#079272] transition-colors line-clamp-1 mb-1">
-                  {{ post.title }}
-                </p>
-
-                <div class="flex items-center gap-2 flex-wrap">
+                <div class="flex items-center gap-2 flex-wrap mb-1">
                   <span
-                    v-if="post.post_type"
                     class="text-[0.6rem] font-semibold px-2 py-0.5 rounded-full"
-                    :style="{ background: colorFor(post.post_type) + '18', color: colorFor(post.post_type) }"
+                    :style="{ background: colorFor(post) + '18', color: colorFor(post) }"
                   >
-                    {{ labelFor(post.post_type) }}
+                    {{ labelFor(post) }}
                   </span>
 
                   <span class="text-[0.68rem]" :class="daysLeft(post.deadline).cls">
                     {{ daysLeft(post.deadline).text }}
                   </span>
                 </div>
+
+                <p class="text-[0.82rem] font-semibold text-[#111] group-hover:text-[#079272] transition-colors line-clamp-1 mb-1">
+                  {{ post.title }}
+                </p>
+
+                <p v-if="post.excerpt" class="text-[0.7rem] text-[#888] line-clamp-2">
+                  {{ post.excerpt }}
+                </p>
               </div>
 
               <svg class="w-4 h-4 text-[#ddd] group-hover:text-[#079272] transition-colors flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -192,11 +137,11 @@
           </div>
 
           <div
-            v-if="!loading && (filteredPosts?.length ?? 0) > 0"
+            v-if="!loading && (posts?.length ?? 0) > 0"
             class="border-t border-[#f7f5f0] px-5 py-3 text-center"
           >
             <p class="text-[0.65rem] text-[#ccc]">
-              {{ filteredPosts?.length ?? 0 }} oportunidade{{ (filteredPosts?.length ?? 0) !== 1 ? 's' : '' }} neste filtro
+              {{ posts?.length ?? 0 }} oportunidade{{ (posts?.length ?? 0) !== 1 ? 's' : '' }} com deadline
             </p>
           </div>
         </div>
@@ -210,7 +155,7 @@
               Recomendado para você
             </h2>
             <p class="text-[0.75rem] text-[#aaa] mt-1">
-              {{ selectedTag === 'all' ? 'Personalizado para o seu perfil.' : `Filtrado pela tag ${selectedTagLabel}.` }}
+              Personalizado para o seu perfil.
             </p>
           </div>
 
@@ -313,11 +258,7 @@
         </div>
 
         <div v-else-if="isAuthenticated" class="text-center py-8 text-[#aaa]">
-          {{
-            selectedTag === 'all'
-              ? 'Nenhuma recomendação disponível agora.'
-              : `Nenhuma recomendação encontrada para ${selectedTagLabel}.`
-          }}
+          Nenhuma recomendação disponível agora.
         </div>
 
         <div v-else class="text-center py-8 text-[#aaa]">
@@ -384,9 +325,9 @@
                 <div class="flex items-center gap-2 mb-2">
                   <span
                     class="text-[0.62rem] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-                    :style="{ background: colorFor(post.post_type) + '18', color: colorFor(post.post_type) }"
+                    :style="{ background: colorFor(post) + '18', color: colorFor(post) }"
                   >
-                    {{ labelFor(post.post_type) }}
+                    {{ labelFor(post) }}
                   </span>
 
                   <span v-if="post.modality" class="text-[0.65rem] text-[#999]">
@@ -464,36 +405,6 @@ const { get, post: apiPost } = useAxios()
 const { currentUser, isAuthenticated } = useAuth()
 const router = useRouter()
 
-const COLOR_MAP: Record<string, string> = {
-  oportunidade: '#2464E8',
-  camp: '#F59E0B',
-  olimpiada: '#079272',
-  pesquisa: '#8B5CF6',
-  evento: '#EC4899',
-  workshop: '#059669',
-  default: '#079272',
-}
-
-const TYPE_LABELS: Record<string, string> = {
-  oportunidade: 'Bolsa',
-  camp: 'Summer Camp',
-  olimpiada: 'Olimpíada',
-  pesquisa: 'Estágio',
-  evento: 'Evento',
-  workshop: 'Workshop',
-}
-
-const MODALITY_ICON: Record<string, string> = {
-  online: 'fa-globe',
-  presencial: 'fa-location-dot',
-  híbrido: 'fa-arrows-spin',
-}
-
-const MONTHS_PT = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-]
-
 const posts = ref<any[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -512,76 +423,126 @@ const showModal = ref(false)
 const mounted = ref(false)
 const authReady = ref(false)
 
-const selectedTag = ref<string>('all')
-
 const isLinked = computed(() => currentUser.value?.linked ?? false)
+
+const MODALITY_ICON: Record<string, string> = {
+  online: 'fa-globe',
+  presencial: 'fa-location-dot',
+  híbrido: 'fa-arrows-spin',
+}
+
+const MONTHS_PT = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+]
+
+const CATEGORY_ORDER = [
+  { key: 'olimpiadas' },
+  { key: 'bolsas' },
+  { key: 'estagios' },
+  { key: 'acampamentos' },
+  { key: 'eventos' },
+  { key: 'pesquisa' },
+  { key: 'workshops' },
+  { key: 'oportunidades' },
+  { key: 'outros' },
+] as const
+
+const CATEGORY_MAP: Record<string, { label: string; color: string; hints: string[] }> = {
+  olimpiadas: {
+    label: 'Olimpíadas',
+    color: '#079272',
+    hints: ['olimpiada', 'olimpíada', 'obmep', 'obf', 'obg', 'obo', 'olympiad', 'competição', 'competicao'],
+  },
+  bolsas: {
+    label: 'Bolsas',
+    color: '#2464E8',
+    hints: ['bolsa', 'scholarship', 'financiamento', 'auxílio', 'auxilio', 'grant'],
+  },
+  estagios: {
+    label: 'Estágios',
+    color: '#8B5CF6',
+    hints: ['estagio', 'estágio', 'internship', 'trainee'],
+  },
+  acampamentos: {
+    label: 'Summer Camp',
+    color: '#F59E0B',
+    hints: ['camp', 'summer camp', 'acampamento', 'verão', 'ferias', 'férias'],
+  },
+  eventos: {
+    label: 'Eventos',
+    color: '#EC4899',
+    hints: ['evento', 'conference', 'conferência', 'conferencia', 'summit', 'seminario', 'seminário', 'meetup', 'palestra', 'feira'],
+  },
+  pesquisa: {
+    label: 'Pesquisa',
+    color: '#059669',
+    hints: ['pesquisa', 'research', 'iniciação científica', 'iniciacao cientifica', 'ic', 'laboratório', 'laboratorio'],
+  },
+  workshops: {
+    label: 'Workshops',
+    color: '#0EA5E9',
+    hints: ['workshop', 'oficina', 'curso', 'bootcamp', 'training', 'treinamento'],
+  },
+  oportunidades: {
+    label: 'Oportunidades',
+    color: '#111827',
+    hints: ['oportunidade', 'opportunities', 'open call', 'edital', 'vaga'],
+  },
+  outros: {
+    label: 'Outros',
+    color: '#6B7280',
+    hints: [],
+  },
+}
 
 function safeArray<T>(value: any): T[] {
   return Array.isArray(value) ? value : []
 }
 
-function normalizeTag(tag: string) {
-  return String(tag ?? '').trim().toLowerCase()
+function normalizeText(input: any) {
+  return String(input ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
 }
 
-function postHasTag(post: any, tagKey: string) {
-  const tags = safeArray<string>(post?.tags).map(normalizeTag)
-  return tags.includes(tagKey)
+function getPostSearchBlob(post: any) {
+  return normalizeText([
+    ...(safeArray<string>(post?.tags) || []),
+    post?.post_type,
+    post?.title,
+    post?.excerpt,
+  ].join(' '))
 }
 
-const tagOptions = computed(() => {
-  const map = new Map<string, { key: string; label: string; count: number }>()
+function classifyPost(post: any) {
+  const blob = getPostSearchBlob(post)
 
-  for (const post of safeArray<any>(posts.value)) {
-    const seen = new Set<string>()
-    for (const raw of safeArray<string>(post?.tags)) {
-      const clean = String(raw ?? '').trim()
-      const key = normalizeTag(clean)
-      if (!key || seen.has(key)) continue
-      seen.add(key)
-
-      const existing = map.get(key)
-      if (existing) {
-        existing.count += 1
-      } else {
-        map.set(key, {
-          key,
-          label: clean || key,
-          count: 1,
-        })
-      }
+  for (const key of CATEGORY_ORDER.map(c => c.key)) {
+    const cat = CATEGORY_MAP[key]
+    if (cat.hints.some(h => blob.includes(normalizeText(h)))) {
+      return key
     }
   }
 
-  return [...map.values()].sort((a, b) => {
-    const countDiff = b.count - a.count
-    if (countDiff !== 0) return countDiff
-    return a.label.localeCompare(b.label, 'pt-BR')
-  })
-})
+  return 'outros'
+}
 
-const visibleTagOptions = computed(() => tagOptions.value.slice(0, 12))
+function categoryFor(post: any) {
+  return classifyPost(post)
+}
 
-const selectedTagLabel = computed(() => {
-  if (selectedTag.value === 'all') return 'todas as tags'
-  return tagOptions.value.find(t => t.key === selectedTag.value)?.label ?? selectedTag.value
-})
+function colorFor(post: any) {
+  return CATEGORY_MAP[categoryFor(post)]?.color ?? CATEGORY_MAP.outros.color
+}
 
-const filteredPosts = computed<any[]>(() => {
-  const source = safeArray<any>(posts.value)
+function labelFor(post: any) {
+  return CATEGORY_MAP[categoryFor(post)]?.label ?? 'Outros'
+}
 
-  if (selectedTag.value === 'all') return source
-  const key = normalizeTag(selectedTag.value)
-  return source.filter(post => postHasTag(post, key))
-})
-
-const recommendedDisplayPosts = computed<any[]>(() => {
-  const source = safeArray<any>(recommendedPosts.value)
-
-  if (selectedTag.value === 'all') return source
-  const key = normalizeTag(selectedTag.value)
-  return source.filter(post => postHasTag(post, key))
-})
+const selectedTagLabel = computed(() => '')
 
 async function fetchPosts() {
   loading.value = true
@@ -618,8 +579,7 @@ async function fetchRecommended() {
       const res = await apiPost('/posts/get-feed-posts', {})
       data = safeArray<any>(res.data?.data ?? res.data ?? [])
     } catch (err: any) {
-      const status = err?.response?.status
-      if (status === 405) {
+      if (err?.response?.status === 405) {
         const res = await get('/posts/get-feed-posts')
         data = safeArray<any>(res.data?.data ?? res.data ?? [])
       } else {
@@ -645,18 +605,23 @@ async function fetchRecommended() {
 }
 
 const attributes = computed(() =>
-  filteredPosts.value
-    .filter(post => !!post?.deadline)
-    .map((post, i) => ({
-      key: `post-${i}`,
-      dates: new Date(post.deadline),
-      dot: {
-        color: 'green',
-        style: { backgroundColor: colorFor(post.post_type) },
-      },
-      popover: { label: post.title },
-      customData: post,
-    }))
+  safeArray<any>(posts.value).map((post, i) => ({
+    key: `post-${i}`,
+    dates: new Date(post.deadline),
+    dot: {
+      color: colorFor(post),
+      style: { backgroundColor: colorFor(post) },
+    },
+    popover: {
+      label: `${labelFor(post)} · ${post.title}`,
+    },
+    customData: {
+      ...post,
+      category: categoryFor(post),
+      categoryLabel: labelFor(post),
+      categoryColor: colorFor(post),
+    },
+  }))
 )
 
 function handleDayClick(day: any) {
@@ -667,11 +632,11 @@ function handleDayClick(day: any) {
 const selectedPosts = computed(() => {
   if (!selectedDay.value) return []
   const key = toKey(selectedDay.value)
-  return filteredPosts.value.filter(p => toKey(new Date(p.deadline)) === key)
+  return safeArray<any>(posts.value).filter(p => toKey(new Date(p.deadline)) === key)
 })
 
 const upcomingPosts = computed<any[]>(() => {
-  const source = filteredPosts.value
+  const source = safeArray<any>(posts.value)
   const now = Date.now()
   const limit = now + 30 * 86_400_000
 
@@ -688,16 +653,9 @@ function toKey(date: Date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
 }
 
-function colorFor(type?: string) {
-  return COLOR_MAP[type?.toLowerCase() ?? ''] ?? COLOR_MAP.default
-}
-
-function labelFor(type?: string) {
-  return TYPE_LABELS[type?.toLowerCase() ?? ''] ?? type ?? '—'
-}
-
 function daysLeft(iso: string): { text: string; cls: string } {
   const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
+
   if (diff < 0) return { text: 'Encerrado', cls: 'text-[#bbb]' }
   if (diff === 0) return { text: 'Hoje!', cls: 'text-red-500 font-bold' }
   if (diff === 1) return { text: 'Amanhã', cls: 'text-orange-500 font-semibold' }
@@ -721,7 +679,7 @@ const selectedDayLabel = computed(() =>
 )
 
 function scrollCarousel(direction: number) {
-  const maxIndex = Math.max(0, recommendedDisplayPosts.value.length - carouselItemsPerView.value)
+  const maxIndex = Math.max(0, recommendedPosts.value.length - carouselItemsPerView.value)
   const newIndex = carouselIndex.value + direction
 
   if (newIndex >= 0 && newIndex <= maxIndex) {
@@ -745,17 +703,8 @@ function updateCarouselSettings() {
   }
 }
 
-const filteredCountText = computed(() => {
-  const n = filteredPosts.value.length
-  return `${n} oportunidade${n !== 1 ? 's' : ''}`
-})
-
-watch(selectedTag, () => {
-  carouselIndex.value = 0
-})
-
-watch(recommendedDisplayPosts, () => {
-  const maxIndex = Math.max(0, recommendedDisplayPosts.value.length - carouselItemsPerView.value)
+watch(recommendedPosts, () => {
+  const maxIndex = Math.max(0, recommendedPosts.value.length - carouselItemsPerView.value)
   if (carouselIndex.value > maxIndex) {
     carouselIndex.value = maxIndex
   }
