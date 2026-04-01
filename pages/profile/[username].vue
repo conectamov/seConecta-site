@@ -40,7 +40,7 @@
                   </div>
                 </div>
 
-                <div class="flex-1 pb-1">
+                <div class="flex-1 pb-1 gap-6">
                   <h1 class="text-3xl font-black text-[#111] tracking-tight">{{ user.full_name }}</h1>
                   <p v-if="user.public_title" class="text-lg font-medium text-[#444] leading-snug mt-1">
                     {{ user.public_title }}
