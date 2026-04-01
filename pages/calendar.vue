@@ -62,8 +62,13 @@
                 :key="item.key"
                 class="flex items-center gap-1.5"
               >
-                <span class="w-2 h-2 rounded-full flex-shrink-0" :style="{ background: CATEGORY_MAP[item.key].color }"></span>
-                <span class="text-[0.7rem] text-[#888]">{{ CATEGORY_MAP[item.key].label }}</span>
+                <span
+                  class="w-2 h-2 rounded-full flex-shrink-0"
+                  :style="{ background: CATEGORY_MAP[item.key].color }"
+                ></span>
+                <span class="text-[0.7rem] text-[#888]">
+                  {{ CATEGORY_MAP[item.key].label }}
+                </span>
               </div>
             </div>
           </div>
@@ -73,9 +78,7 @@
         <div class="bg-white border border-[#e8e4dc] rounded-2xl shadow-sm overflow-hidden">
           <div class="px-5 py-4 border-b border-[#f0ece5]">
             <h2 class="text-[0.88rem] font-bold text-[#111]">Próximos 30 dias</h2>
-            <p class="text-[0.7rem] text-[#aaa] mt-0.5">
-              Deadlines se aproximando
-            </p>
+            <p class="text-[0.7rem] text-[#aaa] mt-0.5">Deadlines se aproximando</p>
           </div>
 
           <div v-if="loading" class="p-5 flex justify-center">
@@ -452,12 +455,12 @@ const CATEGORY_MAP: Record<string, { label: string; color: string; hints: string
   olimpiadas: {
     label: 'Olimpíadas',
     color: '#079272',
-    hints: ['olimpiada', 'olimpíada', 'obmep', 'obf', 'obg', 'obo', 'olympiad', 'competição', 'competicao'],
+    hints: ['olimpiada', 'olimpíada', 'obmep', 'obf', 'obo', 'obq', 'competição', 'competicao', 'olympiad'],
   },
   bolsas: {
     label: 'Bolsas',
     color: '#2464E8',
-    hints: ['bolsa', 'scholarship', 'financiamento', 'auxílio', 'auxilio', 'grant'],
+    hints: ['bolsa', 'scholarship', 'grant', 'auxilio', 'auxílio', 'financiamento'],
   },
   estagios: {
     label: 'Estágios',
@@ -465,29 +468,29 @@ const CATEGORY_MAP: Record<string, { label: string; color: string; hints: string
     hints: ['estagio', 'estágio', 'internship', 'trainee'],
   },
   acampamentos: {
-    label: 'Summer Camp',
+    label: 'Acampamentos de Verão',
     color: '#F59E0B',
-    hints: ['camp', 'summer camp', 'acampamento', 'verão', 'ferias', 'férias'],
+    hints: ['camp', 'summer camp', 'acampamento', 'verao', 'verão', 'ferias', 'férias'],
   },
   eventos: {
     label: 'Eventos',
     color: '#EC4899',
-    hints: ['evento', 'conference', 'conferência', 'conferencia', 'summit', 'seminario', 'seminário', 'meetup', 'palestra', 'feira'],
+    hints: ['evento', 'conference', 'conferencia', 'conferência', 'seminario', 'seminário', 'palestra', 'summit', 'meetup', 'feira'],
   },
   pesquisa: {
     label: 'Pesquisa',
     color: '#059669',
-    hints: ['pesquisa', 'research', 'iniciação científica', 'iniciacao cientifica', 'ic', 'laboratório', 'laboratorio'],
+    hints: ['pesquisa', 'research', 'laboratorio', 'laboratório', 'iniciacao cientifica', 'iniciação científica', 'ic'],
   },
   workshops: {
     label: 'Workshops',
     color: '#0EA5E9',
-    hints: ['workshop', 'oficina', 'curso', 'bootcamp', 'training', 'treinamento'],
+    hints: ['workshop', 'oficina', 'curso', 'bootcamp', 'treinamento', 'training'],
   },
   oportunidades: {
     label: 'Oportunidades',
     color: '#111827',
-    hints: ['oportunidade', 'opportunities', 'open call', 'edital', 'vaga'],
+    hints: ['oportunidade', 'opportunity', 'vaga', 'edital', 'open call'],
   },
   outros: {
     label: 'Outros',
@@ -530,19 +533,18 @@ function classifyPost(post: any) {
   return 'outros'
 }
 
-function categoryFor(post: any) {
-  return classifyPost(post)
-}
-
 function colorFor(post: any) {
-  return CATEGORY_MAP[categoryFor(post)]?.color ?? CATEGORY_MAP.outros.color
+  return CATEGORY_MAP[classifyPost(post)]?.color ?? CATEGORY_MAP.outros.color
 }
 
 function labelFor(post: any) {
-  return CATEGORY_MAP[categoryFor(post)]?.label ?? 'Outros'
+  return CATEGORY_MAP[classifyPost(post)]?.label ?? 'Outros'
 }
 
-const selectedTagLabel = computed(() => '')
+function postHasTag(post: any, tagKey: string) {
+  const tags = safeArray<string>(post?.tags).map(normalizeText)
+  return tags.includes(tagKey)
+}
 
 async function fetchPosts() {
   loading.value = true
@@ -604,6 +606,10 @@ async function fetchRecommended() {
   }
 }
 
+const recommendedDisplayPosts = computed<any[]>(() => {
+  return safeArray<any>(recommendedPosts.value)
+})
+
 const attributes = computed(() =>
   safeArray<any>(posts.value).map((post, i) => ({
     key: `post-${i}`,
@@ -617,7 +623,7 @@ const attributes = computed(() =>
     },
     customData: {
       ...post,
-      category: categoryFor(post),
+      category: classifyPost(post),
       categoryLabel: labelFor(post),
       categoryColor: colorFor(post),
     },
@@ -679,7 +685,7 @@ const selectedDayLabel = computed(() =>
 )
 
 function scrollCarousel(direction: number) {
-  const maxIndex = Math.max(0, recommendedPosts.value.length - carouselItemsPerView.value)
+  const maxIndex = Math.max(0, recommendedDisplayPosts.value.length - carouselItemsPerView.value)
   const newIndex = carouselIndex.value + direction
 
   if (newIndex >= 0 && newIndex <= maxIndex) {
@@ -704,7 +710,7 @@ function updateCarouselSettings() {
 }
 
 watch(recommendedPosts, () => {
-  const maxIndex = Math.max(0, recommendedPosts.value.length - carouselItemsPerView.value)
+  const maxIndex = Math.max(0, recommendedDisplayPosts.value.length - carouselItemsPerView.value)
   if (carouselIndex.value > maxIndex) {
     carouselIndex.value = maxIndex
   }
