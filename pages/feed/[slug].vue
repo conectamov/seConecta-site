@@ -948,7 +948,7 @@ function openPost(postItem: any) {
         <div class="flex items-end justify-between gap-4 mb-3">
           <div>
             <h2 class="text-[1rem] md:text-[1.1rem] font-bold text-[#111] tracking-[-0.02em]">
-              Recomendado para você
+              Outros posts para você
             </h2>
             <p class="text-[0.74rem] text-[#aaa] mt-1">
               Sugestões rápidas com base no seu perfil.
