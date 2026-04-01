@@ -1,6 +1,8 @@
 <script setup lang="ts">
 definePageMeta({ middleware: 'auth' })
 
+import { ref, onMounted, computed, watch, nextTick } from 'vue'
+
 const route = useRoute()
 const router = useRouter()
 const { get, post: apiPost, patch, del } = useAxios()
@@ -33,125 +35,315 @@ const newMsg = ref('')
 const submitting = ref(false)
 const approving = ref(false)
 
-const formattedDate = computed(() => {
-  if (!post.value?.created_at) return ''
-  return new Date(post.value.created_at).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  })
-})
+const recommendedPosts = ref<any[]>([])
+const recommendedLoading = ref(false)
+const recommendedError = ref<string | null>(null)
+const recommendedCarouselRef = ref<HTMLElement | null>(null)
+const recommendedCanScrollLeft = ref(false)
+const recommendedCanScrollRight = ref(false)
 
-const deadlineInfo = computed(() => {
-  if (!post.value?.deadline) return null
-  const deadlineDate = new Date(post.value.deadline)
-  if (isNaN(deadlineDate.getTime())) return null
+const selectedDay = ref<Date | null>(null)
+const showModal = ref(false)
 
-  const expired = deadlineDate.getTime() < Date.now()
+const mounted = ref(false)
+const authReady = ref(false)
 
-  return {
-    expired,
-    full: deadlineDate.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }),
-    dateOnly: deadlineDate.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    }),
-  }
-})
+const isLinked = computed(() => currentUser.value?.linked ?? false)
 
-const formattedDeadline = computed(() => deadlineInfo.value?.full ?? null)
+const MODALITY_ICON: Record<string, string> = {
+  online: 'fa-globe',
+  presencial: 'fa-location-dot',
+  híbrido: 'fa-arrows-spin',
+}
 
-const isDeadlineExpired = computed(() => deadlineInfo.value?.expired ?? false)
+const MONTHS_PT = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+]
 
-const readTime = computed(() => {
-  const words = (post.value?.content_md || '').trim().split(/\s+/).filter(Boolean).length
-  return `${Math.max(1, Math.ceil(words / 200))} min`
-})
+const CATEGORY_ORDER = [
+  { key: 'olimpiadas' },
+  { key: 'bolsas' },
+  { key: 'estagios' },
+  { key: 'acampamentos' },
+  { key: 'eventos' },
+  { key: 'pesquisa' },
+  { key: 'workshops' },
+  { key: 'oportunidades' },
+  { key: 'outros' },
+] as const
 
-const isMyPost = computed(() => {
-  if (!currentUser.value || !post.value) return false
-  return String(post.value.author_id) === String(currentUser.value.id)
-})
-
-const canEdit = computed(() => {
-  if (!currentUser.value) return false
-  return isMyPost.value || currentUser.value.is_superuser
-})
-
-const authorProfileUrl = computed(() => {
-  if (isMyPost.value) {
-    return currentUser.value?.profile_picture_url || null
-  }
-  return postAuthor.value?.profile_picture_url || null
-})
-
-const isManager = computed(() => currentUser.value?.is_manager || currentUser.value?.is_superuser)
-
-const authorDisplayName = computed(() => {
-  if (isMyPost.value) return currentUser.value?.full_name || currentUser.value?.username || 'Você'
-  return displayName(postAuthor.value)
-})
-
-const authorDisplayInitial = computed(() => {
-  if (isMyPost.value) return (currentUser.value?.full_name || currentUser.value?.username || '?').charAt(0).toUpperCase()
-  return displayInitial(postAuthor.value)
-})
-
-const contentHtml = ref('')
-
-watch(
-  () => post.value?.content_md,
-  async (md) => {
-    if (!import.meta.client || !md) {
-      contentHtml.value = ''
-      return
-    }
-    try {
-      const { marked } = await import('marked')
-      const { default: DOMPurify } = await import('dompurify')
-      contentHtml.value = DOMPurify.sanitize(String(marked.parse(md)))
-    } catch {
-      contentHtml.value = md || ''
-    }
+const CATEGORY_MAP: Record<string, { label: string; color: string; hints: string[] }> = {
+  olimpiadas: {
+    label: 'Olimpíadas',
+    color: '#079272',
+    hints: ['olimpiada', 'olimpíada', 'obmep', 'obf', 'obo', 'obq', 'competição', 'competicao', 'olympiad'],
   },
-  { immediate: true }
-)
+  bolsas: {
+    label: 'Bolsas',
+    color: '#2464E8',
+    hints: ['bolsa', 'scholarship', 'grant', 'auxilio', 'auxílio', 'financiamento'],
+  },
+  estagios: {
+    label: 'Estágios',
+    color: '#8B5CF6',
+    hints: ['estagio', 'estágio', 'internship', 'trainee'],
+  },
+  acampamentos: {
+    label: 'Summer Camps',
+    color: '#F59E0B',
+    hints: ['camp', 'summer camp', 'acampamento', 'verao', 'verão', 'ferias', 'férias'],
+  },
+  eventos: {
+    label: 'Eventos',
+    color: '#EC4899',
+    hints: ['evento', 'conference', 'conferencia', 'conferência', 'seminario', 'seminário', 'palestra', 'summit', 'meetup', 'feira'],
+  },
+  pesquisa: {
+    label: 'Pesquisa',
+    color: '#059669',
+    hints: ['pesquisa', 'research', 'laboratorio', 'laboratório', 'iniciacao cientifica', 'iniciação científica', 'ic'],
+  },
+  workshops: {
+    label: 'Workshops',
+    color: '#0EA5E9',
+    hints: ['workshop', 'oficina', 'curso', 'bootcamp', 'treinamento', 'training'],
+  },
+  oportunidades: {
+    label: 'Oportunidades',
+    color: '#111827',
+    hints: ['oportunidade', 'opportunity', 'vaga', 'edital', 'open call'],
+  },
+  outros: {
+    label: 'Outros',
+    color: '#6B7280',
+    hints: [],
+  },
+}
 
-const currentUserInitial = computed(() =>
-  (currentUser.value?.full_name || currentUser.value?.username || '?').charAt(0).toUpperCase()
-)
+function safeArray<T>(value: any): T[] {
+  return Array.isArray(value) ? value : []
+}
 
-useSeoMeta({
-  title: computed(() => (post.value ? `${post.value.title} — seConecta` : 'seConecta')),
-})
+function normalizeText(input: any) {
+  return String(input ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
 
-async function fetchPost() {
+function getPostSearchBlob(post: any) {
+  return normalizeText([
+    ...(safeArray<string>(post?.tags) || []),
+    post?.post_type,
+    post?.title,
+    post?.excerpt,
+  ].join(' '))
+}
+
+function classifyPost(post: any) {
+  const blob = getPostSearchBlob(post)
+
+  for (const key of CATEGORY_ORDER.map(c => c.key)) {
+    const cat = CATEGORY_MAP[key]
+    if (cat.hints.some(h => blob.includes(normalizeText(h)))) {
+      return key
+    }
+  }
+
+  return 'outros'
+}
+
+function colorFor(post: any) {
+  return CATEGORY_MAP[classifyPost(post)]?.color ?? CATEGORY_MAP.outros.color
+}
+
+function labelFor(post: any) {
+  return CATEGORY_MAP[classifyPost(post)]?.label ?? 'Outros'
+}
+
+async function fetchPosts() {
   loadingPost.value = true
   errorPost.value = null
 
   try {
-    const res = await get(`/posts/slug/${route.params.slug}`)
-    post.value = res.data
-    likeCount.value = res.data.likes_count ?? 0
-    liked.value = res.data.liked_by_me ?? false
-
-    if (res.data.author_id) {
-      postAuthor.value = await getUser(res.data.author_id)
-    }
-
-    await fetchComments(true)
-  } catch (e: any) {
-    errorPost.value = e?.response?.status === 404 ? 'Post não encontrado.' : 'Erro ao carregar o post.'
+    const res = await get('/posts/', { params: { limit: 300, approved: true } })
+    const all = safeArray<any>(res.data?.data ?? res.data ?? [])
+    post.value = all.filter((p: any) => !!p?.deadline)
+  } catch (err) {
+    console.error('Error fetching posts:', err)
+    errorPost.value = 'Não foi possível carregar as oportunidades.'
+    post.value = []
   } finally {
     loadingPost.value = false
   }
+}
+
+async function fetchRecommended() {
+  if (!authReady.value || !isAuthenticated.value || !isLinked.value) {
+    recommendedPosts.value = []
+    recommendedError.value = null
+    recommendedLoading.value = false
+    updateRecommendedCarouselState()
+    return
+  }
+
+  recommendedLoading.value = true
+  recommendedError.value = null
+
+  try {
+    let data: any[] = []
+
+    try {
+      const res = await apiPost('/posts/get-feed-posts', {})
+      data = safeArray<any>(res.data?.data ?? res.data ?? [])
+    } catch (err: any) {
+      if (err?.response?.status === 405) {
+        const res = await get('/posts/get-feed-posts')
+        data = safeArray<any>(res.data?.data ?? res.data ?? [])
+      } else {
+        throw err
+      }
+    }
+
+    recommendedPosts.value = data
+    await nextTick()
+    updateRecommendedCarouselState()
+  } catch (err: any) {
+    console.error('Error fetching recommendations:', err)
+    recommendedPosts.value = []
+
+    const status = err?.response?.status
+    if (status === 401 || status === 429) {
+      recommendedError.value = null
+    } else {
+      recommendedError.value = 'Não foi possível carregar recomendações.'
+    }
+  } finally {
+    recommendedLoading.value = false
+  }
+}
+
+const recommendedDisplayPosts = computed<any[]>(() => safeArray<any>(recommendedPosts.value))
+
+const attributes = computed(() =>
+  safeArray<any>(post.value).map((item, i) => ({
+    key: `post-${i}`,
+    dates: new Date(item.deadline),
+    dot: {
+      color: colorFor(item),
+      style: { backgroundColor: colorFor(item) },
+    },
+    popover: {
+      label: `${labelFor(item)} · ${item.title}`,
+    },
+    customData: {
+      ...item,
+      category: classifyPost(item),
+      categoryLabel: labelFor(item),
+      categoryColor: colorFor(item),
+    },
+  }))
+)
+
+function handleDayClick(day: any) {
+  selectedDay.value = day?.date ? new Date(day.date) : null
+  showModal.value = !!selectedDay.value
+}
+
+const selectedPosts = computed(() => {
+  if (!selectedDay.value) return []
+  const key = toKey(selectedDay.value)
+  return safeArray<any>(post.value).filter(p => toKey(new Date(p.deadline)) === key)
+})
+
+const upcomingPosts = computed<any[]>(() => {
+  const source = safeArray<any>(post.value)
+  const now = Date.now()
+  const limit = now + 30 * 86_400_000
+
+  return source
+    .filter(p => {
+      const t = new Date(p.deadline).getTime()
+      return t >= now && t <= limit
+    })
+    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+    .slice(0, 10)
+})
+
+function toKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+function daysLeft(iso: string): { text: string; cls: string } {
+  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
+
+  if (diff < 0) return { text: 'Encerrado', cls: 'text-[#bbb]' }
+  if (diff === 0) return { text: 'Hoje!', cls: 'text-red-500 font-bold' }
+  if (diff === 1) return { text: 'Amanhã', cls: 'text-orange-500 font-semibold' }
+  if (diff <= 7) return { text: `${diff} dias`, cls: 'text-orange-400 font-medium' }
+  return { text: `${diff} dias`, cls: 'text-[#888]' }
+}
+
+function openPost(post: any) {
+  showModal.value = false
+  router.push(`/feed/${post.slug || post.id}`)
+}
+
+const selectedDayLabel = computed(() =>
+  selectedDay.value
+    ? selectedDay.value.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+      })
+    : ''
+)
+
+function updateRecommendedCarouselState() {
+  const el = recommendedCarouselRef.value
+  if (!el) {
+    recommendedCanScrollLeft.value = false
+    recommendedCanScrollRight.value = false
+    return
+  }
+
+  const maxScrollLeft = Math.max(0, el.scrollWidth - el.clientWidth)
+  recommendedCanScrollLeft.value = el.scrollLeft > 4
+  recommendedCanScrollRight.value = el.scrollLeft < maxScrollLeft - 4
+}
+
+function scrollRecommendedCarousel(direction: number) {
+  const el = recommendedCarouselRef.value
+  if (!el) return
+
+  const amount = Math.max(220, Math.min(360, Math.round(el.clientWidth * 0.82)))
+  el.scrollBy({ left: direction * amount, behavior: 'smooth' })
+}
+
+function submitComment() {
+  return void (async () => {
+    if (!newMsg.value.trim() || submitting.value) return
+
+    submitting.value = true
+    try {
+      const res = await apiPost('/comments/', {
+        message: newMsg.value.trim(),
+        post_id: post.value.id,
+      })
+
+      comments.value.unshift({ ...res.data, author_id: currentUser.value?.id })
+      commentsCount.value++
+      newMsg.value = ''
+
+      if (post.value) post.value.comments_count = commentsCount.value
+    } catch (e) {
+      console.error('Erro ao publicar comentário:', e)
+    } finally {
+      submitting.value = false
+    }
+  })()
 }
 
 async function fetchComments(reset = false) {
@@ -170,17 +362,24 @@ async function fetchComments(reset = false) {
     })
 
     let data: any[] = []
-    let count = 0
+    let count: number | null = null
 
     if (Array.isArray(res.data)) {
       data = res.data
       count = res.data.length
     } else if (res.data?.data) {
       data = res.data.data
-      count = res.data.count ?? data.length
+      count = typeof res.data.count === 'number' ? res.data.count : data.length
     }
 
-    commentsCount.value = count
+    if (reset) {
+      commentsCount.value = count ?? data.length
+    } else if (typeof count === 'number') {
+      commentsCount.value = Math.max(commentsCount.value, count)
+    } else {
+      commentsCount.value = Math.max(commentsCount.value, comments.value.length + data.length)
+    }
+
     comments.value.push(...data)
     commentHasMore.value = data.length === COMMENT_LIMIT
   } catch (e) {
@@ -199,7 +398,7 @@ async function fetchReplies(commentId: any, openAfterLoad = false) {
   repliesMap.value.set(commentId, { data: [], loading: true, open: openAfterLoad })
 
   try {
-    const res = await get(`/comments/${commentId}/replies`)
+    const res = await get(`/comments/${commentId}/replies`) 
     const replies = res.data.data ?? []
     repliesMap.value.set(commentId, { data: replies, loading: false, open: openAfterLoad })
 
@@ -224,28 +423,6 @@ function findCommentById(id: any) {
 
 async function toggleReplies(commentId: any) {
   await fetchReplies(commentId, true)
-}
-
-async function submitComment() {
-  if (!newMsg.value.trim() || submitting.value) return
-
-  submitting.value = true
-  try {
-    const res = await apiPost('/comments/', {
-      message: newMsg.value.trim(),
-      post_id: post.value.id,
-    })
-
-    comments.value.unshift({ ...res.data, author_id: currentUser.value?.id })
-    commentsCount.value++
-    newMsg.value = ''
-
-    if (post.value) post.value.comments_count = commentsCount.value
-  } catch (e) {
-    console.error('Erro ao publicar comentário:', e)
-  } finally {
-    submitting.value = false
-  }
 }
 
 async function submitReply(parentId: any) {
@@ -401,13 +578,150 @@ async function unlikePost() {
   }
 }
 
+const formattedDate = computed(() => {
+  if (!post.value?.created_at) return ''
+  return new Date(post.value.created_at).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
+})
+
+const deadlineInfo = computed(() => {
+  if (!post.value?.deadline) return null
+  const deadlineDate = new Date(post.value.deadline)
+  if (isNaN(deadlineDate.getTime())) return null
+
+  const expired = deadlineDate.getTime() < Date.now()
+
+  return {
+    expired,
+    full: deadlineDate.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+    dateOnly: deadlineDate.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    }),
+  }
+})
+
+const formattedDeadline = computed(() => deadlineInfo.value?.full ?? null)
+const isDeadlineExpired = computed(() => deadlineInfo.value?.expired ?? false)
+
+const readTime = computed(() => {
+  const words = (post.value?.content_md || '').trim().split(/\s+/).filter(Boolean).length
+  return `${Math.max(1, Math.ceil(words / 200))} min`
+})
+
+const isMyPost = computed(() => {
+  if (!currentUser.value || !post.value) return false
+  return String(post.value.author_id) === String(currentUser.value.id)
+})
+
+const canEdit = computed(() => {
+  if (!currentUser.value) return false
+  return isMyPost.value || currentUser.value.is_superuser
+})
+
+const authorProfileUrl = computed(() => {
+  if (isMyPost.value) {
+    return currentUser.value?.profile_picture_url || null
+  }
+  return postAuthor.value?.profile_picture_url || null
+})
+
+const isManager = computed(() => currentUser.value?.is_manager || currentUser.value?.is_superuser)
+
+const authorDisplayName = computed(() => {
+  if (isMyPost.value) return currentUser.value?.full_name || currentUser.value?.username || 'Você'
+  return displayName(postAuthor.value)
+})
+
+const authorDisplayInitial = computed(() => {
+  if (isMyPost.value) return (currentUser.value?.full_name || currentUser.value?.username || '?').charAt(0).toUpperCase()
+  return displayInitial(postAuthor.value)
+})
+
+const contentHtml = ref('')
+
+watch(
+  () => post.value?.content_md,
+  async (md) => {
+    if (!import.meta.client || !md) {
+      contentHtml.value = ''
+      return
+    }
+    try {
+      const { marked } = await import('marked')
+      const { default: DOMPurify } = await import('dompurify')
+      contentHtml.value = DOMPurify.sanitize(String(marked.parse(md)))
+    } catch {
+      contentHtml.value = md || ''
+    }
+  },
+  { immediate: true }
+)
+
+const currentUserInitial = computed(() =>
+  (currentUser.value?.full_name || currentUser.value?.username || '?').charAt(0).toUpperCase()
+)
+
+useSeoMeta({
+  title: computed(() => (post.value ? `${post.value.title} — seConecta` : 'seConecta')),
+})
+
 watch(() => route.params.slug, fetchPost)
-onMounted(fetchPost)
+watch([isAuthenticated, isLinked, authReady], () => {
+  if (!mounted.value || !authReady.value) return
+  void fetchRecommended()
+}, { immediate: true })
+
+watch(recommendedDisplayPosts, async () => {
+  await nextTick()
+  updateRecommendedCarouselState()
+})
+
+onMounted(async () => {
+  mounted.value = true
+  authReady.value = true
+
+  await fetchPosts()
+  await nextTick()
+  updateRecommendedCarouselState()
+  void fetchRecommended()
+})
+
+async function fetchPost() {
+  loadingPost.value = true
+  errorPost.value = null
+
+  try {
+    const res = await get(`/posts/slug/${route.params.slug}`)
+    post.value = res.data
+    likeCount.value = res.data.likes_count ?? 0
+    liked.value = res.data.liked_by_me ?? false
+
+    if (res.data.author_id) {
+      postAuthor.value = await getUser(res.data.author_id)
+    }
+
+    await fetchComments(true)
+  } catch (e: any) {
+    errorPost.value = e?.response?.status === 404 ? 'Post não encontrado.' : 'Erro ao carregar o post.'
+  } finally {
+    loadingPost.value = false
+  }
+}
 </script>
 
 <template>
   <div class="min-h-screen bg-[#f7f5f0]">
-
     <!-- Loading -->
     <div v-if="loadingPost" class="min-h-screen animate-pulse">
       <div class="bg-[#0c1b32] pt-24 px-8 pb-0">
@@ -455,7 +769,6 @@ onMounted(fetchPost)
     </div>
 
     <template v-else-if="post">
-
       <!-- Banner análise pendente -->
       <div
         v-if="post.approved === false"
@@ -535,7 +848,6 @@ onMounted(fetchPost)
             </span>
           </div>
 
-          <!-- ALERTA vermelho quando o prazo expirou -->
           <div
             v-if="formattedDeadline && isDeadlineExpired"
             class="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-red-100"
@@ -695,8 +1007,122 @@ onMounted(fetchPost)
         </aside>
       </div>
 
+      <!-- Recomendações compactas -->
+      <div class="max-w-[1000px] mx-auto px-6 md:px-8 mt-2">
+        <div class="flex items-end justify-between gap-4 mb-3">
+          <div>
+            <h2 class="text-[1rem] md:text-[1.1rem] font-bold text-[#111] tracking-[-0.02em]">
+              Recomendado para você
+            </h2>
+            <p class="text-[0.74rem] text-[#aaa] mt-1">
+              Sugestões rápidas com base no seu perfil.
+            </p>
+          </div>
+
+          <div class="flex gap-2">
+            <button
+              @click="scrollRecommendedCarousel(-1)"
+              class="w-8 h-8 rounded-full border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="recommendedLoading || !recommendedCanScrollLeft"
+              aria-label="Voltar recomendações"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+
+            <button
+              @click="scrollRecommendedCarousel(1)"
+              class="w-8 h-8 rounded-full border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              :disabled="recommendedLoading || !recommendedCanScrollRight"
+              aria-label="Avançar recomendações"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="recommendedLoading" class="text-center py-6 text-[#aaa] text-sm">
+          <svg class="animate-spin w-4 h-4 inline-block mr-2 text-[#079272]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+          Carregando recomendações...
+        </div>
+
+        <div v-else-if="recommendedError" class="text-center py-5 text-sm text-red-500">
+          {{ recommendedError }}
+        </div>
+
+        <div v-else-if="!authReady" class="text-center py-6 text-[#aaa] text-sm">
+          Carregando conta...
+        </div>
+
+        <div v-else-if="isAuthenticated && !isLinked" class="text-center py-6 text-[#aaa] text-sm">
+          Conecte seu WhatsApp na
+          <NuxtLink to="/perfil" class="text-[#079272] font-semibold hover:underline">página de perfil</NuxtLink>
+          para receber recomendações personalizadas.
+        </div>
+
+        <div v-else-if="recommendedDisplayPosts.length > 0" class="relative">
+          <div
+            ref="recommendedCarouselRef"
+            class="recommended-carousel flex gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 pr-1"
+            @scroll.passive="updateRecommendedCarouselState"
+          >
+            <button
+              v-for="rec in recommendedDisplayPosts"
+              :key="rec.id ?? rec.slug"
+              class="snap-start shrink-0 w-[240px] sm:w-[260px] text-left bg-white border border-[#e8e4dc] rounded-2xl overflow-hidden hover:shadow-md hover:border-[#079272]/20 transition-all group cursor-pointer"
+              @click="openPost(rec)"
+            >
+              <div class="p-4 flex flex-col gap-3 h-full">
+                <div class="flex items-start justify-between gap-2">
+                  <span
+                    v-if="rec.similarity"
+                    class="text-[0.6rem] font-semibold px-2 py-0.5 rounded-full bg-[#f0faf7] text-[#079272] border border-[#c5e8df] whitespace-nowrap"
+                  >
+                    {{ Math.round(rec.similarity * 100) }}% match
+                  </span>
+
+                  <span class="text-[0.6rem] font-semibold px-2 py-0.5 rounded-full" :style="{ background: colorFor(rec) + '18', color: colorFor(rec) }">
+                    {{ labelFor(rec) }}
+                  </span>
+                </div>
+
+                <h3 class="text-[0.9rem] font-bold text-[#111] line-clamp-2 group-hover:text-[#079272] transition-colors">
+                  {{ rec.title }}
+                </h3>
+
+                <p v-if="rec.excerpt" class="text-[0.72rem] text-[#666] line-clamp-3">
+                  {{ rec.excerpt }}
+                </p>
+
+                <div class="pt-2 mt-auto flex items-center justify-between text-[0.65rem] text-[#aaa] border-t border-[#f7f5f0]">
+                  <span v-if="rec.deadline">
+                    Prazo: {{ new Date(rec.deadline).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) }}
+                  </span>
+                  <span>Clique para ler</span>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div v-else-if="isAuthenticated" class="text-center py-6 text-[#aaa] text-sm">
+          Nenhuma recomendação disponível agora.
+        </div>
+
+        <div v-else class="text-center py-6 text-[#aaa] text-sm">
+          Faça
+          <NuxtLink to="/login" class="text-[#079272] font-semibold hover:underline">login</NuxtLink>
+          para ver recomendações personalizadas.
+        </div>
+      </div>
+
       <!-- Comentários -->
-      <div class="max-w-[760px] mx-auto px-6 md:px-8 pb-28">
+      <div class="max-w-[760px] mx-auto px-6 md:px-8 pb-28 mt-10">
         <div class="flex items-center gap-3 mb-8 pb-5 border-b border-[#e8e4dc]">
           <h2 class="text-lg font-bold text-[#111] tracking-[-0.02em]">Comentários</h2>
           <span class="text-[0.72rem] font-semibold px-2.5 py-0.5 bg-[#f7f5f0] border border-[#e8e4dc] text-[#888] rounded-full">
@@ -704,7 +1130,6 @@ onMounted(fetchPost)
           </span>
         </div>
 
-        <!-- INPUT DE COMENTÁRIO -->
         <div v-if="isAuthenticated" class="flex gap-3 mb-10">
           <div class="w-9 h-9 flex-shrink-0 rounded-full overflow-hidden">
             <img
@@ -751,7 +1176,6 @@ onMounted(fetchPost)
           </div>
         </div>
 
-        <!-- NÃO LOGADO -->
         <div
           v-else
           class="mb-8 p-4 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl text-sm text-center text-[#888]"
@@ -842,4 +1266,13 @@ onMounted(fetchPost)
 .article-body li { margin-bottom:.4rem;font-weight:300; }
 .article-body a { color:#079272;text-decoration:underline; }
 .article-body img { max-width:100%;border-radius:10px;margin:1rem 0; }
+
+.recommended-carousel {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.recommended-carousel::-webkit-scrollbar {
+  display: none;
+}
 </style>
