@@ -198,7 +198,7 @@
 
         <div v-else-if="isAuthenticated && !isLinked" class="text-center py-8 text-[#aaa]">
           Conecte seu WhatsApp na
-          <NuxtLink to="/profile" class="text-[#079272] font-semibold hover:underline">página de perfil</NuxtLink>
+          <NuxtLink to="/perfil" class="text-[#079272] font-semibold hover:underline">página de perfil</NuxtLink>
           para receber recomendações personalizadas.
         </div>
 
