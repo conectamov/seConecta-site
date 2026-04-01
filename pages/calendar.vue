@@ -671,7 +671,7 @@ function daysLeft(iso: string): { text: string; cls: string } {
 
 function openPost(post: any) {
   showModal.value = false
-  router.push(`/article/${post.slug || post.id}`)
+  router.push(`/feed/${post.slug || post.id}`)
 }
 
 const selectedDayLabel = computed(() =>
