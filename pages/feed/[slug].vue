@@ -1,8 +1,4 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'auth' })
-
-import { ref, onMounted, computed, watch, nextTick } from 'vue'
-
 const route = useRoute()
 const router = useRouter()
 const { get, post: apiPost, patch, del } = useAxios()
@@ -42,11 +38,11 @@ const recommendedCarouselRef = ref<HTMLElement | null>(null)
 const recommendedCanScrollLeft = ref(false)
 const recommendedCanScrollRight = ref(false)
 
-const selectedDay = ref<Date | null>(null)
-const showModal = ref(false)
-
 const mounted = ref(false)
 const authReady = ref(false)
+
+const showAuthModal = ref(false)
+const authGateMessage = ref('')
 
 const isLinked = computed(() => currentUser.value?.linked ?? false)
 
@@ -55,11 +51,6 @@ const MODALITY_ICON: Record<string, string> = {
   presencial: 'fa-location-dot',
   híbrido: 'fa-arrows-spin',
 }
-
-const MONTHS_PT = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-]
 
 const CATEGORY_ORDER = [
   { key: 'olimpiadas' },
@@ -133,217 +124,70 @@ function normalizeText(input: any) {
     .trim()
 }
 
-function getPostSearchBlob(post: any) {
+function getPostSearchBlob(p: any) {
   return normalizeText([
-    ...(safeArray<string>(post?.tags) || []),
-    post?.post_type,
-    post?.title,
-    post?.excerpt,
+    ...(safeArray<string>(p?.tags) || []),
+    p?.post_type,
+    p?.title,
+    p?.excerpt,
   ].join(' '))
 }
 
-function classifyPost(post: any) {
-  const blob = getPostSearchBlob(post)
+function classifyPost(p: any) {
+  const blob = getPostSearchBlob(p)
 
   for (const key of CATEGORY_ORDER.map(c => c.key)) {
     const cat = CATEGORY_MAP[key]
-    if (cat.hints.some(h => blob.includes(normalizeText(h)))) {
-      return key
-    }
+    if (cat.hints.some(h => blob.includes(normalizeText(h)))) return key
   }
 
   return 'outros'
 }
 
-function colorFor(post: any) {
-  return CATEGORY_MAP[classifyPost(post)]?.color ?? CATEGORY_MAP.outros.color
+function colorFor(p: any) {
+  return CATEGORY_MAP[classifyPost(p)]?.color ?? CATEGORY_MAP.outros.color
 }
 
-function labelFor(post: any) {
-  return CATEGORY_MAP[classifyPost(post)]?.label ?? 'Outros'
+function labelFor(p: any) {
+  return CATEGORY_MAP[classifyPost(p)]?.label ?? 'Outros'
 }
 
-async function fetchPosts() {
+function openAuthGate(message = 'Faça login para continuar.') {
+  authGateMessage.value = message
+  showAuthModal.value = true
+}
+
+function goToLogin() {
+  showAuthModal.value = false
+  router.push({ path: '/login', query: { redirect: route.fullPath } })
+}
+
+function ensureAuth(message = 'Faça login para continuar.') {
+  if (isAuthenticated.value) return true
+  openAuthGate(message)
+  return false
+}
+
+async function fetchPost() {
   loadingPost.value = true
   errorPost.value = null
 
   try {
-    const res = await get('/posts/', { params: { limit: 300, approved: true } })
-    const all = safeArray<any>(res.data?.data ?? res.data ?? [])
-    post.value = all.filter((p: any) => !!p?.deadline)
-  } catch (err) {
-    console.error('Error fetching posts:', err)
-    errorPost.value = 'Não foi possível carregar as oportunidades.'
-    post.value = []
+    const res = await get(`/posts/slug/${route.params.slug}`)
+    post.value = res.data
+    likeCount.value = res.data.likes_count ?? 0
+    liked.value = res.data.liked_by_me ?? false
+
+    if (res.data.author_id) {
+      postAuthor.value = await getUser(res.data.author_id)
+    }
+
+    await fetchComments(true)
+  } catch (e: any) {
+    errorPost.value = e?.response?.status === 404 ? 'Post não encontrado.' : 'Erro ao carregar o post.'
   } finally {
     loadingPost.value = false
   }
-}
-
-async function fetchRecommended() {
-  if (!authReady.value || !isAuthenticated.value || !isLinked.value) {
-    recommendedPosts.value = []
-    recommendedError.value = null
-    recommendedLoading.value = false
-    updateRecommendedCarouselState()
-    return
-  }
-
-  recommendedLoading.value = true
-  recommendedError.value = null
-
-  try {
-    let data: any[] = []
-
-    try {
-      const res = await apiPost('/posts/get-feed-posts', {})
-      data = safeArray<any>(res.data?.data ?? res.data ?? [])
-    } catch (err: any) {
-      if (err?.response?.status === 405) {
-        const res = await get('/posts/get-feed-posts')
-        data = safeArray<any>(res.data?.data ?? res.data ?? [])
-      } else {
-        throw err
-      }
-    }
-
-    recommendedPosts.value = data
-    await nextTick()
-    updateRecommendedCarouselState()
-  } catch (err: any) {
-    console.error('Error fetching recommendations:', err)
-    recommendedPosts.value = []
-
-    const status = err?.response?.status
-    if (status === 401 || status === 429) {
-      recommendedError.value = null
-    } else {
-      recommendedError.value = 'Não foi possível carregar recomendações.'
-    }
-  } finally {
-    recommendedLoading.value = false
-  }
-}
-
-const recommendedDisplayPosts = computed<any[]>(() => safeArray<any>(recommendedPosts.value))
-
-const attributes = computed(() =>
-  safeArray<any>(post.value).map((item, i) => ({
-    key: `post-${i}`,
-    dates: new Date(item.deadline),
-    dot: {
-      color: colorFor(item),
-      style: { backgroundColor: colorFor(item) },
-    },
-    popover: {
-      label: `${labelFor(item)} · ${item.title}`,
-    },
-    customData: {
-      ...item,
-      category: classifyPost(item),
-      categoryLabel: labelFor(item),
-      categoryColor: colorFor(item),
-    },
-  }))
-)
-
-function handleDayClick(day: any) {
-  selectedDay.value = day?.date ? new Date(day.date) : null
-  showModal.value = !!selectedDay.value
-}
-
-const selectedPosts = computed(() => {
-  if (!selectedDay.value) return []
-  const key = toKey(selectedDay.value)
-  return safeArray<any>(post.value).filter(p => toKey(new Date(p.deadline)) === key)
-})
-
-const upcomingPosts = computed<any[]>(() => {
-  const source = safeArray<any>(post.value)
-  const now = Date.now()
-  const limit = now + 30 * 86_400_000
-
-  return source
-    .filter(p => {
-      const t = new Date(p.deadline).getTime()
-      return t >= now && t <= limit
-    })
-    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-    .slice(0, 10)
-})
-
-function toKey(date: Date) {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
-}
-
-function daysLeft(iso: string): { text: string; cls: string } {
-  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
-
-  if (diff < 0) return { text: 'Encerrado', cls: 'text-[#bbb]' }
-  if (diff === 0) return { text: 'Hoje!', cls: 'text-red-500 font-bold' }
-  if (diff === 1) return { text: 'Amanhã', cls: 'text-orange-500 font-semibold' }
-  if (diff <= 7) return { text: `${diff} dias`, cls: 'text-orange-400 font-medium' }
-  return { text: `${diff} dias`, cls: 'text-[#888]' }
-}
-
-function openPost(post: any) {
-  showModal.value = false
-  router.push(`/feed/${post.slug || post.id}`)
-}
-
-const selectedDayLabel = computed(() =>
-  selectedDay.value
-    ? selectedDay.value.toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: '2-digit',
-        month: 'long',
-      })
-    : ''
-)
-
-function updateRecommendedCarouselState() {
-  const el = recommendedCarouselRef.value
-  if (!el) {
-    recommendedCanScrollLeft.value = false
-    recommendedCanScrollRight.value = false
-    return
-  }
-
-  const maxScrollLeft = Math.max(0, el.scrollWidth - el.clientWidth)
-  recommendedCanScrollLeft.value = el.scrollLeft > 4
-  recommendedCanScrollRight.value = el.scrollLeft < maxScrollLeft - 4
-}
-
-function scrollRecommendedCarousel(direction: number) {
-  const el = recommendedCarouselRef.value
-  if (!el) return
-
-  const amount = Math.max(220, Math.min(360, Math.round(el.clientWidth * 0.82)))
-  el.scrollBy({ left: direction * amount, behavior: 'smooth' })
-}
-
-function submitComment() {
-  return void (async () => {
-    if (!newMsg.value.trim() || submitting.value) return
-
-    submitting.value = true
-    try {
-      const res = await apiPost('/comments/', {
-        message: newMsg.value.trim(),
-        post_id: post.value.id,
-      })
-
-      comments.value.unshift({ ...res.data, author_id: currentUser.value?.id })
-      commentsCount.value++
-      newMsg.value = ''
-
-      if (post.value) post.value.comments_count = commentsCount.value
-    } catch (e) {
-      console.error('Erro ao publicar comentário:', e)
-    } finally {
-      submitting.value = false
-    }
-  })()
 }
 
 async function fetchComments(reset = false) {
@@ -398,13 +242,13 @@ async function fetchReplies(commentId: any, openAfterLoad = false) {
   repliesMap.value.set(commentId, { data: [], loading: true, open: openAfterLoad })
 
   try {
-    const res = await get(`/comments/${commentId}/replies`) 
+    const res = await get(`/comments/${commentId}/replies`)
     const replies = res.data.data ?? []
     repliesMap.value.set(commentId, { data: replies, loading: false, open: openAfterLoad })
 
     const parent = findCommentById(commentId)
     if (parent && replies.length) parent.replies_count = replies.length
-  } catch (e) {
+  } catch {
     repliesMap.value.set(commentId, { data: [], loading: false, open: openAfterLoad })
   }
 }
@@ -425,8 +269,32 @@ async function toggleReplies(commentId: any) {
   await fetchReplies(commentId, true)
 }
 
+async function submitComment() {
+  if (!ensureAuth('Faça login para comentar.')) return
+  if (!newMsg.value.trim() || submitting.value || !post.value?.id) return
+
+  submitting.value = true
+  try {
+    const res = await apiPost('/comments/', {
+      message: newMsg.value.trim(),
+      post_id: post.value.id,
+    })
+
+    comments.value.unshift({ ...res.data, author_id: currentUser.value?.id })
+    commentsCount.value++
+    newMsg.value = ''
+
+    if (post.value) post.value.comments_count = commentsCount.value
+  } catch (e) {
+    console.error('Erro ao publicar comentário:', e)
+  } finally {
+    submitting.value = false
+  }
+}
+
 async function submitReply(parentId: any) {
-  if (!replyMsg.value.trim() || submittingReply.value) return
+  if (!ensureAuth('Faça login para responder comentários.')) return
+  if (!replyMsg.value.trim() || submittingReply.value || !post.value?.id) return
 
   submittingReply.value = true
   try {
@@ -457,11 +325,13 @@ async function submitReply(parentId: any) {
 }
 
 function startEdit(comment: any) {
+  if (!ensureAuth('Faça login para editar comentários.')) return
   editingId.value = comment.id
   editText.value = comment.message
 }
 
 async function saveEdit(commentId: any, parentId: any = null) {
+  if (!ensureAuth('Faça login para editar comentários.')) return
   if (!editText.value.trim()) return
 
   try {
@@ -484,6 +354,7 @@ async function saveEdit(commentId: any, parentId: any = null) {
 }
 
 async function deleteComment(commentId: any, parentId: any = null) {
+  if (!ensureAuth('Faça login para excluir comentários.')) return
   if (deletingId.value) return
 
   deletingId.value = commentId
@@ -516,6 +387,7 @@ async function loadMoreComments() {
 }
 
 async function approvePost(targetPost: any) {
+  if (!ensureAuth('Faça login para aprovar este post.')) return
   if (approving.value) return
 
   const { default: Swal } = await import('sweetalert2')
@@ -555,6 +427,7 @@ async function approvePost(targetPost: any) {
 }
 
 async function likePost() {
+  if (!ensureAuth('Faça login para curtir posts.')) return
   if (!post.value?.id) return
 
   try {
@@ -567,6 +440,7 @@ async function likePost() {
 }
 
 async function unlikePost() {
+  if (!ensureAuth('Faça login para descurtir posts.')) return
   if (!post.value?.id) return
 
   try {
@@ -576,6 +450,11 @@ async function unlikePost() {
   } catch (e) {
     console.error('Erro ao descurtir:', e)
   }
+}
+
+function handleSaveToggle() {
+  if (!ensureAuth('Faça login para salvar posts.')) return
+  saved.value = !saved.value
 }
 
 const formattedDate = computed(() => {
@@ -630,9 +509,7 @@ const canEdit = computed(() => {
 })
 
 const authorProfileUrl = computed(() => {
-  if (isMyPost.value) {
-    return currentUser.value?.profile_picture_url || null
-  }
+  if (isMyPost.value) return currentUser.value?.profile_picture_url || null
   return postAuthor.value?.profile_picture_url || null
 })
 
@@ -676,6 +553,75 @@ useSeoMeta({
   title: computed(() => (post.value ? `${post.value.title} — seConecta` : 'seConecta')),
 })
 
+function updateRecommendedCarouselState() {
+  const el = recommendedCarouselRef.value
+  if (!el) {
+    recommendedCanScrollLeft.value = false
+    recommendedCanScrollRight.value = false
+    return
+  }
+
+  const maxScrollLeft = Math.max(0, el.scrollWidth - el.clientWidth)
+  recommendedCanScrollLeft.value = el.scrollLeft > 4
+  recommendedCanScrollRight.value = el.scrollLeft < maxScrollLeft - 4
+}
+
+function scrollRecommendedCarousel(direction: number) {
+  const el = recommendedCarouselRef.value
+  if (!el) return
+
+  const amount = Math.max(220, Math.min(360, Math.round(el.clientWidth * 0.82)))
+  el.scrollBy({ left: direction * amount, behavior: 'smooth' })
+}
+
+async function fetchRecommended() {
+  if (!authReady.value || !isAuthenticated.value || !isLinked.value) {
+    recommendedPosts.value = []
+    recommendedError.value = null
+    recommendedLoading.value = false
+    await nextTick()
+    updateRecommendedCarouselState()
+    return
+  }
+
+  recommendedLoading.value = true
+  recommendedError.value = null
+
+  try {
+    let data: any[] = []
+
+    try {
+      const res = await apiPost('/posts/get-feed-posts', {})
+      data = safeArray<any>(res.data?.data ?? res.data ?? [])
+    } catch (err: any) {
+      if (err?.response?.status === 405) {
+        const res = await get('/posts/get-feed-posts')
+        data = safeArray<any>(res.data?.data ?? res.data ?? [])
+      } else {
+        throw err
+      }
+    }
+
+    recommendedPosts.value = data
+    await nextTick()
+    updateRecommendedCarouselState()
+  } catch (err: any) {
+    console.error('Error fetching recommendations:', err)
+    recommendedPosts.value = []
+
+    const status = err?.response?.status
+    if (status === 401 || status === 429) {
+      recommendedError.value = null
+    } else {
+      recommendedError.value = 'Não foi possível carregar recomendações.'
+    }
+  } finally {
+    recommendedLoading.value = false
+  }
+}
+
+const recommendedDisplayPosts = computed<any[]>(() => safeArray<any>(recommendedPosts.value))
+
 watch(() => route.params.slug, fetchPost)
 watch([isAuthenticated, isLinked, authReady], () => {
   if (!mounted.value || !authReady.value) return
@@ -691,32 +637,22 @@ onMounted(async () => {
   mounted.value = true
   authReady.value = true
 
-  await fetchPosts()
+  await fetchPost()
   await nextTick()
   updateRecommendedCarouselState()
   void fetchRecommended()
+
+  window.addEventListener('resize', updateRecommendedCarouselState)
 })
 
-async function fetchPost() {
-  loadingPost.value = true
-  errorPost.value = null
-
-  try {
-    const res = await get(`/posts/slug/${route.params.slug}`)
-    post.value = res.data
-    likeCount.value = res.data.likes_count ?? 0
-    liked.value = res.data.liked_by_me ?? false
-
-    if (res.data.author_id) {
-      postAuthor.value = await getUser(res.data.author_id)
-    }
-
-    await fetchComments(true)
-  } catch (e: any) {
-    errorPost.value = e?.response?.status === 404 ? 'Post não encontrado.' : 'Erro ao carregar o post.'
-  } finally {
-    loadingPost.value = false
+onBeforeUnmount(() => {
+  if (import.meta.client) {
+    window.removeEventListener('resize', updateRecommendedCarouselState)
   }
+})
+
+function openPost(postItem: any) {
+  router.push(`/feed/${postItem.slug || postItem.id}`)
 }
 </script>
 
@@ -961,7 +897,7 @@ async function fetchPost() {
             <button
               class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#e8f5f2] hover:text-[#079272]"
               :class="{ '!bg-[#e8f5f2] !text-[#079272]': saved }"
-              @click="saved = !saved"
+              @click="handleSaveToggle"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" :fill="saved ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2">
                 <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
@@ -1182,7 +1118,7 @@ async function fetchPost() {
         >
           <button
             class="text-[#079272] font-semibold hover:underline border-none bg-transparent cursor-pointer"
-            @click="router.push('/login')"
+            @click="openAuthGate('Faça login para comentar.')"
           >
             Faça login
           </button>
@@ -1248,6 +1184,45 @@ async function fetchPost() {
         </div>
       </div>
     </template>
+
+    <!-- Auth gate modal -->
+    <Transition name="modal-fade">
+      <div v-if="showAuthModal" class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/45 backdrop-blur-sm" @click="showAuthModal = false"></div>
+
+        <div class="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden border border-[#e8e4dc]">
+          <div class="p-6 sm:p-7">
+            <div class="w-11 h-11 rounded-2xl bg-[#f0faf7] flex items-center justify-center mb-4">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#079272" stroke-width="2">
+                <path d="M12 11c1.657 0 3-1.567 3-3.5S13.657 4 12 4 9 5.567 9 7.5 10.343 11 12 11z"/>
+                <path d="M5 20v-1c0-2.761 3.134-5 7-5s7 2.239 7 5v1"/>
+              </svg>
+            </div>
+
+            <h3 class="text-[1.1rem] font-bold text-[#111] mb-2">Entre para interagir</h3>
+            <p class="text-sm text-[#666] leading-relaxed">
+              {{ authGateMessage }}
+            </p>
+
+            <div class="mt-6 flex flex-col sm:flex-row gap-3">
+              <button
+                class="h-11 px-4 rounded-xl border border-[#e8e4dc] text-[#666] font-semibold bg-white hover:bg-[#fafaf9] transition-colors"
+                @click="showAuthModal = false"
+              >
+                Agora não
+              </button>
+
+              <button
+                class="h-11 px-4 rounded-xl bg-[#0d0d0d] text-white font-semibold hover:bg-[#079272] transition-colors"
+                @click="goToLogin"
+              >
+                Ir para login
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
