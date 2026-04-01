@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { useRoute, useRouter } from 'vue-router'
+import { useAxios } from '@/composables/useAxios'
+import { useAuth } from '@/composables/useAuth'
+import { useUserCache } from '@/composables/useUserCache'
+
 const route = useRoute()
 const router = useRouter()
 const { get, post: apiPost, patch, del } = useAxios()
@@ -654,6 +659,22 @@ onBeforeUnmount(() => {
 function openPost(postItem: any) {
   router.push(`/feed/${postItem.slug || postItem.id}`)
 }
+
+// Nova função para redirecionar ao perfil do autor
+function goToAuthorProfile(event: Event) {
+  event.stopPropagation()
+  let username: string | null = null
+
+  if (isMyPost.value) {
+    username = currentUser.value?.username ?? null
+  } else {
+    username = postAuthor.value?.username ?? null
+  }
+
+  if (username) {
+    router.push(`/profile/${username}`)
+  }
+}
 </script>
 
 <template>
@@ -819,7 +840,11 @@ function openPost(postItem: any) {
 
           <div class="flex items-center justify-between bg-white/5 border border-white/[0.08] rounded-t-xl p-4 md:p-5">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-sm font-bold">
+              <!-- Avatar clicável -->
+              <div
+                class="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-sm font-bold cursor-pointer transition-opacity hover:opacity-80"
+                @click="goToAuthorProfile"
+              >
                 <img
                   v-if="authorProfileUrl"
                   :src="authorProfileUrl"
@@ -830,7 +855,13 @@ function openPost(postItem: any) {
               </div>
 
               <div>
-                <div class="text-[0.88rem] font-semibold text-white">{{ authorDisplayName }}</div>
+                <!-- Nome do autor clicável -->
+                <div
+                  class="text-[0.88rem] font-semibold text-white cursor-pointer transition-colors hover:text-[#079272]"
+                  @click="goToAuthorProfile"
+                >
+                  {{ authorDisplayName }}
+                </div>
                 <div
                   v-if="postAuthor?.username || (isMyPost && currentUser?.username)"
                   class="text-[0.72rem] text-white/35"
@@ -877,14 +908,19 @@ function openPost(postItem: any) {
 
       <!-- Content + Sidebar -->
       <div class="max-w-[1000px] mx-auto px-6 md:px-8 pb-16 grid grid-cols-1 md:grid-cols-[1fr_180px] gap-12 items-start">
-        <article class="pt-12 article-body prose max-w-none" v-html="contentHtml"></article>
+        <!-- Artigo com fundo branco para melhor contraste -->
+        <article class="pt-12">
+          <div class="article-body prose max-w-none bg-white rounded-2xl p-6 md:p-8 shadow-sm">
+            <div v-html="contentHtml"></div>
+          </div>
+        </article>
 
         <aside class="pt-12 sticky top-20 hidden md:flex flex-col gap-4">
           <div class="bg-white border border-[#e8e4dc] rounded-xl p-5 flex flex-col gap-2">
-            <div class="text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#bbb] mb-1">Ações</div>
+            <div class="text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#777] mb-1">Ações</div>
 
             <button
-              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#fff0f0] hover:text-[#e53e3e]"
+              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-white text-[#111] hover:bg-[#f7f5f0]"
               :class="{ '!bg-[#fff0f0] !text-[#e53e3e]': liked }"
               @click="liked ? unlikePost() : likePost()"
             >
@@ -895,7 +931,7 @@ function openPost(postItem: any) {
             </button>
 
             <button
-              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#e8f5f2] hover:text-[#079272]"
+              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-white text-[#111] hover:bg-[#f7f5f0]"
               :class="{ '!bg-[#e8f5f2] !text-[#079272]': saved }"
               @click="handleSaveToggle"
             >
@@ -908,7 +944,7 @@ function openPost(postItem: any) {
             <NuxtLink
               v-if="canEdit"
               :to="`/edit/${route.params.slug}`"
-              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-[#f7f5f0] text-[#666] hover:bg-[#e8f5f2] hover:text-[#079272]"
+              class="text-[0.78rem] font-semibold px-3 py-2 rounded-lg border-none cursor-pointer transition-all flex items-center gap-1.5 w-full bg-white text-[#111] hover:bg-[#f7f5f0]"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/>
@@ -919,7 +955,7 @@ function openPost(postItem: any) {
           </div>
 
           <div class="bg-white border border-[#e8e4dc] rounded-xl p-5">
-            <div class="text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#bbb] mb-3">Stats</div>
+            <div class="text-[0.62rem] font-semibold tracking-[0.12em] uppercase text-[#777] mb-3">Stats</div>
             <div
               v-for="s in [
                 { l: 'Curtidas', v: likeCount },
@@ -929,12 +965,12 @@ function openPost(postItem: any) {
               :key="s.l"
               class="flex justify-between py-2 text-[0.75rem] border-b border-[#f7f5f0] last:border-0"
             >
-              <span class="text-[#bbb]">{{ s.l }}</span>
+              <span class="text-[#777]">{{ s.l }}</span>
               <strong class="text-[#111]">{{ s.v }}</strong>
             </div>
 
             <div v-if="formattedDeadline" class="flex justify-between py-2 text-[0.75rem] border-b border-[#f7f5f0]">
-              <span class="text-[#bbb]">Prazo</span>
+              <span class="text-[#777]">Prazo</span>
               <strong class="text-[#111]" :class="{ 'text-red-600': isDeadlineExpired }">
                 {{ formattedDeadline }}
               </strong>
@@ -1230,14 +1266,14 @@ function openPost(postItem: any) {
 .article-body h1 { font-size:1.6rem;font-weight:800;color:#111;margin:2rem 0 1rem;line-height:1.2; }
 .article-body h2 { font-size:1.35rem;font-weight:700;color:#111;margin:2rem 0 .85rem;line-height:1.3; }
 .article-body h3 { font-size:1.1rem;font-weight:600;color:#111;margin:1.5rem 0 .7rem; }
-.article-body p  { font-size:.98rem;font-weight:300;color:#555;line-height:1.9;margin-bottom:1.4rem; }
+.article-body p  { font-size:.98rem;font-weight:300;color:#111;line-height:1.9;margin-bottom:1.4rem; }
 .article-body strong { font-weight:600;color:#111; }
 .article-body em  { font-style:italic; }
 .article-body code { background:#f7f5f0;border:1px solid #e8e4dc;padding:.15rem .45rem;border-radius:4px;font-size:.88em;color:#079272;font-family:monospace; }
 .article-body pre code { background:none;border:none;padding:0;color:inherit; }
 .article-body pre { background:#1e1e2e;border-radius:10px;padding:1.25rem 1.5rem;overflow-x:auto;margin:1.5rem 0; }
 .article-body blockquote { border-left:3px solid #079272;padding:1rem 1.5rem;margin:1.5rem 0;background:#e8f5f2;border-radius:0 10px 10px 0;font-size:1rem;font-style:italic;color:#333; }
-.article-body ul, .article-body ol { padding-left:1.5rem;margin-bottom:1.4rem;color:#555; }
+.article-body ul, .article-body ol { padding-left:1.5rem;margin-bottom:1.4rem;color:#111; }
 .article-body li { margin-bottom:.4rem;font-weight:300; }
 .article-body a { color:#079272;text-decoration:underline; }
 .article-body img { max-width:100%;border-radius:10px;margin:1rem 0; }
