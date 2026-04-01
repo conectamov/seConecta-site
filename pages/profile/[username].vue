@@ -22,60 +22,68 @@
       <div v-else-if="user" class="space-y-6 animate-in fade-in duration-500">
         
         <div class="bg-white border border-[#e8e4dc] rounded-[32px] overflow-hidden shadow-sm">
-          <div class="h-40 bg-gradient-to-r from-[#0c1b32] via-[#1a3a32] to-[#0c1b32] relative">
+          <div class="h-32 sm:h-40 bg-gradient-to-r from-[#0c1b32] via-[#1a3a32] to-[#0c1b32] relative">
             <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 20% 50%, #079272 0%, transparent 50%), radial-gradient(circle at 80% 50%, #2464E8 0%, transparent 50%)"></div>
           </div>
 
           <div class="px-6 md:px-10 pb-8">
-            <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 -mt-16">
+            <div class="flex flex-col sm:flex-row gap-4 sm:gap-6 relative">
               
-              <div class="flex flex-col md:flex-row md:items-end gap-6 flex-1">
-                <div class="relative w-32 h-32 rounded-[24px] border-[6px] border-white shadow-xl bg-white flex-shrink-0 z-10">
+              <div class="flex-shrink-0 z-10 -mt-12 sm:-mt-16">
+                <div class="relative w-28 h-28 sm:w-32 sm:h-32 rounded-[24px] border-[6px] border-white shadow-xl bg-white mx-auto sm:mx-0">
                   <img v-if="user.profile_picture_url" :src="user.profile_picture_url" class="w-full h-full object-cover rounded-[18px]" />
-                  <div v-else class="w-full h-full rounded-[18px] bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-5xl font-bold text-white">
+                  <div v-else class="w-full h-full rounded-[18px] bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-4xl sm:text-5xl font-bold text-white">
                     {{ userInitial }}
                   </div>
                   <div v-if="user.matching" class="absolute -bottom-2 -right-2 bg-[#FF6B35] p-2 rounded-xl border-4 border-white shadow-md" title="Buscando conexões">
-                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                   </div>
                 </div>
+              </div>
 
-                <div class="flex-1 pb-1 gap-6">
-                  <h1 class="text-3xl font-black text-[#111] tracking-tight">{{ user.full_name }}</h1>
-                  <p v-if="user.public_title" class="text-lg font-medium text-[#444] leading-snug mt-1">
-                    {{ user.public_title }}
-                  </p>
+              <div class="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 sm:pt-4">
+                
+                <div class="flex-1 min-w-0 text-center sm:text-left"> <h1 class="text-2xl sm:text-3xl font-black text-[#111] tracking-tight truncate" :title="user.full_name">
+                    {{ user.full_name }}
+                  </h1>
                   
-                  <div v-if="user.tags?.length" class="flex flex-wrap gap-2 mt-3">
+                  <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
+                    <span v-if="user.public_title" class="text-[0.95rem] font-semibold text-[#444]">
+                      {{ user.public_title }}
+                    </span>
+                    
+                    <span v-if="user.public_title && user.tags?.length" class="text-gray-300 hidden sm:block">•</span>
+                    
                     <span 
                       v-for="(tag, index) in user.tags" 
                       :key="tag" 
-                      :class="['px-3 py-1 text-[0.7rem] font-bold uppercase tracking-wider rounded-lg border', getTagColor(index)]"
+                      :class="['px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider rounded-md border', getTagColor(index)]"
                     >
                       {{ tag }}
                     </span>
                   </div>
                 </div>
+
+                <div class="w-full sm:w-auto flex-shrink-0 mt-2 sm:mt-0">
+                  <button 
+                    @click="handleConnect"
+                    class="w-full sm:w-auto px-8 py-2.5 bg-[#079272] hover:bg-[#057a5f] text-white font-bold rounded-xl shadow-lg shadow-[#079272]/20 transition-all hover:-translate-y-0.5"
+                  >
+                    Conectar
+                  </button>
+                </div>
               </div>
 
-              <div class="pb-1 w-full md:w-auto flex-shrink-0">
-                <button 
-                  @click="handleConnect"
-                  class="w-full md:w-auto px-8 py-3 bg-[#079272] hover:bg-[#057a5f] text-white font-bold rounded-2xl shadow-lg shadow-[#079272]/20 transition-all hover:-translate-y-0.5"
-                >
-                  Conectar
-                </button>
-              </div>
             </div>
 
-            <div class="mt-8 flex flex-wrap items-center gap-y-3 gap-x-6 text-sm text-[#666] border-t border-[#f0eee9] pt-6">
+            <div class="mt-8 flex flex-wrap items-center justify-center sm:justify-start gap-y-3 gap-x-6 text-sm text-[#666] border-t border-[#f0eee9] pt-6">
               <span class="flex items-center gap-1.5 font-medium text-[#444]">
                 @{{ user.username }}
               </span>
               
               <span v-if="user.organization" class="flex items-center gap-1.5">
                 <svg class="w-4 h-4 text-[#079272]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 14v6.5"/></svg>
-                <span class="font-medium">{{ user.organization }}</span>
+                <span class="font-medium truncate max-w-[200px]">{{ user.organization }}</span>
               </span>
 
               <span v-if="user.location" class="flex items-center gap-1.5">
@@ -83,7 +91,7 @@
                 {{ user.location }}
               </span>
 
-              <div class="flex items-center gap-3 ml-auto">
+              <div class="flex items-center gap-3 w-full sm:w-auto sm:ml-auto justify-center sm:justify-end mt-2 sm:mt-0">
                 <a v-if="user.linkedin" :href="user.linkedin" target="_blank" class="p-2 bg-[#f4f7fa] hover:bg-[#e1e9f0] rounded-xl transition-colors text-[#0a66c2]" title="LinkedIn">
                   <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
                 </a>
