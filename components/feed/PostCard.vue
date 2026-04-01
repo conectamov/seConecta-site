@@ -193,13 +193,6 @@ async function toggleLike(e: Event) {
         >
           Em análise
         </span>
-
-        <span
-          v-if="isExpired"
-          class="ml-auto text-[0.62rem] font-semibold px-2 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-600"
-        >
-          Oportunidade encerrada
-        </span>
       </div>
 
       <h2 class="text-[1.2rem] font-bold text-[#111] leading-snug tracking-[-0.02em] mb-3 transition-colors duration-200 group-hover:text-[#079272] line-clamp-2">
