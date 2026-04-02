@@ -88,6 +88,17 @@ function openArticle(post: any) {
   router.push(`/feed/${post.slug || post.id}`)
 }
 
+// Function to handle interactions that require auth
+function requireAuth(e?: Event) {
+  if (!isAuthenticated.value) {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    router.push('/login')
+  }
+}
+
 const feedTitle = computed(() => {
   if (feedMode.value === 'personalized') return 'Para você'
   if (activeTag.value) return `#${activeTag.value}`
@@ -98,7 +109,6 @@ const feedTitle = computed(() => {
 <template>
   <div class="min-h-screen">
 
-    <!-- heroFeed -->
     <section class="relative overflow-hidden py-16 px-8 bg-none" aria-labelledby="hero-heading">
       <div class="absolute rounded-full blur-[60px] opacity-10 pointer-events-none w-[300px] h-[300px] top-[5%] right-[5%] bg-[#079272] max-sm:hidden" aria-hidden="true"></div>
       <div class="absolute rounded-full blur-[60px] opacity-10 pointer-events-none w-[200px] h-[200px] bottom-[10%] right-[25%] bg-[#2464E8] max-sm:hidden" aria-hidden="true"></div>
@@ -126,7 +136,23 @@ const feedTitle = computed(() => {
     <div class="bg-white">
       <div class="max-w-[900px] mx-auto px-4 md:px-8 pt-10 pb-4">
 
-        <!-- Cabeçalho + toggle -->
+        <div v-if="!isAuthenticated" class="mb-8 bg-[#fffdf5] border border-[#f5d480] rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+          <div class="flex items-start md:items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-[#fef5d4] flex items-center justify-center flex-shrink-0">
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d9a000" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="11" r="3"/></svg>
+            </div>
+            <div>
+              <h3 class="text-[0.95rem] font-bold text-[#8a6500] mb-1">Você ainda não está conectado</h3>
+              <p class="text-[0.85rem] text-[#a67c00] leading-snug max-w-lg">
+                Faça login para curtir e comentar nas publicações, salvar seus conteúdos favoritos e acessar seu feed personalizado.
+              </p>
+            </div>
+          </div>
+          <button @click="router.push('/login')" class="w-full md:w-auto flex-shrink-0 text-[0.85rem] font-bold px-5 py-2.5 bg-[#d9a000] text-white rounded-xl hover:bg-[#b38600] transition-colors border-none cursor-pointer">
+            Fazer login
+          </button>
+        </div>
+
         <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
           <h2 class="text-2xl font-bold text-[#111] tracking-[-0.02em]">{{ feedTitle }}</h2>
           <div v-if="isAuthenticated && hasInterests" class="flex gap-1 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl p-1">
@@ -140,7 +166,6 @@ const feedTitle = computed(() => {
           </div>
         </div>
 
-        <!-- Busca -->
         <div class="relative mb-4">
           <svg class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -152,7 +177,6 @@ const feedTitle = computed(() => {
           </svg>
         </div>
 
-        <!-- Tags -->
         <div v-if="feedMode === 'general'" class="flex items-center gap-2 flex-wrap mb-2">
           <button
             v-for="tag in popularTags" :key="tag"
@@ -166,7 +190,6 @@ const feedTitle = computed(() => {
 
       <main class="max-w-[900px] mx-auto px-4 md:px-8 pb-24 pt-2 flex flex-col gap-4">
 
-        <!-- Skeleton -->
         <template v-if="loading">
           <div v-for="i in 4" :key="i" class="bg-white rounded-2xl border border-[#e8e4dc] p-8 animate-pulse flex flex-col gap-3">
             <div class="flex gap-3">
@@ -179,7 +202,6 @@ const feedTitle = computed(() => {
           </div>
         </template>
 
-        <!-- Erro -->
         <div v-else-if="error" class="flex flex-col items-center py-20 gap-4 text-center">
           <div class="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e53e3e" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -188,7 +210,6 @@ const feedTitle = computed(() => {
           <button class="text-sm font-semibold px-5 py-2 bg-[#0d0d0d] text-white rounded-lg hover:bg-[#079272] transition-colors border-none cursor-pointer" @click="fetchPosts()">Tentar novamente</button>
         </div>
 
-        <!-- Vazio -->
         <div v-else-if="posts.length === 0" class="flex flex-col items-center py-20 gap-3 text-center">
           <div class="w-14 h-14 rounded-2xl bg-[#f7f5f0] flex items-center justify-center">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -204,9 +225,17 @@ const feedTitle = computed(() => {
             @click="setFeedMode('general'); activeTag = ''; searchQuery = ''">Ver todos os posts</button>
         </div>
 
-        <!-- Posts -->
         <template v-else>
-          <FeedPostCard v-for="(post, index) in posts" :key="post.id" :post="post" :index="index" @read="openArticle" />
+          <FeedPostCard 
+            v-for="(post, index) in posts" 
+            :key="post.id" 
+            :post="post" 
+            :index="index" 
+            @read="openArticle" 
+            @like="requireAuth"
+            @save="requireAuth"
+            @comment="requireAuth"
+          />
 
           <div v-if="hasMore" class="flex justify-center pt-2">
             <button
