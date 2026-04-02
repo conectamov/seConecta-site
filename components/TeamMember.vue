@@ -5,7 +5,6 @@ const flipped = ref(false)
 // Mobile-only click flip — desktop uses CSS :hover
 function handleClick() {
   if (!import.meta.client) return
-  // Only flip on touch devices / small screens
   if (window.matchMedia('(hover: none)').matches || window.innerWidth < 1024) {
     flipped.value = !flipped.value
   }
@@ -40,9 +39,11 @@ function getInitials(name: string) {
         </div>
 
         <div class="flex flex-col items-center flex-1 px-6 pt-6 pb-5 relative">
-          <div class="w-[112px] h-[112px] rounded-2xl flex items-center justify-center text-white text-2xl font-bold mb-5 shadow-md flex-shrink-0"
-            :style="{ background: `linear-gradient(135deg, ${member.colorA}, ${member.colorB})` }">
-            <span>{{ getInitials(member.name) }}</span>
+          <!-- Foto ou iniciais -->
+          <div class="w-[112px] h-[112px] rounded-2xl flex items-center justify-center text-white text-2xl font-bold mb-5 shadow-md flex-shrink-0 overflow-hidden"
+            :style="member.photo ? {} : { background: `linear-gradient(135deg, ${member.colorA}, ${member.colorB})` }">
+            <img v-if="member.photo" :src="member.photo" :alt="member.name" class="w-full h-full object-cover" />
+            <span v-else>{{ getInitials(member.name) }}</span>
           </div>
 
           <h3 class="text-[0.95rem] font-bold text-[#111] text-center tracking-[-0.02em] leading-snug mb-2">
@@ -82,9 +83,11 @@ function getInitials(name: string) {
 
         <div class="flex flex-col flex-1 px-5 pt-5 pb-5 relative z-10 h-full overflow-hidden">
           <div class="flex items-center gap-2.5 mb-4 flex-shrink-0">
-            <div class="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+            <!-- Pequeno avatar (pode ser foto ou iniciais) -->
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden"
               :style="{ background: `linear-gradient(135deg, ${member.colorA}, ${member.colorB})` }">
-              {{ getInitials(member.name) }}
+              <img v-if="member.photo" :src="member.photo" :alt="member.name" class="w-full h-full object-cover" />
+              <span v-else>{{ getInitials(member.name) }}</span>
             </div>
             <div class="min-w-0">
               <p class="text-[0.8rem] font-bold text-white leading-none truncate">{{ member.name }}</p>
