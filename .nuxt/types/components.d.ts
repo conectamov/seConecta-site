@@ -25,6 +25,8 @@ interface _GlobalComponents {
   LayoutAppFooter: typeof import("../../components/layout/AppFooter.vue")['default']
   LayoutAppHeader: typeof import("../../components/layout/AppHeader.vue")['default']
   LayoutBgFx: typeof import("../../components/layout/BgFx.vue")['default']
+  OlimpiadasOlimpiadCard: typeof import("../../components/olimpiadas/OlimpiadCard.vue")['default']
+  OlimpiadasOlimpiadModal: typeof import("../../components/olimpiadas/OlimpiadModal.vue")['default']
   NuxtWelcome: typeof import("../../node_modules/nuxt/dist/app/components/welcome.vue")['default']
   NuxtLayout: typeof import("../../node_modules/nuxt/dist/app/components/nuxt-layout")['default']
   NuxtErrorBoundary: typeof import("../../node_modules/nuxt/dist/app/components/nuxt-error-boundary.vue")['default']
@@ -67,6 +69,8 @@ interface _GlobalComponents {
   LazyLayoutAppFooter: LazyComponent<typeof import("../../components/layout/AppFooter.vue")['default']>
   LazyLayoutAppHeader: LazyComponent<typeof import("../../components/layout/AppHeader.vue")['default']>
   LazyLayoutBgFx: LazyComponent<typeof import("../../components/layout/BgFx.vue")['default']>
+  LazyOlimpiadasOlimpiadCard: LazyComponent<typeof import("../../components/olimpiadas/OlimpiadCard.vue")['default']>
+  LazyOlimpiadasOlimpiadModal: LazyComponent<typeof import("../../components/olimpiadas/OlimpiadModal.vue")['default']>
   LazyNuxtWelcome: LazyComponent<typeof import("../../node_modules/nuxt/dist/app/components/welcome.vue")['default']>
   LazyNuxtLayout: LazyComponent<typeof import("../../node_modules/nuxt/dist/app/components/nuxt-layout")['default']>
   LazyNuxtErrorBoundary: LazyComponent<typeof import("../../node_modules/nuxt/dist/app/components/nuxt-error-boundary.vue")['default']>
