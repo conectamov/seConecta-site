@@ -1,5 +1,4 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Feed — seConecta' })
 
 const router = useRouter()
