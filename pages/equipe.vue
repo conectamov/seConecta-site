@@ -15,6 +15,7 @@ const teamAdmin = [
     id: 1, name: 'Otávio Pinheiro', role: 'Diretor Geral',
     description: 'Eu sou Otávio! Gosto de programação, escrita e comunicação. Comecei minha jornada de estudos no sétimo ano e descobri olimpíadas científicas através de um vídeo no YouTube. Desde então, oportunidades transformadoras têm mudado minha vida. Agora carrego a missão de usar minhas paixões para transformar a forma com que estudantes podem impactar outros estudantes usando tecnologia!',
     skills: ['Liderança', 'Produto', 'Estratégia'], colorA: '#2464E8', colorB: '#2a76ff',
+    photo: "https://media.licdn.com/dms/image/v2/D4D03AQEI3BbKYT6W8A/profile-displayphoto-shrink_400_400/B4DZbwW.bWGwAg-/0/1747789279403?e=1776902400&v=beta&t=WEyCxgaEkjE2hGZIeIi6M0l148Or4pgbuGjP4amb2PI"
   },
   {
     id: 2, name: 'Gabriel Masterson', role: 'Diretor de Tecnologia',
