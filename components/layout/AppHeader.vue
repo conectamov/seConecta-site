@@ -9,7 +9,7 @@ const socialLinks = [
   { name: 'YouTube', icon: 'fa-brands fa-youtube', url: '/', color: '#FF0000' },
 ]
 
-const showProgramas = ref(false)
+const showProgramas = ref(true) // Changed to true - starts open
 const showUserMenu = ref(false)
 const showNotifs = ref(false)
 const isMobileOpen = ref(false)
@@ -17,7 +17,7 @@ const showSocialInMobile = ref(false)
 let programasTimer: ReturnType<typeof setTimeout> | null = null
 
 function closeAll() {
-  showProgramas.value = false
+  // Don't close showProgramas automatically anymore
   showUserMenu.value = false
   showNotifs.value = false
   showSocialInMobile.value = false
@@ -25,7 +25,12 @@ function closeAll() {
 
 function onDocClick(e: MouseEvent) {
   const target = e.target as HTMLElement
-  if (!target.closest('[data-menu]') && !target.closest('[data-social]')) closeAll()
+  // Only close user menu and notifications when clicking outside
+  if (!target.closest('[data-menu]') && !target.closest('[data-social]')) {
+    showUserMenu.value = false
+    showNotifs.value = false
+    showSocialInMobile.value = false
+  }
 }
 
 onMounted(() => {
@@ -41,27 +46,45 @@ onUnmounted(() => {
 
 watch(() => route.path, () => {
   isMobileOpen.value = false
-  closeAll()
+  showUserMenu.value = false
+  showNotifs.value = false
+  showSocialInMobile.value = false
+  // Keep showProgramas true - menu stays open
 })
 
-function hoverProgramas() { if (programasTimer) clearTimeout(programasTimer); showProgramas.value = true }
-function leaveProgramas() { programasTimer = setTimeout(() => { showProgramas.value = false }, 180) }
-function toggleProgramas() { showProgramas.value = !showProgramas.value; showUserMenu.value = false; showNotifs.value = false }
+function hoverProgramas() { 
+  if (programasTimer) clearTimeout(programasTimer)
+  showProgramas.value = true 
+}
+
+function leaveProgramas() { 
+  // Don't auto-close on leave - menu stays open
+  // programasTimer = setTimeout(() => { showProgramas.value = false }, 180)
+}
+
+function toggleProgramas() { 
+  showProgramas.value = !showProgramas.value
+  showUserMenu.value = false
+  showNotifs.value = false
+}
 
 function handleLogout() {
-  closeAll(); isMobileOpen.value = false
+  closeAll()
+  isMobileOpen.value = false
   logout()
   router.push('/login')
 }
 
 function go(path: string) {
-  closeAll(); isMobileOpen.value = false
+  closeAll()
+  isMobileOpen.value = false
   router.push('/' + path)
 }
 
 function openNotifDropdown() {
   showNotifs.value = !showNotifs.value
-  showUserMenu.value = false; showProgramas.value = false; showSocialInMobile.value = false
+  showUserMenu.value = false
+  showSocialInMobile.value = false
 }
 
 const userInitial = computed(() =>
@@ -92,9 +115,38 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" :class="['transition-transform duration-200', showProgramas ? 'rotate-180' : '']"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <Transition enter-from-class="opacity-0 -translate-y-1 scale-95" enter-active-class="transition-all duration-150 origin-top" leave-to-class="opacity-0 -translate-y-1 scale-95" leave-active-class="transition-all duration-100 origin-top">
-            <div v-if="showProgramas" class="absolute top-[calc(100%+6px)] left-1/2 -translate-x-1/2 w-52 bg-white border border-[#e8e4dc] rounded-xl shadow-xl py-1.5 z-50">
+            <div v-if="showProgramas" class="absolute top-[calc(100%+6px)] left-1/2 -translate-x-1/2 w-56 bg-white border border-[#e8e4dc] rounded-xl shadow-xl py-1.5 z-50">
               <div class="absolute -top-[5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-white border-t border-l border-[#e8e4dc] rotate-45"></div>
-              <button class="w-full text-left px-4 py-2.5 text-[0.83rem] text-gray-700 hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors cursor-pointer bg-transparent border-none" @click="go('embaixadores'); showProgramas = false">Embaixadores</button>
+              
+              <!-- Olimpíadas link -->
+              <button class="w-full text-left px-4 py-2.5 text-[0.83rem] text-gray-700 hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors cursor-pointer bg-transparent border-none flex items-center gap-2" @click="go('olimpiadas'); showProgramas = false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                  <path d="M2 17l10 5 10-5"/>
+                  <path d="M2 12l10 5 10-5"/>
+                </svg>
+                Olimpíadas
+              </button>
+              
+              <!-- Calendário link -->
+              <button class="w-full text-left px-4 py-2.5 text-[0.83rem] text-gray-700 hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors cursor-pointer bg-transparent border-none flex items-center gap-2" @click="go('calendar'); showProgramas = false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                  <circle cx="12" cy="15" r="1"/>
+                  <circle cx="16" cy="15" r="1"/>
+                  <circle cx="8" cy="15" r="1"/>
+                </svg>
+                Calendário de eventos
+              </button>
+
+              <button class="w-full text-left px-4 py-2.5 text-[0.83rem] text-gray-700 hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors cursor-pointer bg-transparent border-none flex items-center gap-2" @click="go('embaixadores'); showProgramas = false">
+               
+                Embaixadores
+              </button>
+              
               <div class="px-4 py-2.5 text-[0.8rem] text-[#bbb]">Em breve mais programas!</div>
             </div>
           </Transition>
@@ -164,7 +216,7 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
         <!-- User menu desktop -->
         <div class="relative hidden lg:block" data-menu>
           <button class="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-[#f7f5f0] transition-colors border-none bg-transparent cursor-pointer"
-            @click.stop="showUserMenu = !showUserMenu; showNotifs = false; showProgramas = false">
+            @click.stop="showUserMenu = !showUserMenu; showNotifs = false">
             <div class="w-12 h-8 rounded-2xl overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center">
               <img v-if="currentUser?.profile_picture_url" :src="currentUser.profile_picture_url" :alt="currentUser.full_name" class="w-full h-full object-cover" @error="($event.target as HTMLElement).style.display='none'" />
               <span v-else class="text-sm font-bold text-white">{{ userInitial }}</span>
@@ -190,10 +242,6 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
               <button v-if="isManager" class="w-full flex items-center gap-2.5 px-4 py-2.5 text-[0.8rem] text-[#079272] hover:bg-[#f0faf7] transition-colors cursor-pointer bg-transparent border-none text-left" @click="go('reviewFeed'); showUserMenu = false">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 Revisar posts
-              </button>
-              <button class="w-full flex items-center gap-2.5 px-4 py-2.5 text-[0.8rem] text-[#555] hover:bg-[#f7f5f0] transition-colors cursor-pointer bg-transparent border-none text-left" @click="go('calendar'); showUserMenu = false">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18"/><circle cx="12" cy="12" r="3"/></svg>
-                Calendário de eventos
               </button>
               <div class="h-px bg-[#f7f5f0] mx-2 my-1"></div>
               <button class="w-full flex items-center gap-2.5 px-4 py-2.5 text-[0.8rem] text-red-500 hover:bg-red-50 transition-colors cursor-pointer bg-transparent border-none text-left" @click="handleLogout">
@@ -276,12 +324,31 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               Novo post
             </button>
+            
+            <!-- Mobile menu dividers and new items -->
+            <div class="h-px bg-[#f7f5f0] my-2"></div>
+            
+            <button @click="go('olimpiadas')" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[0.88rem] font-medium text-[#333] hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors border-none bg-transparent cursor-pointer text-left">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
+              Olimpíadas
+            </button>
+            
             <button @click="go('calendar')" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[0.88rem] font-medium text-[#333] hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors border-none bg-transparent cursor-pointer text-left">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
               Calendário de eventos
             </button>
-
+            
             <div class="h-px bg-[#f7f5f0] my-2"></div>
+            
             <button @click="go('sobre')" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[0.88rem] font-medium text-[#555] hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors border-none bg-transparent cursor-pointer text-left">Sobre</button>
             <button @click="go('embaixadores')" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[0.88rem] font-medium text-[#555] hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors border-none bg-transparent cursor-pointer text-left">Embaixadores</button>
             <button @click="go('equipe')" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[0.88rem] font-medium text-[#555] hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors border-none bg-transparent cursor-pointer text-left">Equipe</button>

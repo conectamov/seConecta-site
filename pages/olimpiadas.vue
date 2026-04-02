@@ -501,7 +501,7 @@ function fmtCount(n) {
       </div>
     </section>
 
-    <div class="">
+    <div class="bg-white">
     <!-- Filter Bar -->
     <div class="sticky top-0 z-30 bg-white shadow-[0_1px_0_rgba(0,0,0,0.06)] max-w-[900px] mx-auto px-4 md:px-8 pt-10 pb-4">
       <div class="max-w-screen-2xl mx-auto px-6 md:px-10">
