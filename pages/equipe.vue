@@ -34,26 +34,31 @@ const teamEmb = [
     id: 1, name: 'Marcos Vinicius', role: 'Embaixador',
     description: 'Iniciei na computação aos 13 anos, desenvolvendo jogos ao mesmo tempo que aprendia a ligar um computador. Aos 16 anos criei um game educativo reconhecido como a Melhor Solução Ambiental do Rio de Janeiro na maior competição da NASA, a Space Apps Challenge. No mesmo ano fui convidado pelo IMPA para palestrar no Festival Nacional da Matemática sobre "O Poder dos Jogos". Retornei ao projeto social que me formou, dessa vez não como aluno, mas como desenvolvedor, criando games que podem inspirar jovens, assim como uma vez fui inspirado.',
     skills: [], colorA: '#F59E0B', colorB: '#D97706',
+    photo: "https://neps.nyc3.cdn.digitaloceanspaces.com/users/38710.webp"
   },
   {
     id: 2, name: 'Malu Azevedo', role: 'Embaixadora',
     description: 'Meu nome é Malu e estou no segundo ano do ensino médio, cursando o técnico integrado em eletrotécnica. Sou apaixonada por matemática, física e programação, desde programação competitiva até ciência de dados e inteligência artificial. Tenho um carinho especial por eletrônica e sistemas embarcados. Também tenho uma curiosidade enorme por linguística. Além da ciência e da tecnologia, também amo me expressar através da arte: toco violino, gosto de desenhar e pintar, ler, fazer crochê entre outros. Como embaixadora do seConecta, espero compartilhar um pouco dessa curiosidade e entusiasmo.',
     skills: [], colorA: '#F59E0B', colorB: '#D97706',
+    photo: "https://gcdnb.pbrd.co/images/gRse80q3g91W.jpg?o=1"
   },
   {
     id: 3, name: 'Isabela Fonseca', role: 'Embaixadora',
     description: 'Sou estudante de programação, matemática e inglês, movida pela curiosidade e pela vontade de aprender. Sempre busco desafios que me façam crescer, tanto na área acadêmica quanto pessoal. Também sou apaixonada por esportes, todos os tipos, menos futebol. Natural de Divinópolis, Minas Gerais, acredito que dedicação e esforço constroem resultados melhores que talento. Como embaixadora, quero representar esses valores e inspirar outros jovens a acreditarem no próprio potencial.',
     skills: [], colorA: '#F59E0B', colorB: '#D97706',
+    photo: "https://gcdnb.pbrd.co/images/8uIqCxHc9Fd3.png?o=1"
   },
   {
     id: 4, name: 'Luís Miguel', role: 'Embaixador',
     description: 'Nasci em Salvador, Bahia, onde entrei no Colégio Militar de Salvador e comecei minha jornada olímpica, e graças ao meu desempenho consegui uma bolsa no colégio Farias Brito em Fortaleza. Sou entusiasta de matemática e física e gostaria de ajudar a disseminar o conhecimento para outros jovens.',
     skills: [], colorA: '#F59E0B', colorB: '#D97706',
+    photo: "https://gcdnb.pbrd.co/images/9goeBr5HMNmS.jpg?o=1"
   },
   {
     id: 5, name: 'Pedro Henrique', role: 'Embaixador',
     description: 'Olá! Eu me chamo Pedro Henrique! Gosto de matemática, física, computação, ler, tocar piano e ajudar pessoas. Comecei a fazer olimpíadas desde os 10 anos e, desde então, obtive medalhas em diversas olimpíadas. Também tenho orgulho de fazer parte da Behring Academy desde 2025.',
     skills: [], colorA: '#F59E0B', colorB: '#D97706',
+    photo: "https://i.postimg.cc/nhL9nzHb/Whats-App-Image-2026-04-01-at-20-19-40.jpg"
   },
 ]
 
@@ -67,6 +72,7 @@ const teamTech = [
     id: 2, name: 'Otávio Pinheiro', role: 'Dev Backend',
     description: 'Backend em FastAPI de Bot de WhatsApp com algoritmos de recomendação.',
     skills: ['Python', 'FastAPI'], colorA: '#079272', colorB: '#0DA790',
+    photo: "https://media.licdn.com/dms/image/v2/D4D03AQEI3BbKYT6W8A/profile-displayphoto-shrink_400_400/B4DZbwW.bWGwAg-/0/1747789279403?e=1776902400&v=beta&t=WEyCxgaEkjE2hGZIeIi6M0l148Or4pgbuGjP4amb2PI"
   },
 ]
 
