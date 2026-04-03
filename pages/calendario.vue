@@ -13,6 +13,37 @@
         </div>
       </div>
 
+      <!-- Filter Bar -->
+      <div class="mb-6 bg-white border border-[#e8e4dc] rounded-2xl p-4 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="text-[0.7rem] font-semibold text-[#888] uppercase tracking-wide">
+            Filtrar por categoria:
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="item in CATEGORY_ORDER"
+              :key="item.key"
+              @click="toggleCategory(item.key)"
+              class="px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5"
+              :class="activeCategories[item.key] ? 'bg-white text-[#111] border border-[#e8e4dc] shadow-sm' : 'bg-[#f7f5f0] text-[#aaa] border border-transparent opacity-60'"
+            >
+              <span
+                class="w-2 h-2 rounded-full"
+                :style="{ background: CATEGORY_MAP[item.key].color, opacity: activeCategories[item.key] ? 1 : 0.4 }"
+              ></span>
+              {{ CATEGORY_MAP[item.key].label }}
+            </button>
+          </div>
+          <button
+            v-if="hasInactiveCategories"
+            @click="resetCategories"
+            class="text-[0.7rem] font-semibold text-[#079272] hover:text-[#055f48] transition-colors"
+          >
+            Resetar filtros
+          </button>
+        </div>
+      </div>
+
       <!-- Main grid -->
       <div class="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-start">
         <!-- Calendar card -->
@@ -35,7 +66,7 @@
             <p class="text-[0.85rem] text-[#666]">{{ error }}</p>
             <button
               class="text-sm font-semibold px-5 py-2 bg-[#0d0d0d] text-white rounded-xl hover:bg-[#079272] transition-colors border-none cursor-pointer"
-              @click="fetchPosts"
+              @click="fetchAllData"
             >
               Tentar novamente
             </button>
@@ -43,7 +74,7 @@
 
           <ClientOnly v-else>
             <VCalendar
-              :attributes="attributes"
+              :attributes="calendarAttributes"
               expanded
               :first-day-of-week="1"
               locale="pt-BR"
@@ -60,13 +91,14 @@
               <div
                 v-for="item in CATEGORY_ORDER"
                 :key="item.key"
-                class="flex items-center gap-1.5"
+                class="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                @click="toggleCategory(item.key)"
               >
                 <span
                   class="w-2 h-2 rounded-full flex-shrink-0"
-                  :style="{ background: CATEGORY_MAP[item.key].color }"
+                  :style="{ background: CATEGORY_MAP[item.key].color, opacity: activeCategories[item.key] ? 1 : 0.3 }"
                 ></span>
-                <span class="text-[0.7rem] text-[#888]">
+                <span class="text-[0.7rem]" :class="activeCategories[item.key] ? 'text-[#666]' : 'text-[#bbb] line-through'">
                   {{ CATEGORY_MAP[item.key].label }}
                 </span>
               </div>
@@ -88,7 +120,7 @@
           </div>
 
           <div
-            v-else-if="(upcomingPosts?.length ?? 0) === 0"
+            v-else-if="upcomingEvents.length === 0"
             class="px-5 py-10 text-center text-[0.8rem] text-[#bbb]"
           >
             Nenhum deadline nos próximos 30 dias
@@ -96,17 +128,17 @@
 
           <div v-else class="divide-y divide-[#f7f5f0]">
             <button
-              v-for="post in upcomingPosts"
-              :key="post.id ?? post.slug"
+              v-for="event in upcomingEvents"
+              :key="event.id"
               class="w-full px-5 py-3.5 flex items-start gap-3 hover:bg-[#fafaf9] transition-colors cursor-pointer text-left group border-none bg-transparent"
-              @click="openPost(post)"
+              @click="openEvent(event)"
             >
               <div class="flex-shrink-0 w-11 text-center">
                 <div class="text-[0.62rem] font-semibold uppercase text-[#bbb]">
-                  {{ MONTHS_PT[new Date(post.deadline).getMonth()].slice(0, 3) }}
+                  {{ MONTHS_PT[new Date(event.deadline).getMonth()].slice(0, 3) }}
                 </div>
                 <div class="text-[1.15rem] font-bold text-[#111] leading-none">
-                  {{ new Date(post.deadline).getDate() }}
+                  {{ new Date(event.deadline).getDate() }}
                 </div>
               </div>
 
@@ -114,22 +146,22 @@
                 <div class="flex items-center gap-2 flex-wrap mb-1">
                   <span
                     class="text-[0.6rem] font-semibold px-2 py-0.5 rounded-full"
-                    :style="{ background: colorFor(post) + '18', color: colorFor(post) }"
+                    :style="{ background: event.categoryColor + '18', color: event.categoryColor }"
                   >
-                    {{ labelFor(post) }}
+                    {{ event.categoryLabel }}
                   </span>
 
-                  <span class="text-[0.68rem]" :class="daysLeft(post.deadline).cls">
-                    {{ daysLeft(post.deadline).text }}
+                  <span class="text-[0.68rem]" :class="daysLeft(event.deadline).cls">
+                    {{ daysLeft(event.deadline).text }}
                   </span>
                 </div>
 
                 <p class="text-[0.82rem] font-semibold text-[#111] group-hover:text-[#079272] transition-colors line-clamp-1 mb-1">
-                  {{ post.title }}
+                  {{ event.title }}
                 </p>
 
-                <p v-if="post.excerpt" class="text-[0.7rem] text-[#888] line-clamp-2">
-                  {{ post.excerpt }}
+                <p v-if="event.excerpt" class="text-[0.7rem] text-[#888] line-clamp-2">
+                  {{ event.excerpt }}
                 </p>
               </div>
 
@@ -140,17 +172,17 @@
           </div>
 
           <div
-            v-if="!loading && (posts?.length ?? 0) > 0"
+            v-if="!loading && allEvents.length > 0"
             class="border-t border-[#f7f5f0] px-5 py-3 text-center"
           >
             <p class="text-[0.65rem] text-[#ccc]">
-              {{ posts?.length ?? 0 }} oportunidade{{ (posts?.length ?? 0) !== 1 ? 's' : '' }} com deadline
+              {{ allEvents.length }} oportunidade{{ allEvents.length !== 1 ? 's' : '' }} com deadline
             </p>
           </div>
         </div>
       </div>
 
-      <!-- Recommendations -->
+      <!-- Recommendations (unchanged) -->
       <div class="mt-12">
         <div class="flex items-center justify-between mb-4">
           <div>
@@ -272,7 +304,7 @@
       </div>
     </div>
 
-    <!-- Modal -->
+    <!-- Day Modal (shows events on selected day) -->
     <Transition name="modal-fade">
       <div
         v-if="showModal"
@@ -306,7 +338,7 @@
           <div class="h-px bg-[#f0ece5] mx-6"></div>
 
           <div class="px-6 py-4 max-h-[60vh] overflow-y-auto">
-            <div v-if="selectedPosts.length === 0" class="flex flex-col items-center py-8 gap-2 text-center">
+            <div v-if="selectedEvents.length === 0" class="flex flex-col items-center py-8 gap-2 text-center">
               <div class="w-10 h-10 rounded-xl bg-[#f7f5f0] flex items-center justify-center">
                 <svg class="w-5 h-5 text-[#ccc]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                   <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -320,62 +352,62 @@
 
             <div v-else class="flex flex-col gap-3">
               <button
-                v-for="post in selectedPosts"
-                :key="post.id ?? post.slug"
+                v-for="event in selectedEvents"
+                :key="event.id"
                 class="w-full text-left p-4 rounded-xl border border-[#e8e4dc] hover:border-[#079272]/40 hover:bg-[#fafaf9] transition-all cursor-pointer group bg-white"
-                @click="openPost(post)"
+                @click="openEvent(event)"
               >
                 <div class="flex items-center gap-2 mb-2">
                   <span
                     class="text-[0.62rem] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
-                    :style="{ background: colorFor(post) + '18', color: colorFor(post) }"
+                    :style="{ background: event.categoryColor + '18', color: event.categoryColor }"
                   >
-                    {{ labelFor(post) }}
+                    {{ event.categoryLabel }}
                   </span>
 
-                  <span v-if="post.modality" class="text-[0.65rem] text-[#999]">
-                    <i :class="`fas ${MODALITY_ICON[post.modality] || ''}`" class="mr-1"></i>
-                    {{ post.modality }}
+                  <span v-if="event.modality" class="text-[0.65rem] text-[#999]">
+                    <i :class="`fas ${MODALITY_ICON[event.modality] || ''}`" class="mr-1"></i>
+                    {{ event.modality }}
                   </span>
 
-                  <span v-if="post.country" class="text-[0.65rem] text-[#bbb] ml-auto">
-                    {{ post.country }}
+                  <span v-if="event.country" class="text-[0.65rem] text-[#bbb] ml-auto">
+                    {{ event.country }}
                   </span>
                 </div>
 
                 <p class="text-[0.88rem] font-semibold text-[#111] group-hover:text-[#079272] transition-colors leading-snug mb-2">
-                  {{ post.title }}
+                  {{ event.title }}
                 </p>
 
-                <p v-if="post.excerpt" class="text-[0.75rem] text-[#888] line-clamp-2 mb-3">
-                  {{ post.excerpt }}
+                <p v-if="event.excerpt" class="text-[0.75rem] text-[#888] line-clamp-2 mb-3">
+                  {{ event.excerpt }}
                 </p>
 
                 <div class="flex items-center justify-between pt-2 border-t border-[#f5f3f0]">
-                  <div v-if="post.author_name" class="flex items-center gap-1.5">
+                  <div v-if="event.author_name" class="flex items-center gap-1.5">
                     <img
-                      v-if="post.author_profile_picture_url"
-                      :src="post.author_profile_picture_url"
-                      :alt="post.author_name"
+                      v-if="event.author_profile_picture_url"
+                      :src="event.author_profile_picture_url"
+                      :alt="event.author_name"
                       class="w-5 h-5 rounded-full object-cover"
                     />
                     <div
                       v-else
                       class="w-5 h-5 rounded-full bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-[0.5rem] font-bold flex-shrink-0"
                     >
-                      {{ post.author_name.charAt(0).toUpperCase() }}
+                      {{ event.author_name.charAt(0).toUpperCase() }}
                     </div>
-                    <span class="text-[0.68rem] text-[#aaa]">{{ post.author_name }}</span>
+                    <span class="text-[0.68rem] text-[#aaa]">{{ event.author_name }}</span>
                   </div>
 
                   <div v-else></div>
 
-                  <div class="flex items-center gap-1 text-[0.68rem]" :class="daysLeft(post.deadline).cls">
+                  <div class="flex items-center gap-1 text-[0.68rem]" :class="daysLeft(event.deadline).cls">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <circle cx="12" cy="12" r="10" />
                       <polyline points="12 6 12 12 16 14" />
                     </svg>
-                    {{ daysLeft(post.deadline).text }}
+                    {{ daysLeft(event.deadline).text }}
                   </div>
                 </div>
               </button>
@@ -393,6 +425,12 @@
         </div>
       </div>
     </Transition>
+
+    <!-- Olympiad Modal -->
+    <OlimpiadasOlimpiadModal
+      :olimpiad="selectedOlympiad"
+      @close="selectedOlympiad = null"
+    />
   </div>
 </template>
 
@@ -401,6 +439,7 @@ import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useAxios } from '~/composables/useAxios'
 import { useAuth } from '~/composables/useAuth'
 import { useRouter } from 'nuxt/app'
+import OlimpiadasOlimpiadModal from '~/components/OlimpiadasOlimpiadModal.vue'
 
 useSeoMeta({ title: 'Calendário de Oportunidades — seConecta' })
 
@@ -408,23 +447,30 @@ const { get, post: apiPost } = useAxios()
 const { currentUser, isAuthenticated } = useAuth()
 const router = useRouter()
 
+// Data sources
 const posts = ref<any[]>([])
+const olympiads = ref<any[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 
-const recommendedPosts = ref<any[]>([])
-const recommendedLoading = ref(false)
-const recommendedError = ref<string | null>(null)
+// Category filter state
+const activeCategories = ref<Record<string, boolean>>({})
 
-const carouselIndex = ref(0)
-const carouselItemsPerView = ref(3)
-const carouselItemWidth = ref(320)
-
+// UI state
 const selectedDay = ref<Date | null>(null)
 const showModal = ref(false)
+const selectedOlympiad = ref<any | null>(null)
 
 const mounted = ref(false)
 const authReady = ref(false)
+
+// Recommendation related (unchanged)
+const recommendedPosts = ref<any[]>([])
+const recommendedLoading = ref(false)
+const recommendedError = ref<string | null>(null)
+const carouselIndex = ref(0)
+const carouselItemsPerView = ref(3)
+const carouselItemWidth = ref(320)
 
 const isLinked = computed(() => currentUser.value?.linked ?? false)
 
@@ -499,6 +545,26 @@ const CATEGORY_MAP: Record<string, { label: string; color: string; hints: string
   },
 }
 
+// Initialize active categories (all true)
+CATEGORY_ORDER.forEach(cat => {
+  activeCategories.value[cat.key] = true
+})
+
+const hasInactiveCategories = computed(() => {
+  return Object.values(activeCategories.value).some(v => v === false)
+})
+
+function toggleCategory(key: string) {
+  activeCategories.value[key] = !activeCategories.value[key]
+}
+
+function resetCategories() {
+  CATEGORY_ORDER.forEach(cat => {
+    activeCategories.value[cat.key] = true
+  })
+}
+
+// Helper functions
 function safeArray<T>(value: any): T[] {
   return Array.isArray(value) ? value : []
 }
@@ -541,28 +607,181 @@ function labelFor(post: any) {
   return CATEGORY_MAP[classifyPost(post)]?.label ?? 'Outros'
 }
 
-function postHasTag(post: any, tagKey: string) {
-  const tags = safeArray<string>(post?.tags).map(normalizeText)
-  return tags.includes(tagKey)
+// Normalize olympiad to event shape
+function normalizeOlympiad(olympiad: any): any {
+  // Use end_date as deadline
+  const deadline = olympiad.end_date ? new Date(olympiad.end_date) : null
+  if (!deadline) return null
+
+  return {
+    id: `olympiad-${olympiad.id}`,
+    originalId: olympiad.id,
+    title: olympiad.title || olympiad.name,
+    slug: olympiad.slug,
+    excerpt: olympiad.description ? olympiad.description.substring(0, 120) : '',
+    deadline: olympiad.end_date,
+    category: 'olimpiadas',
+    categoryLabel: CATEGORY_MAP.olimpiadas.label,
+    categoryColor: CATEGORY_MAP.olimpiadas.color,
+    type: 'olympiad',
+    author_name: olympiad.organizer || 'Organização',
+    author_profile_picture_url: null,
+    modality: olympiad.modalities?.[0] || 'online',
+    country: olympiad.location?.includes('Internacional') ? '🌍 Internacional' : '🇧🇷 Brasil',
+    cover_url: olympiad.cover_url,
+    // Keep original for modal
+    raw: olympiad,
+  }
 }
 
-async function fetchPosts() {
-  loading.value = true
-  error.value = null
+// Normalize post to event shape (consistent)
+function normalizePostToEvent(post: any): any {
+  const category = classifyPost(post)
+  return {
+    id: `post-${post.id}`,
+    originalId: post.id,
+    title: post.title,
+    slug: post.slug,
+    excerpt: post.excerpt,
+    deadline: post.deadline,
+    category,
+    categoryLabel: labelFor(post),
+    categoryColor: colorFor(post),
+    type: 'post',
+    author_name: post.author_name,
+    author_profile_picture_url: post.author_profile_picture_url,
+    modality: post.modality,
+    country: post.country,
+    cover_url: post.cover_url,
+    raw: post,
+  }
+}
 
+// Combined events (posts + olympiads) after filtering by active categories
+const allEvents = computed<any[]>(() => {
+  const postEvents = posts.value.map(p => normalizePostToEvent(p))
+  const olympiadEvents = olympiads.value.map(o => normalizeOlympiad(o)).filter(Boolean)
+  const combined = [...postEvents, ...olympiadEvents]
+  return combined.filter(event => activeCategories.value[event.category] === true)
+})
+
+// Calendar attributes (dots on days)
+const calendarAttributes = computed(() => {
+  return allEvents.value.map((event, idx) => ({
+    key: `${event.id}-${idx}`,
+    dates: new Date(event.deadline),
+    dot: {
+      color: event.categoryColor,
+      style: { backgroundColor: event.categoryColor },
+    },
+    popover: {
+      label: `${event.categoryLabel} · ${event.title}`,
+    },
+    customData: event,
+  }))
+})
+
+// Upcoming events (next 30 days) based on filtered events
+const upcomingEvents = computed<any[]>(() => {
+  const now = Date.now()
+  const limit = now + 30 * 86_400_000
+
+  return allEvents.value
+    .filter(event => {
+      const t = new Date(event.deadline).getTime()
+      return t >= now && t <= limit
+    })
+    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+    .slice(0, 10)
+})
+
+// Events selected for a specific day (modal)
+const selectedEvents = computed(() => {
+  if (!selectedDay.value) return []
+  const key = toKey(selectedDay.value)
+  return allEvents.value.filter(event => toKey(new Date(event.deadline)) === key)
+})
+
+function toKey(date: Date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
+function daysLeft(iso: string): { text: string; cls: string } {
+  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
+
+  if (diff < 0) return { text: 'Encerrado', cls: 'text-[#bbb]' }
+  if (diff === 0) return { text: 'Hoje!', cls: 'text-red-500 font-bold' }
+  if (diff === 1) return { text: 'Amanhã', cls: 'text-orange-500 font-semibold' }
+  if (diff <= 7) return { text: `${diff} dias`, cls: 'text-orange-400 font-medium' }
+  return { text: `${diff} dias`, cls: 'text-[#888]' }
+}
+
+function handleDayClick(day: any) {
+  selectedDay.value = day?.date ? new Date(day.date) : null
+  showModal.value = !!selectedDay.value
+}
+
+function openEvent(event: any) {
+  showModal.value = false
+  if (event.type === 'olympiad') {
+    // Open olympiad modal
+    selectedOlympiad.value = event.raw
+  } else {
+    router.push(`/feed/${event.slug}`)
+  }
+}
+
+// For backward compatibility in recommendations
+function openPost(post: any) {
+  router.push(`/feed/${post.slug || post.id}`)
+}
+
+const selectedDayLabel = computed(() =>
+  selectedDay.value
+    ? selectedDay.value.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+      })
+    : ''
+)
+
+// Data fetching
+async function fetchPosts() {
   try {
     const res = await get('/posts/', { params: { limit: 300, approved: true } })
     const all = safeArray<any>(res.data?.data ?? res.data ?? [])
     posts.value = all.filter((p: any) => !!p?.deadline)
   } catch (err) {
     console.error('Error fetching posts:', err)
+    throw err
+  }
+}
+
+async function fetchOlympiads() {
+  try {
+    const res = await get('/olympiads/', { params: { limit: 200, approved: true } })
+    const data = safeArray<any>(res.data?.data ?? res.data ?? [])
+    olympiads.value = data
+  } catch (err) {
+    console.error('Error fetching olympiads:', err)
+    throw err
+  }
+}
+
+async function fetchAllData() {
+  loading.value = true
+  error.value = null
+  try {
+    await Promise.all([fetchPosts(), fetchOlympiads()])
+  } catch (err: any) {
     error.value = 'Não foi possível carregar as oportunidades.'
-    posts.value = []
   } finally {
     loading.value = false
   }
 }
 
+// Recommendations (unchanged, but keep as is)
 async function fetchRecommended() {
   if (!authReady.value || !isAuthenticated.value || !isLinked.value) {
     recommendedPosts.value = []
@@ -610,80 +829,6 @@ const recommendedDisplayPosts = computed<any[]>(() => {
   return safeArray<any>(recommendedPosts.value)
 })
 
-const attributes = computed(() =>
-  safeArray<any>(posts.value).map((post, i) => ({
-    key: `post-${i}`,
-    dates: new Date(post.deadline),
-    dot: {
-      color: colorFor(post),
-      style: { backgroundColor: colorFor(post) },
-    },
-    popover: {
-      label: `${labelFor(post)} · ${post.title}`,
-    },
-    customData: {
-      ...post,
-      category: classifyPost(post),
-      categoryLabel: labelFor(post),
-      categoryColor: colorFor(post),
-    },
-  }))
-)
-
-function handleDayClick(day: any) {
-  selectedDay.value = day?.date ? new Date(day.date) : null
-  showModal.value = !!selectedDay.value
-}
-
-const selectedPosts = computed(() => {
-  if (!selectedDay.value) return []
-  const key = toKey(selectedDay.value)
-  return safeArray<any>(posts.value).filter(p => toKey(new Date(p.deadline)) === key)
-})
-
-const upcomingPosts = computed<any[]>(() => {
-  const source = safeArray<any>(posts.value)
-  const now = Date.now()
-  const limit = now + 30 * 86_400_000
-
-  return source
-    .filter(p => {
-      const t = new Date(p.deadline).getTime()
-      return t >= now && t <= limit
-    })
-    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-    .slice(0, 10)
-})
-
-function toKey(date: Date) {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
-}
-
-function daysLeft(iso: string): { text: string; cls: string } {
-  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
-
-  if (diff < 0) return { text: 'Encerrado', cls: 'text-[#bbb]' }
-  if (diff === 0) return { text: 'Hoje!', cls: 'text-red-500 font-bold' }
-  if (diff === 1) return { text: 'Amanhã', cls: 'text-orange-500 font-semibold' }
-  if (diff <= 7) return { text: `${diff} dias`, cls: 'text-orange-400 font-medium' }
-  return { text: `${diff} dias`, cls: 'text-[#888]' }
-}
-
-function openPost(post: any) {
-  showModal.value = false
-  router.push(`/feed/${post.slug || post.id}`)
-}
-
-const selectedDayLabel = computed(() =>
-  selectedDay.value
-    ? selectedDay.value.toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: '2-digit',
-        month: 'long',
-      })
-    : ''
-)
-
 function scrollCarousel(direction: number) {
   const maxIndex = Math.max(0, recommendedDisplayPosts.value.length - carouselItemsPerView.value)
   const newIndex = carouselIndex.value + direction
@@ -720,7 +865,7 @@ onMounted(() => {
   mounted.value = true
   authReady.value = true
 
-  fetchPosts()
+  fetchAllData()
   updateCarouselSettings()
   window.addEventListener('resize', updateCarouselSettings)
 })

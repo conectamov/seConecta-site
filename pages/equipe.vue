@@ -19,7 +19,7 @@ const teamAdmin = [
   },
   {
     id: 2, name: 'Gabriel Masterson', role: 'Diretor de Tecnologia',
-    description: 'Cofundador do SeConecta. Responsável pela stack tecnológica da plataforma SeConecta. Desenvolve o backend em FastAPI e o frontend em Vue 3.',
+    description: "Speed nameSou Gabriel Masterson, nascido em Fortaleza (CE), estudante do ensino médio técnico integrado em Desenvolvimento de Sistemas. Tenho interesse por tecnologia desde muito cedo, o que despertou minha paixão pela programação. Sou movido pelo desafio de transformar ideias em aplicações práticas, buscando desenvolver sistemas que sejam úteis, eficientes e que realmente façam diferença no dia a dia das pessoas. Tenho grande interesse em programação, resolução de problemas e na construção de projetos que unem lógica, criatividade e propósito. Gosto especialmente de explorar novas tecnologias, aprofundando meus conhecimentos e aprimorando constantemente minhas habilidades técnicas para criar soluções cada vez mais bem estruturadas e impactantes.",
     skills: ['FastAPI', 'Vue 3', 'PostgreSQL'], colorA: '#079272', colorB: '#0DA790',
     photo: "https://gcdnb.pbrd.co/images/mNO2sXoxufi2.jpg?o=1"
   },
@@ -85,13 +85,13 @@ const teamEmb = [
 const teamTech = [
   {
     id: 1, name: 'Gabriel Masterson', role: 'Dev Full-stack',
-    description: 'Backend em FastAPI e frontend em Vue 3 com Tailwind CSS. Focado em interfaces rápidas e acessíveis.',
+    description: "Speed nameSou Gabriel Masterson, nascido em Fortaleza (CE), estudante do ensino médio técnico integrado em Desenvolvimento de Sistemas. Tenho interesse por tecnologia desde muito cedo, o que despertou minha paixão pela programação. Sou movido pelo desafio de transformar ideias em aplicações práticas, buscando desenvolver sistemas que sejam úteis, eficientes e que realmente façam diferença no dia a dia das pessoas. Tenho grande interesse em programação, resolução de problemas e na construção de projetos que unem lógica, criatividade e propósito. Gosto especialmente de explorar novas tecnologias, aprofundando meus conhecimentos e aprimorando constantemente minhas habilidades técnicas para criar soluções cada vez mais bem estruturadas e impactantes.",
     skills: ['Python', 'Vue 3', 'Tailwind CSS'], colorA: '#079272', colorB: '#0DA790',
     photo: "https://gcdnb.pbrd.co/images/mNO2sXoxufi2.jpg?o=1"
   },
   {
     id: 2, name: 'Otávio Pinheiro', role: 'Dev Backend',
-    description: 'Backend em FastAPI de Bot de WhatsApp com algoritmos de recomendação.',
+    description: 'Eu sou Otávio! Gosto de programação, escrita e comunicação. Comecei minha jornada de estudos no sétimo ano e descobri olimpíadas científicas através de um vídeo no YouTube. Desde então, oportunidades transformadoras têm mudado minha vida. Agora carrego a missão de usar minhas paixões para transformar a forma com que estudantes podem impactar outros estudantes usando tecnologia!',
     skills: ['Python', 'FastAPI'], colorA: '#079272', colorB: '#0DA790',
     photo: "https://media.licdn.com/dms/image/v2/D4D03AQEI3BbKYT6W8A/profile-displayphoto-shrink_400_400/B4DZbwW.bWGwAg-/0/1747789279403?e=1776902400&v=beta&t=WEyCxgaEkjE2hGZIeIi6M0l148Or4pgbuGjP4amb2PI"
   },
