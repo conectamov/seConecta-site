@@ -29,23 +29,18 @@ function normalize(o: any) {
   const statusLabel = STATUS_LABEL[o.status] ?? o.status
 
   return {
-    // identity
     id: o.id,
     name: o.title,
     title: o.title,
     description: o.description ?? '',
     organizer: o.organizer ?? '',
 
-    // media
     banner_url: o.cover_url,
     cover_url: o.cover_url,
 
-    // status
     status: statusLabel,
     statusEnum: o.status,
 
-    // categorization ─ API `categories` holds area tags (tecnologia, matemática…)
-    //                   API `levels` holds skill levels (Iniciante, Avançado…)
     area: o.categories?.[0] ?? '',
     tags: o.categories ?? [],
     categories: o.levels ?? [],
@@ -53,13 +48,11 @@ function normalize(o: any) {
     languages: o.languages ?? [],
     modalities: o.modalities ?? [],
 
-    // quick stats
     rating: o.rating,
-    participants_count: o.participants_count ?? null, // string e.g. "130k"
+    participants_count: o.participants_count ?? null,
     difficulty_level: o.difficulty,
     estimated_duration: o.duration,
 
-    // details
     location: o.location,
     target_audience: o.target_audience,
     taxes: o.is_free ? 'Gratuito' : 'Pago',
@@ -69,36 +62,28 @@ function normalize(o: any) {
     mentorship_available: o.has_mentorship,
     has_mentorship: o.has_mentorship,
     international: o.location?.toLowerCase().includes('internacional') ?? false,
-    team_allowed: false, // not in schema
+    team_allowed: false,
 
-    // dates
     start_date: o.start_date,
     end_date: o.end_date,
     next_edition_date: o.next_edition_date,
 
-    // text sections
     application_process: o.how_to_register,
     prizes: o.prizes,
     requirements: o.requirements,
 
-    // links & resources
     website: o.official_site_url,
     official_site_url: o.official_site_url,
     past_exams_url: null,
     resources: o.resources ?? [],
 
-    // feature flags
     highlighted: o.is_featured,
     is_featured: o.is_featured,
 
-    // author (optional)
     author_name: o.author_name,
     author_profile_url: o.author_profile_url,
 
-    // popularity proxy for featured sorting
     popularity_score: o.rating ? Math.round(o.rating * 20) : 0,
-
-    // deadline_countdown not in schema — omit
     deadline_countdown: null,
   }
 }
@@ -111,7 +96,7 @@ const loadingMore = ref(false)
 const error = ref<string | null>(null)
 const totalCount = ref(0)
 const currentPage = ref(1)
-const PAGE_SIZE = 50 // large batch so client-side grouping works well
+const PAGE_SIZE = 50
 
 const selectedOlimpiad = ref<any | null>(null)
 const search = ref('')
@@ -150,6 +135,7 @@ async function fetchOlimpiads(reset = true) {
       if (enumVal) params.status = enumVal
     }
 
+    // Adjust this path if your axios baseURL is different.
     const res = await get('/olympiads/', { params })
 
     const data = res.data?.data ?? []
@@ -163,7 +149,10 @@ async function fetchOlimpiads(reset = true) {
       olimpiads.value.push(...normalized)
     }
   } catch (e: any) {
-    error.value = e?.response?.data?.detail || e?.message || 'Erro ao carregar olimpíadas.'
+    error.value =
+      e?.response?.data?.detail ||
+      e?.message ||
+      'Erro ao carregar olimpíadas.'
   } finally {
     loading.value = false
     loadingMore.value = false
@@ -195,7 +184,7 @@ onMounted(() => {
 
 // ─── Derived UI state ────────────────────────────────────────────────────────
 
-const filtered = computed(() => olimpiads.value) // filtering is API-driven
+const filtered = computed(() => olimpiads.value)
 
 const highlighted = computed(() => filtered.value.filter(o => o.highlighted))
 
@@ -252,8 +241,8 @@ function clearFilters() {
 
 const rowEls: Record<string, HTMLElement> = {}
 
-function setRowRef(el: HTMLElement | null, tag: string) {
-  if (el) rowEls[tag] = el
+function setRowRef(el: Element | null, tag: string) {
+  if (el instanceof HTMLElement) rowEls[tag] = el
 }
 
 function scrollRow(tag: string, dir: number) {
@@ -269,11 +258,16 @@ const statusColor: Record<string, string> = {
   'Encerrada': 'bg-zinc-500/20 text-zinc-600 ring-1 ring-zinc-500/30',
 }
 
-const onDarkPill = (s: string) =>
-  statusColor[s]
-    ?.replace('700', '300')
-    ?.replace('600', '400')
-  ?? statusColor['Encerrada']?.replace('text-zinc-600', 'text-zinc-400')
+function statusPillClass(s: string) {
+  return (
+    statusColor[s]
+      ?.replace('text-emerald-700', 'text-emerald-300')
+      ?.replace('text-blue-700', 'text-blue-300')
+      ?.replace('text-amber-700', 'text-amber-300')
+      ?.replace('text-zinc-600', 'text-zinc-400')
+    ?? statusColor['Encerrada']
+  )
+}
 
 // participants_count is already a formatted string from the API ("130k", "18.5M" …)
 // falls back to numeric formatting if a raw number somehow arrives
@@ -288,7 +282,7 @@ function fmtCount(n: any) {
 
 <template>
   <div class="font-sans antialiased">
-    <!-- ───────────────────── Hero ──────────────────────────────────────────── -->
+    <!-- Hero -->
     <section class="relative overflow-hidden flex items-center min-h-[400px]">
       <div class="relative z-10 max-w-4xl mx-auto px-6 md:px-10 py-16 md:py-20">
         <h1
@@ -299,12 +293,11 @@ function fmtCount(n: any) {
           <span class="block gradient-text bg-clip-text text-transparent">oportunidades</span>
         </h1>
 
-        <p class="text-[15px] leading-relaxed max-w-[420px] text-gray-600 mb-8 text-center">
+        <p class="text-[15px] leading-relaxed max-w-[420px] text-gray-600 mb-8 text-center mx-auto">
           Olimpíadas científicas para estudantes do ensino fundamental e médio.
           Aprenda, compita e conquiste seu futuro.
         </p>
 
-        <!-- Search -->
         <div class="relative max-w-lg mx-auto">
           <svg
             class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
@@ -343,9 +336,7 @@ function fmtCount(n: any) {
       </div>
     </section>
 
-    <!-- ───────────────────── Main white area ───────────────────────────────── -->
     <div class="bg-white">
-      <!-- Filter Bar -->
       <div class="sticky top-0 z-30 bg-white shadow-[0_1px_0_rgba(0,0,0,0.06)]
                   max-w-[900px] mx-auto px-4 md:px-8 pt-10 pb-4">
         <div class="max-w-screen-2xl mx-auto px-6 md:px-10">
@@ -358,7 +349,6 @@ function fmtCount(n: any) {
             <div class="w-px h-3.5 bg-zinc-200 shrink-0"></div>
 
             <div class="flex items-center gap-1.5">
-              <!-- All -->
               <button
                 @click="activeStatus = ''"
                 :class="[
@@ -369,7 +359,6 @@ function fmtCount(n: any) {
                 ]"
               >Todos</button>
 
-              <!-- Status filters -->
               <button
                 v-for="opt in statusOptions"
                 :key="opt"
@@ -384,7 +373,6 @@ function fmtCount(n: any) {
             </div>
 
             <div class="flex items-center gap-3 ml-auto shrink-0">
-              <!-- Loading spinner -->
               <svg
                 v-if="loading"
                 class="w-3.5 h-3.5 text-zinc-400 animate-spin"
@@ -411,9 +399,7 @@ function fmtCount(n: any) {
         </div>
       </div>
 
-      <!-- ─── Main content ─── -->
       <div class="bg-white max-w-[900px] mx-auto px-4 md:px-8 pt-10 pb-4">
-        <!-- Error state -->
         <div v-if="error && !loading" class="flex flex-col items-center justify-center py-20 px-6 text-center">
           <div class="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
             <svg class="w-6 h-6 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -435,7 +421,6 @@ function fmtCount(n: any) {
           >Tentar novamente</button>
         </div>
 
-        <!-- Empty state (no results, no error) -->
         <div
           v-else-if="!loading && !error && filtered.length === 0"
           class="flex flex-col items-center justify-center py-28 px-6 text-center"
@@ -458,12 +443,9 @@ function fmtCount(n: any) {
           >Limpar filtros</button>
         </div>
 
-        <!-- ─ Skeleton loader ─ -->
         <div v-if="loading && filtered.length === 0" class="px-6 md:px-10 mb-12 space-y-10">
-          <!-- Featured skeleton -->
           <div class="h-[260px] md:h-[320px] rounded-2xl bg-zinc-100 animate-pulse"></div>
 
-          <!-- Row skeletons -->
           <div v-for="i in 3" :key="i">
             <div class="h-4 w-32 rounded bg-zinc-100 animate-pulse mb-4"></div>
             <div class="flex gap-5">
@@ -476,9 +458,7 @@ function fmtCount(n: any) {
           </div>
         </div>
 
-        <!-- ── Content (once data is loaded) ── -->
         <template v-if="filtered.length > 0">
-          <!-- Featured Banner -->
           <div
             v-if="featuredOlimpiad && !search && !activeStatus"
             class="px-6 md:px-10 mb-12"
@@ -495,42 +475,38 @@ function fmtCount(n: any) {
                        group-hover:scale-105 transition-transform duration-700"
               />
 
-              <!-- Gradients -->
               <div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent"></div>
               <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent"></div>
               <div class="absolute inset-0"
                 style="background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.25) 100%)">
               </div>
 
-              <!-- Content -->
               <div class="absolute inset-0 flex flex-col justify-end p-7 md:p-10">
                 <div class="flex flex-wrap gap-2 mb-3">
-                  <span class="inline-flex items-center px-2.5 py-1 rounded-full
-                               text-[11px] font-semibold bg-amber-400/90 text-amber-900">
+                  <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-400/90 text-amber-900">
                     Em Destaque
                   </span>
+
                   <span
-                    :class="['inline-flex items-center px-2.5 py-1 rounded-full
-                              text-[11px] font-semibold backdrop-blur-sm',
-                              onDarkPill(featuredOlimpiad.status)]"
+                    :class="[
+                      'inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold backdrop-blur-sm',
+                      statusPillClass(featuredOlimpiad.status)
+                    ]"
                   >{{ featuredOlimpiad.status }}</span>
+
                   <span
                     v-if="featuredOlimpiad.international"
-                    class="inline-flex items-center px-2.5 py-1 rounded-full
-                           text-[11px] font-semibold bg-violet-500/25 text-violet-200
-                           ring-1 ring-violet-500/30 backdrop-blur-sm"
+                    class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-violet-500/25 text-violet-200 ring-1 ring-violet-500/30 backdrop-blur-sm"
                   >Internacional</span>
                 </div>
 
-                <h2
-                  class="text-white text-[clamp(1.2rem,3vw,1.75rem)] font-bold
-                         leading-tight tracking-tight max-w-lg mb-1.5"
-                >{{ featuredOlimpiad.name }}</h2>
+                <h2 class="text-white text-[clamp(1.2rem,3vw,1.75rem)] font-bold leading-tight tracking-tight max-w-lg mb-1.5">
+                  {{ featuredOlimpiad.name }}
+                </h2>
 
-                <p
-                  class="text-[13px] text-white/60 max-w-sm mb-5 line-clamp-2
-                         hidden sm:block leading-relaxed"
-                >{{ featuredOlimpiad.description }}</p>
+                <p class="text-[13px] text-white/60 max-w-sm mb-5 line-clamp-2 hidden sm:block leading-relaxed">
+                  {{ featuredOlimpiad.description }}
+                </p>
 
                 <div class="flex items-center gap-5 flex-wrap">
                   <span
@@ -562,9 +538,7 @@ function fmtCount(n: any) {
                   </span>
 
                   <button
-                    class="inline-flex items-center gap-1.5 px-4 py-1.75 rounded-full
-                           bg-white text-zinc-900 text-xs font-bold
-                           hover:bg-zinc-100 transition-all hover:gap-2"
+                    class="inline-flex items-center gap-1.5 px-4 py-1.75 rounded-full bg-white text-zinc-900 text-xs font-bold hover:bg-zinc-100 transition-all hover:gap-2"
                   >
                     Ver detalhes
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
@@ -578,23 +552,19 @@ function fmtCount(n: any) {
             </div>
           </div>
 
-          <!-- Highlighted Section -->
           <div v-if="highlighted.length > 0" class="mb-10">
             <div class="flex items-center gap-2.5 px-6 md:px-10 mb-4">
               <div class="w-0.5 h-[18px] rounded-full bg-gradient-to-b from-emerald-600 to-blue-600"></div>
               <h2 class="text-[15px] font-bold text-zinc-900 tracking-tight">Em Destaque</h2>
-              <span class="text-[11px] font-semibold text-zinc-400 bg-zinc-100 px-1.5 py-0.5
-                           rounded-full tabular-nums">{{ highlighted.length }}</span>
+              <span class="text-[11px] font-semibold text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded-full tabular-nums">
+                {{ highlighted.length }}
+              </span>
             </div>
 
             <div class="relative group/row">
               <button
                 @click="scrollRow('highlighted', -1)"
-                class="absolute left-3 top-[calc(50%-18px)] z-10 w-9 h-9 flex items-center
-                       justify-center rounded-full bg-white border border-zinc-200 shadow-md
-                       text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:shadow-lg
-                       hover:text-zinc-900 hover:border-zinc-300 transition-all scale-90
-                       group-hover/row:scale-100 active:scale-95"
+                class="absolute left-3 top-[calc(50%-18px)] z-10 w-9 h-9 flex items-center justify-center rounded-full bg-white border border-zinc-200 shadow-md text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:shadow-lg hover:text-zinc-900 hover:border-zinc-300 transition-all scale-90 group-hover/row:scale-100 active:scale-95"
                 aria-label="Rolar para esquerda"
               >
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24"
@@ -604,7 +574,7 @@ function fmtCount(n: any) {
               </button>
 
               <div
-                :ref="el => setRowRef(el as HTMLElement | null, 'highlighted')"
+                :ref="el => setRowRef(el, 'highlighted')"
                 class="flex gap-5 overflow-x-auto px-6 md:px-10 pb-3 scroll-smooth
                        [scrollbar-width:none] [-ms-overflow-style:none]
                        [&::-webkit-scrollbar]:hidden"
@@ -620,11 +590,7 @@ function fmtCount(n: any) {
 
               <button
                 @click="scrollRow('highlighted', 1)"
-                class="absolute right-3 top-[calc(50%-18px)] z-10 w-9 h-9 flex items-center
-                       justify-center rounded-full bg-white border border-zinc-200 shadow-md
-                       text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:shadow-lg
-                       hover:text-zinc-900 hover:border-zinc-300 transition-all scale-90
-                       group-hover/row:scale-100 active:scale-95"
+                class="absolute right-3 top-[calc(50%-18px)] z-10 w-9 h-9 flex items-center justify-center rounded-full bg-white border border-zinc-200 shadow-md text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:shadow-lg hover:text-zinc-900 hover:border-zinc-300 transition-all scale-90 group-hover/row:scale-100 active:scale-95"
                 aria-label="Rolar para direita"
               >
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24"
@@ -635,7 +601,6 @@ function fmtCount(n: any) {
             </div>
           </div>
 
-          <!-- Tag Sections -->
           <div v-for="section in tagSections" :key="section.tag" class="mb-10">
             <div class="flex items-center gap-2.5 px-6 md:px-10 mb-4">
               <div class="w-0.5 h-[18px] rounded-full bg-gradient-to-b from-emerald-600 to-blue-600"></div>
@@ -643,18 +608,15 @@ function fmtCount(n: any) {
                 <span class="text-[15px] leading-none">{{ section.icon }}</span>
                 {{ section.label }}
               </h2>
-              <span class="text-[11px] font-semibold text-zinc-400 bg-zinc-100 px-1.5 py-0.5
-                           rounded-full tabular-nums">{{ section.items.length }}</span>
+              <span class="text-[11px] font-semibold text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded-full tabular-nums">
+                {{ section.items.length }}
+              </span>
             </div>
 
             <div class="relative group/row">
               <button
                 @click="scrollRow(section.tag, -1)"
-                class="absolute left-3 top-[calc(50%-18px)] z-10 w-9 h-9 flex items-center
-                       justify-center rounded-full bg-white border border-zinc-200 shadow-md
-                       text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:shadow-lg
-                       hover:text-zinc-900 hover:border-zinc-300 transition-all scale-90
-                       group-hover/row:scale-100 active:scale-95"
+                class="absolute left-3 top-[calc(50%-18px)] z-10 w-9 h-9 flex items-center justify-center rounded-full bg-white border border-zinc-200 shadow-md text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:shadow-lg hover:text-zinc-900 hover:border-zinc-300 transition-all scale-90 group-hover/row:scale-100 active:scale-95"
                 :aria-label="`Rolar ${section.label} para esquerda`"
               >
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24"
@@ -664,7 +626,7 @@ function fmtCount(n: any) {
               </button>
 
               <div
-                :ref="el => setRowRef(el as HTMLElement | null, section.tag)"
+                :ref="el => setRowRef(el, section.tag)"
                 class="flex gap-5 overflow-x-auto px-6 md:px-10 pb-3 scroll-smooth
                        [scrollbar-width:none] [-ms-overflow-style:none]
                        [&::-webkit-scrollbar]:hidden"
@@ -680,11 +642,7 @@ function fmtCount(n: any) {
 
               <button
                 @click="scrollRow(section.tag, 1)"
-                class="absolute right-3 top-[calc(50%-18px)] z-10 w-9 h-9 flex items-center
-                       justify-center rounded-full bg-white border border-zinc-200 shadow-md
-                       text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:shadow-lg
-                       hover:text-zinc-900 hover:border-zinc-300 transition-all scale-90
-                       group-hover/row:scale-100 active:scale-95"
+                class="absolute right-3 top-[calc(50%-18px)] z-10 w-9 h-9 flex items-center justify-center rounded-full bg-white border border-zinc-200 shadow-md text-zinc-500 opacity-0 group-hover/row:opacity-100 hover:shadow-lg hover:text-zinc-900 hover:border-zinc-300 transition-all scale-90 group-hover/row:scale-100 active:scale-95"
                 :aria-label="`Rolar ${section.label} para direita`"
               >
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24"
@@ -695,15 +653,11 @@ function fmtCount(n: any) {
             </div>
           </div>
 
-          <!-- Load More -->
           <div v-if="hasMore" class="flex justify-center pb-12 mt-4">
             <button
               @click="loadMore"
               :disabled="loadingMore"
-              class="px-6 py-2.5 rounded-xl border border-zinc-200 text-[13px] font-semibold
-                     text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 hover:bg-zinc-50
-                     transition-all disabled:opacity-50 disabled:cursor-not-allowed
-                     flex items-center gap-2"
+              class="px-6 py-2.5 rounded-xl border border-zinc-200 text-[13px] font-semibold text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 hover:bg-zinc-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <svg
                 v-if="loadingMore"
@@ -718,10 +672,9 @@ function fmtCount(n: any) {
             </button>
           </div>
         </template>
-      </div><!-- /main content -->
-    </div><!-- /bg-white -->
+      </div>
+    </div>
 
-    <!-- Modal -->
     <OlimpiadasOlimpiadModal
       :olimpiad="selectedOlimpiad"
       @close="selectedOlimpiad = null"
