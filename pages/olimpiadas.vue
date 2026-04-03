@@ -1,92 +1,98 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+
+useSeoMeta({ title: 'Olimpíadas — seConecta' })
+
+const { get } = useAxios()
 
 // ─── Status mapping ──────────────────────────────────────────────────────────
 
-const STATUS_LABEL = {
-  OPEN:    'Inscrições abertas',
-  SOON:    'Em breve',
+const STATUS_LABEL: Record<string, string> = {
+  OPEN: 'Inscrições abertas',
+  SOON: 'Em breve',
   ONGOING: 'Em andamento',
-  CLOSED:  'Encerrada',
+  CLOSED: 'Encerrada',
 }
 
-const STATUS_ENUM = {
+const STATUS_ENUM: Record<string, string> = {
   'Inscrições abertas': 'OPEN',
-  'Em breve':           'SOON',
-  'Em andamento':       'ONGOING',
-  'Encerrada':          'CLOSED',
+  'Em breve': 'SOON',
+  'Em andamento': 'ONGOING',
+  'Encerrada': 'CLOSED',
 }
+
+const statusOptions = Object.keys(STATUS_ENUM)
 
 // ─── Normalize API → shape expected by child components ──────────────────────
 
-function normalize(o) {
+function normalize(o: any) {
   const statusLabel = STATUS_LABEL[o.status] ?? o.status
 
   return {
     // identity
-    id:           o.id,
-    name:         o.title,
-    title:        o.title,
-    description:  o.description ?? '',
-    organizer:    o.organizer ?? '',
+    id: o.id,
+    name: o.title,
+    title: o.title,
+    description: o.description ?? '',
+    organizer: o.organizer ?? '',
 
     // media
     banner_url: o.cover_url,
-    cover_url:  o.cover_url,
+    cover_url: o.cover_url,
 
     // status
-    status:     statusLabel,
+    status: statusLabel,
     statusEnum: o.status,
 
     // categorization ─ API `categories` holds area tags (tecnologia, matemática…)
     //                   API `levels` holds skill levels (Iniciante, Avançado…)
-    area:       o.categories?.[0] ?? '',
-    tags:       o.categories   ?? [],
-    categories: o.levels       ?? [],
-    levels:     o.levels       ?? [],
-    languages:  o.languages    ?? [],
-    modalities: o.modalities   ?? [],
+    area: o.categories?.[0] ?? '',
+    tags: o.categories ?? [],
+    categories: o.levels ?? [],
+    levels: o.levels ?? [],
+    languages: o.languages ?? [],
+    modalities: o.modalities ?? [],
 
     // quick stats
-    rating:            o.rating,
+    rating: o.rating,
     participants_count: o.participants_count ?? null, // string e.g. "130k"
-    difficulty_level:  o.difficulty,
+    difficulty_level: o.difficulty,
     estimated_duration: o.duration,
 
     // details
-    location:         o.location,
-    target_audience:  o.target_audience,
-    taxes:            o.is_free ? 'Gratuito' : 'Pago',
-    is_free:          o.is_free,
-    certificate:      o.has_certificate,
-    has_certificate:  o.has_certificate,
+    location: o.location,
+    target_audience: o.target_audience,
+    taxes: o.is_free ? 'Gratuito' : 'Pago',
+    is_free: o.is_free,
+    certificate: o.has_certificate,
+    has_certificate: o.has_certificate,
     mentorship_available: o.has_mentorship,
-    has_mentorship:   o.has_mentorship,
-    international:    o.location?.toLowerCase().includes('internacional') ?? false,
-    team_allowed:     false, // not in schema
+    has_mentorship: o.has_mentorship,
+    international: o.location?.toLowerCase().includes('internacional') ?? false,
+    team_allowed: false, // not in schema
 
     // dates
-    start_date:       o.start_date,
-    end_date:         o.end_date,
+    start_date: o.start_date,
+    end_date: o.end_date,
     next_edition_date: o.next_edition_date,
 
     // text sections
     application_process: o.how_to_register,
-    prizes:              o.prizes,
-    requirements:        o.requirements,
+    prizes: o.prizes,
+    requirements: o.requirements,
 
     // links & resources
-    website:          o.official_site_url,
+    website: o.official_site_url,
     official_site_url: o.official_site_url,
-    past_exams_url:   null,
-    resources:        o.resources ?? [],
+    past_exams_url: null,
+    resources: o.resources ?? [],
 
     // feature flags
-    highlighted:      o.is_featured,
-    is_featured:      o.is_featured,
+    highlighted: o.is_featured,
+    is_featured: o.is_featured,
 
     // author (optional)
-    author_name:        o.author_name,
+    author_name: o.author_name,
     author_profile_url: o.author_profile_url,
 
     // popularity proxy for featured sorting
@@ -99,80 +105,99 @@ function normalize(o) {
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
-const olimpiads     = ref([])
-const loading       = ref(false)
-const error         = ref(null)
-const totalCount    = ref(0)
-const currentPage   = ref(1)
-const PAGE_SIZE     = 50            // large batch so client-side grouping works well
+const olimpiads = ref<any[]>([])
+const loading = ref(true)
+const loadingMore = ref(false)
+const error = ref<string | null>(null)
+const totalCount = ref(0)
+const currentPage = ref(1)
+const PAGE_SIZE = 50 // large batch so client-side grouping works well
 
-const selectedOlimpiad = ref(null)
-const search           = ref('')
-const activeStatus     = ref('')
+const selectedOlimpiad = ref<any | null>(null)
+const search = ref('')
+const activeStatus = ref('')
 
-// ─── Fetch ───────────────────────────────────────────────────────────────────
+// ─── Request system (same pattern as feed page) ──────────────────────────────
+
+function debounce<T extends (...args: any[]) => any>(fn: T, delay: number) {
+  let t: ReturnType<typeof setTimeout>
+  return (...args: Parameters<T>) => {
+    clearTimeout(t)
+    t = setTimeout(() => fn(...args), delay)
+  }
+}
 
 async function fetchOlimpiads(reset = true) {
   if (reset) {
     currentPage.value = 1
-    olimpiads.value   = []
+    loading.value = true
+  } else {
+    loadingMore.value = true
   }
-  loading.value = true
-  error.value   = null
+
+  error.value = null
 
   try {
-    const params = new URLSearchParams({
-      page:  String(currentPage.value),
-      limit: String(PAGE_SIZE),
-    })
+    const params: Record<string, any> = {
+      page: currentPage.value,
+      limit: PAGE_SIZE,
+    }
 
-    if (search.value.trim())
-      params.set('search', search.value.trim())
+    if (search.value.trim()) params.search = search.value.trim()
 
     if (activeStatus.value) {
       const enumVal = STATUS_ENUM[activeStatus.value]
-      if (enumVal) params.set('status', enumVal)
+      if (enumVal) params.status = enumVal
     }
 
-    const res = await fetch(`/api/v1/olympiads/?${params}`)
-    if (!res.ok) throw new Error(`Erro ${res.status} ao carregar olimpíadas`)
+    const res = await get('/olympiads/', { params })
 
-    const json       = await res.json()
-    const normalized = (json.data ?? []).map(normalize)
+    const data = res.data?.data ?? []
+    const count = res.data?.count ?? 0
+    const normalized = data.map(normalize)
 
-    olimpiads.value  = reset ? normalized : [...olimpiads.value, ...normalized]
-    totalCount.value = json.count ?? 0
-  } catch (e) {
-    error.value = e.message
+    if (reset) {
+      olimpiads.value = normalized
+      totalCount.value = count
+    } else {
+      olimpiads.value.push(...normalized)
+    }
+  } catch (e: any) {
+    error.value = e?.response?.data?.detail || e?.message || 'Erro ao carregar olimpíadas.'
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
 }
 
 async function loadMore() {
+  if (!hasMore.value || loadingMore.value) return
   currentPage.value++
   await fetchOlimpiads(false)
 }
 
-// Debounced search
-let _searchTimer = null
-function onSearchInput() {
-  clearTimeout(_searchTimer)
-  _searchTimer = setTimeout(() => fetchOlimpiads(), 400)
-}
+// ─── Reactive filters ───────────────────────────────────────────────────────
 
-onMounted(() => fetchOlimpiads())
-watch(activeStatus, () => fetchOlimpiads())
+watch(
+  search,
+  debounce(() => {
+    fetchOlimpiads(true)
+  }, 400)
+)
+
+watch(activeStatus, () => {
+  fetchOlimpiads(true)
+})
+
+onMounted(() => {
+  fetchOlimpiads(true)
+})
 
 // ─── Derived UI state ────────────────────────────────────────────────────────
 
-const statusOptions = Object.keys(STATUS_ENUM)   // Portuguese labels
+const filtered = computed(() => olimpiads.value) // filtering is API-driven
 
-const filtered = computed(() => olimpiads.value)  // filtering is API-driven
-
-const highlighted = computed(() =>
-  filtered.value.filter(o => o.highlighted)
-)
+const highlighted = computed(() => filtered.value.filter(o => o.highlighted))
 
 const featuredOlimpiad = computed(() =>
   filtered.value
@@ -180,29 +205,31 @@ const featuredOlimpiad = computed(() =>
     .sort((a, b) => (b.popularity_score ?? 0) - (a.popularity_score ?? 0))[0] ?? null
 )
 
-const TAG_META = {
-  'tecnologia':   { label: 'Tecnologia',   icon: '💻', order: 1 },
-  'programação':  { label: 'Programação',  icon: '👨‍💻', order: 2 },
-  'matemática':   { label: 'Matemática',   icon: '🔢', order: 3 },
-  'ciências':     { label: 'Ciências',     icon: '🔬', order: 4 },
-  'linguagens':   { label: 'Linguagens',   icon: '📝', order: 5 },
-  'nacional':     { label: 'Nacional',     icon: '🇧🇷', order: 6 },
-  'internacional':{ label: 'Internacional',icon: '🌍', order: 7 },
+const TAG_META: Record<string, { label: string; icon: string; order: number }> = {
+  tecnologia: { label: 'Tecnologia', icon: '💻', order: 1 },
+  programação: { label: 'Programação', icon: '👨‍💻', order: 2 },
+  matemática: { label: 'Matemática', icon: '🔢', order: 3 },
+  ciências: { label: 'Ciências', icon: '🔬', order: 4 },
+  linguagens: { label: 'Linguagens', icon: '📝', order: 5 },
+  nacional: { label: 'Nacional', icon: '🇧🇷', order: 6 },
+  internacional: { label: 'Internacional', icon: '🌍', order: 7 },
 }
 
 const tagSections = computed(() => {
-  const map = new Map()
+  const map = new Map<string, any[]>()
+
   filtered.value.forEach(o => {
-    o.tags.forEach(tag => {
+    o.tags.forEach((tag: string) => {
       if (!map.has(tag)) map.set(tag, [])
-      map.get(tag).push(o)
+      map.get(tag)!.push(o)
     })
   })
+
   return [...map.entries()]
     .map(([tag, items]) => ({
       tag,
       items,
-      icon:  TAG_META[tag]?.icon  ?? '🏆',
+      icon: TAG_META[tag]?.icon ?? '🏆',
       label: TAG_META[tag]?.label ?? (tag.charAt(0).toUpperCase() + tag.slice(1)),
       order: TAG_META[tag]?.order ?? 99,
     }))
@@ -216,51 +243,54 @@ const activeFilterCount = computed(
 const hasMore = computed(() => olimpiads.value.length < totalCount.value)
 
 function clearFilters() {
-  search.value       = ''
+  search.value = ''
   activeStatus.value = ''
-  fetchOlimpiads()
+  fetchOlimpiads(true)
 }
 
 // ─── Carousel helpers ────────────────────────────────────────────────────────
 
-const rowEls = {}
-function setRowRef(el, tag) { if (el) rowEls[tag] = el }
-function scrollRow(tag, dir) { rowEls[tag]?.scrollBy({ left: dir * 700, behavior: 'smooth' }) }
+const rowEls: Record<string, HTMLElement> = {}
+
+function setRowRef(el: HTMLElement | null, tag: string) {
+  if (el) rowEls[tag] = el
+}
+
+function scrollRow(tag: string, dir: number) {
+  rowEls[tag]?.scrollBy({ left: dir * 700, behavior: 'smooth' })
+}
 
 // ─── Styling helpers ─────────────────────────────────────────────────────────
 
-const statusColor = {
+const statusColor: Record<string, string> = {
   'Inscrições abertas': 'bg-emerald-500/20 text-emerald-700 ring-1 ring-emerald-500/30',
-  'Em andamento':       'bg-blue-500/20 text-blue-700 ring-1 ring-blue-500/30',
-  'Em breve':           'bg-amber-500/20 text-amber-700 ring-1 ring-amber-500/30',
-  'Encerrada':          'bg-zinc-500/20 text-zinc-600 ring-1 ring-zinc-500/30',
+  'Em andamento': 'bg-blue-500/20 text-blue-700 ring-1 ring-blue-500/30',
+  'Em breve': 'bg-amber-500/20 text-amber-700 ring-1 ring-amber-500/30',
+  'Encerrada': 'bg-zinc-500/20 text-zinc-600 ring-1 ring-zinc-500/30',
 }
 
-const onDarkPill = (s) =>
+const onDarkPill = (s: string) =>
   statusColor[s]
-    ?.replace('text-', 'text-')
     ?.replace('700', '300')
     ?.replace('600', '400')
   ?? statusColor['Encerrada']?.replace('text-zinc-600', 'text-zinc-400')
 
 // participants_count is already a formatted string from the API ("130k", "18.5M" …)
 // falls back to numeric formatting if a raw number somehow arrives
-function fmtCount(n) {
+function fmtCount(n: any) {
   if (!n && n !== 0) return ''
   if (typeof n === 'string') return n
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
-  if (n >= 1_000)     return Math.round(n / 1_000) + 'k'
+  if (n >= 1_000) return Math.round(n / 1_000) + 'k'
   return String(n)
 }
 </script>
 
 <template>
   <div class="font-sans antialiased">
-
     <!-- ───────────────────── Hero ──────────────────────────────────────────── -->
     <section class="relative overflow-hidden flex items-center min-h-[400px]">
       <div class="relative z-10 max-w-4xl mx-auto px-6 md:px-10 py-16 md:py-20">
-
         <h1
           class="font-extrabold leading-[1.06] tracking-tight mb-4 text-center"
           style="font-size: clamp(1.9rem, 5.5vw, 3.2rem);"
@@ -275,14 +305,18 @@ function fmtCount(n) {
         </p>
 
         <!-- Search -->
-        <div class="relative max-w-lg">
+        <div class="relative max-w-lg mx-auto">
           <svg
             class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
             fill="none" viewBox="0 0 24 24" stroke="black" stroke-width="2"
           >
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"
+            />
           </svg>
+
           <input
             v-model="search"
             type="search"
@@ -290,11 +324,11 @@ function fmtCount(n) {
             class="w-full pl-11 pr-10 py-3.5 rounded-xl text-[13.5px] text-gray-800
                    bg-white/10 border border-black/15 focus:outline-none
                    focus:bg-white/15 focus:border-emerald-600/40 transition-all"
-            @input="onSearchInput"
           />
+
           <button
             v-if="search"
-            @click="search = ''; fetchOlimpiads()"
+            @click="search = ''"
             class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full
                    bg-white/10 hover:bg-white/20 text-zinc-400 flex items-center
                    justify-center transition-colors"
@@ -311,7 +345,6 @@ function fmtCount(n) {
 
     <!-- ───────────────────── Main white area ───────────────────────────────── -->
     <div class="bg-white">
-
       <!-- Filter Bar -->
       <div class="sticky top-0 z-30 bg-white shadow-[0_1px_0_rgba(0,0,0,0.06)]
                   max-w-[900px] mx-auto px-4 md:px-8 pt-10 pb-4">
@@ -319,7 +352,6 @@ function fmtCount(n) {
           <div class="flex items-center gap-3 py-2.5 overflow-x-auto
                       [scrollbar-width:none] [-ms-overflow-style:none]
                       [&::-webkit-scrollbar]:hidden">
-
             <span class="shrink-0 text-[10px] font-semibold tracking-wide text-zinc-400 uppercase">
               Filtrar
             </span>
@@ -339,7 +371,8 @@ function fmtCount(n) {
 
               <!-- Status filters -->
               <button
-                v-for="opt in statusOptions" :key="opt"
+                v-for="opt in statusOptions"
+                :key="opt"
                 @click="activeStatus = opt === activeStatus ? '' : opt"
                 :class="[
                   'px-3 py-1.25 rounded-lg text-xs font-medium border transition-all whitespace-nowrap',
@@ -380,21 +413,23 @@ function fmtCount(n) {
 
       <!-- ─── Main content ─── -->
       <div class="bg-white max-w-[900px] mx-auto px-4 md:px-8 pt-10 pb-4">
-
         <!-- Error state -->
         <div v-if="error && !loading" class="flex flex-col items-center justify-center py-20 px-6 text-center">
           <div class="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
             <svg class="w-6 h-6 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round"
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
                 d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874
-                   1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/>
+                   1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"
+              />
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75h.007v.008H12v-.008z"/>
             </svg>
           </div>
           <p class="text-[15px] font-semibold text-zinc-700 mb-1.5">Erro ao carregar olimpíadas</p>
           <p class="text-[13px] text-zinc-400 mb-6 max-w-xs leading-relaxed">{{ error }}</p>
           <button
-            @click="fetchOlimpiads()"
+            @click="fetchOlimpiads(true)"
             class="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white
                    text-[13px] font-semibold rounded-xl transition-colors"
           >Tentar novamente</button>
@@ -427,20 +462,22 @@ function fmtCount(n) {
         <div v-if="loading && filtered.length === 0" class="px-6 md:px-10 mb-12 space-y-10">
           <!-- Featured skeleton -->
           <div class="h-[260px] md:h-[320px] rounded-2xl bg-zinc-100 animate-pulse"></div>
+
           <!-- Row skeletons -->
           <div v-for="i in 3" :key="i">
             <div class="h-4 w-32 rounded bg-zinc-100 animate-pulse mb-4"></div>
             <div class="flex gap-5">
-              <div v-for="j in 3" :key="j"
-                class="w-[220px] shrink-0 h-[280px] rounded-xl bg-zinc-100 animate-pulse">
-              </div>
+              <div
+                v-for="j in 3"
+                :key="j"
+                class="w-[220px] shrink-0 h-[280px] rounded-xl bg-zinc-100 animate-pulse"
+              ></div>
             </div>
           </div>
         </div>
 
         <!-- ── Content (once data is loaded) ── -->
         <template v-if="filtered.length > 0">
-
           <!-- Featured Banner -->
           <div
             v-if="featuredOlimpiad && !search && !activeStatus"
@@ -567,13 +604,14 @@ function fmtCount(n) {
               </button>
 
               <div
-                :ref="el => setRowRef(el, 'highlighted')"
+                :ref="el => setRowRef(el as HTMLElement | null, 'highlighted')"
                 class="flex gap-5 overflow-x-auto px-6 md:px-10 pb-3 scroll-smooth
                        [scrollbar-width:none] [-ms-overflow-style:none]
                        [&::-webkit-scrollbar]:hidden"
               >
                 <OlimpiadasOlimpiadCard
-                  v-for="o in highlighted" :key="o.id"
+                  v-for="o in highlighted"
+                  :key="o.id"
                   :olimpiad="o"
                   @open="selectedOlimpiad = $event"
                 />
@@ -626,13 +664,14 @@ function fmtCount(n) {
               </button>
 
               <div
-                :ref="el => setRowRef(el, section.tag)"
+                :ref="el => setRowRef(el as HTMLElement | null, section.tag)"
                 class="flex gap-5 overflow-x-auto px-6 md:px-10 pb-3 scroll-smooth
                        [scrollbar-width:none] [-ms-overflow-style:none]
                        [&::-webkit-scrollbar]:hidden"
               >
                 <OlimpiadasOlimpiadCard
-                  v-for="o in section.items" :key="o.id"
+                  v-for="o in section.items"
+                  :key="o.id"
                   :olimpiad="o"
                   @open="selectedOlimpiad = $event"
                 />
@@ -660,14 +699,14 @@ function fmtCount(n) {
           <div v-if="hasMore" class="flex justify-center pb-12 mt-4">
             <button
               @click="loadMore"
-              :disabled="loading"
+              :disabled="loadingMore"
               class="px-6 py-2.5 rounded-xl border border-zinc-200 text-[13px] font-semibold
                      text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 hover:bg-zinc-50
                      transition-all disabled:opacity-50 disabled:cursor-not-allowed
                      flex items-center gap-2"
             >
               <svg
-                v-if="loading"
+                v-if="loadingMore"
                 class="w-3.5 h-3.5 animate-spin text-zinc-400"
                 fill="none" viewBox="0 0 24 24"
               >
@@ -675,10 +714,9 @@ function fmtCount(n) {
                   stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
               </svg>
-              {{ loading ? 'Carregando…' : 'Carregar mais' }}
+              {{ loadingMore ? 'Carregando…' : 'Carregar mais' }}
             </button>
           </div>
-
         </template>
       </div><!-- /main content -->
     </div><!-- /bg-white -->
@@ -688,6 +726,5 @@ function fmtCount(n) {
       :olimpiad="selectedOlimpiad"
       @close="selectedOlimpiad = null"
     />
-
   </div>
 </template>
