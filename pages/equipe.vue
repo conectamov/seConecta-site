@@ -21,11 +21,13 @@ const teamAdmin = [
     id: 2, name: 'Gabriel Masterson', role: 'Diretor de Tecnologia',
     description: 'Cofundador do SeConecta. Responsável pela stack tecnológica da plataforma SeConecta. Desenvolve o backend em FastAPI e o frontend em Vue 3.',
     skills: ['FastAPI', 'Vue 3', 'PostgreSQL'], colorA: '#079272', colorB: '#0DA790',
+    photo: "https://gcdnb.pbrd.co/images/mNO2sXoxufi2.jpg?o=1"
   },
   {
     id: 3, name: 'Jhenifer Mendes', role: 'Diretora de Mídia e Embaixadores',
     description: 'À frente de toda a comunicação visual e do programa de embaixadores. Conecta a identidade do SeConecta com estudantes em todo o Brasil através de design e conteúdo.',
     skills: ['Design', 'Mídias Sociais', 'Branding'], colorA: '#F59E0B', colorB: '#D97706',
+    photo: "https://gcdnb.pbrd.co/images/97KvdS72mFhZ.png?o=1"
   },
 ]
 
