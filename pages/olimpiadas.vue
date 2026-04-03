@@ -25,6 +25,12 @@ const statusOptions = Object.keys(STATUS_ENUM)
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function safeDateString(value: any) {
+  if (!value) return null
+  if (typeof value !== 'string') return null
+  return value.split('T')[0]
+}
+
 function normalizeResource(r: any) {
   if (!r || typeof r !== 'object') return null
 
@@ -56,12 +62,6 @@ function normalizeResource(r: any) {
   }
 }
 
-function normalizeDate(value: any) {
-  if (!value) return null
-  const d = new Date(value)
-  return Number.isNaN(d.getTime()) ? null : value
-}
-
 // ─── Normalize API → shape expected by child components ─────────────────────
 
 function normalize(o: any) {
@@ -70,6 +70,10 @@ function normalize(o: any) {
   const resources = Array.isArray(o.resources)
     ? o.resources.map(normalizeResource).filter(Boolean)
     : []
+
+  const startDate = safeDateString(o.start_date)
+  const endDate = safeDateString(o.end_date)
+  const nextEditionDate = safeDateString(o.next_edition_date)
 
   return {
     // identity
@@ -93,8 +97,8 @@ function normalize(o: any) {
 
     // categorization
     area: o.categories?.[0] ?? '',
-    tags: o.categories ?? [],      // area tags
-    categories: o.levels ?? [],    // levels for modal cards
+    tags: o.categories ?? [],
+    categories: o.levels ?? [],
     levels: o.levels ?? [],
     languages: o.languages ?? [],
     modalities: o.modalities ?? [],
@@ -117,15 +121,28 @@ function normalize(o: any) {
     international: o.location?.toLowerCase().includes('internacional') ?? false,
     team_allowed: false,
 
-    // dates
-    start_date: normalizeDate(o.start_date),
-    end_date: normalizeDate(o.end_date),
-    next_edition_date: normalizeDate(o.next_edition_date),
+    // dates as safe strings
+    start_date: startDate,
+    end_date: endDate,
+    next_edition_date: nextEditionDate,
 
-    // extra aliases for child components/modals
-    startDate: normalizeDate(o.start_date),
-    endDate: normalizeDate(o.end_date),
-    nextEditionDate: normalizeDate(o.next_edition_date),
+    // common aliases for child components
+    startDate,
+    endDate,
+    nextEditionDate,
+    starts_at: startDate,
+    ends_at: endDate,
+    startsAt: startDate,
+    endsAt: endDate,
+    inicio: startDate,
+    termino: endDate,
+    start: startDate,
+    end: endDate,
+
+    // raw dates too, in case some component expects strings
+    start_date_raw: o.start_date ?? null,
+    end_date_raw: o.end_date ?? null,
+    next_edition_date_raw: o.next_edition_date ?? null,
 
     // text sections
     application_process: o.how_to_register ?? '',
@@ -338,8 +355,6 @@ function statusPillClass(s: string) {
   )
 }
 
-// participants_count is already a formatted string from the API ("130k", "18.5M" …)
-// falls back to numeric formatting if a raw number somehow arrives
 function fmtCount(n: any) {
   if (!n && n !== 0) return ''
   if (typeof n === 'string') return n
@@ -358,8 +373,8 @@ function fmtCount(n: any) {
           class="font-extrabold leading-[1.06] tracking-tight mb-4 text-center"
           style="font-size: clamp(1.9rem, 5.5vw, 3.2rem);"
         >
-          <span class="block">Descubra as melhores</span>
-          <span class="block gradient-text bg-clip-text text-transparent">oportunidades</span>
+          <span class="block">Encontre as melhores</span>
+          <span class="block gradient-text bg-clip-text text-transparent">Olimpíadas Científicas</span>
         </h1>
 
         <p class="text-[15px] leading-relaxed max-w-[420px] text-gray-600 mb-8 text-center mx-auto">
