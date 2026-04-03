@@ -60,6 +60,24 @@ const teamEmb = [
     skills: [], colorA: '#F59E0B', colorB: '#D97706',
     photo: "https://i.postimg.cc/nhL9nzHb/Whats-App-Image-2026-04-01-at-20-19-40.jpg"
   },
+  {
+    id: 6, name: 'Yuri Leão', role: 'Embaixador',
+    description: 'Meu nome é Yuri Leão, sou de Saquarema (RJ) e tenho grande interesse em educação. Ao longo da minha trajetória, me envolvi com projetos e iniciativas que buscam ampliar o acesso a oportunidades, especialmente no contexto de olimpíadas acadêmicas e debate competitivo. Sou movido por desafios, tenho uma forte paixão pelo esporte, em especial futebol, e gosto de aprender constantemente. Além disso, tenho grande interesse por áreas como astronomia e economia, que ampliam minha forma de enxergar o mundo. Acredito no poder das comunidades para transformar realidades e potencializar talentos.',
+    skills: [], colorA: '#F59E0B', colorB: '#D97706',
+    photo: "https://gcdnb.pbrd.co/images/2Fjjnc74G21a.png?o=1"
+  },
+  {
+    id: 7, name: 'Letícia Abrantes', role: 'Embaixadora',
+    description: "Sou Letícia, natural de Fortaleza, e gosto muito das áreas de escrita, sustentabilidade e matemática. Estou envolvida em projetos sociais que promovem os ODS's da ONU e democratização de oportunidades acadêmicas, compartilhando as experiências de quem já as vivenciou para motivar outras pessoas. Junto ao seConecta, espero contribuir cada vez mais com o acesso a informação educacional de qualidade no Brasil.",
+    skills: [], colorA: '#F59E0B', colorB: '#D97706',
+    photo: "https://i.postimg.cc/3RCgyDG8/Whats-App-Image-2026-04-03-at-12-38-22.jpg"
+  },
+  {
+    id: 8, name: 'Levi Oliveira', role: 'Embaixador',
+    description: "Oi! Sou Levi Oliveira e nasci em São Luís do Maranhão. Desde pequeno, sempre gostei muito de computadores e  esportes; atualmente, sou apaixonado por Ciência da Computação, Programação Competitiva e Matemática. Também gosto muito de fazer olimpíadas do conhecimento. Eu as conheci no meu sétimo ano graças ao meu professor de matemática. Então, no seConecta, quero ser o agente que leva oportunidades e conhecimento aos outros, assim como o meu professor fez comigo.",
+    skills: [], colorA: '#F59E0B', colorB: '#D97706',
+    photo: "https://gcdnb.pbrd.co/images/zrkbYiP3GUhO.png?o=1"
+  },
 ]
 
 const teamTech = [
