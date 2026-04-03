@@ -85,7 +85,7 @@
 
           <div class="border-t border-[#f0ece5] px-6 py-4">
             <p class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-[#bbb] mb-3">
-              Legenda
+              Legenda (clique para filtrar)
             </p>
             <div class="flex flex-wrap gap-x-4 gap-y-2">
               <div
@@ -425,12 +425,6 @@
         </div>
       </div>
     </Transition>
-
-    <!-- Olympiad Modal -->
-    <OlimpiadasOlimpiadModal
-      :olimpiad="selectedOlympiad"
-      @close="selectedOlympiad = null"
-    />
   </div>
 </template>
 
@@ -439,7 +433,6 @@ import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useAxios } from '~/composables/useAxios'
 import { useAuth } from '~/composables/useAuth'
 import { useRouter } from 'nuxt/app'
-import OlimpiadasOlimpiadModal from '~/components/OlimpiadasOlimpiadModal.vue'
 
 useSeoMeta({ title: 'Calendário de Oportunidades — seConecta' })
 
@@ -459,12 +452,11 @@ const activeCategories = ref<Record<string, boolean>>({})
 // UI state
 const selectedDay = ref<Date | null>(null)
 const showModal = ref(false)
-const selectedOlympiad = ref<any | null>(null)
 
 const mounted = ref(false)
 const authReady = ref(false)
 
-// Recommendation related (unchanged)
+// Recommendation related
 const recommendedPosts = ref<any[]>([])
 const recommendedLoading = ref(false)
 const recommendedError = ref<string | null>(null)
@@ -629,12 +621,11 @@ function normalizeOlympiad(olympiad: any): any {
     modality: olympiad.modalities?.[0] || 'online',
     country: olympiad.location?.includes('Internacional') ? '🌍 Internacional' : '🇧🇷 Brasil',
     cover_url: olympiad.cover_url,
-    // Keep original for modal
     raw: olympiad,
   }
 }
 
-// Normalize post to event shape (consistent)
+// Normalize post to event shape
 function normalizePostToEvent(post: any): any {
   const category = classifyPost(post)
   return {
@@ -681,7 +672,7 @@ const calendarAttributes = computed(() => {
   }))
 })
 
-// Upcoming events (next 30 days) based on filtered events
+// Upcoming events (next 30 days)
 const upcomingEvents = computed<any[]>(() => {
   const now = Date.now()
   const limit = now + 30 * 86_400_000
@@ -724,14 +715,13 @@ function handleDayClick(day: any) {
 function openEvent(event: any) {
   showModal.value = false
   if (event.type === 'olympiad') {
-    // Open olympiad modal
-    selectedOlympiad.value = event.raw
+    // Redirect to the olympiads listing page
+    router.push('/olimpiadas')
   } else {
     router.push(`/feed/${event.slug}`)
   }
 }
 
-// For backward compatibility in recommendations
 function openPost(post: any) {
   router.push(`/feed/${post.slug || post.id}`)
 }
@@ -781,7 +771,7 @@ async function fetchAllData() {
   }
 }
 
-// Recommendations (unchanged, but keep as is)
+// Recommendations
 async function fetchRecommended() {
   if (!authReady.value || !isAuthenticated.value || !isLinked.value) {
     recommendedPosts.value = []
