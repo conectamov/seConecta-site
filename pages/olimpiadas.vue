@@ -25,6 +25,12 @@ const statusOptions = Object.keys(STATUS_ENUM)
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+// No bloco <script setup>
+
+function handleAddOlimpiad() {
+  navigateTo('/new-olympiad')
+}
+
 function safeDateString(value: any) {
   if (!value) return null
   if (typeof value !== 'string') return null
@@ -417,6 +423,12 @@ function fmtCount(n: any) {
             </svg>
           </button>
         </div>
+        <p class="text-center mt-4 text-[12px] text-gray-500">
+          Sentiu falta de alguma? 
+          <button @click="handleAddOlimpiad" class="text-emerald-600 font-semibold hover:underline">
+            Adicione à nossa base
+          </button>
+        </p>        
       </div>
     </section>
 
@@ -471,7 +483,6 @@ function fmtCount(n: any) {
               <span class="text-[11px] text-zinc-400 font-medium tabular-nums whitespace-nowrap">
                 {{ totalCount }} resultado{{ totalCount !== 1 ? 's' : '' }}
               </span>
-
               <button
                 v-if="activeFilterCount > 0"
                 @click="clearFilters"
