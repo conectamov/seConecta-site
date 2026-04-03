@@ -110,7 +110,7 @@
         <div class="bg-white border border-[#e8e4dc] rounded-2xl shadow-sm overflow-hidden">
           <div class="px-5 py-4 border-b border-[#f0ece5]">
             <h2 class="text-[0.88rem] font-bold text-[#111]">Próximos 30 dias</h2>
-            <p class="text-[0.7rem] text-[#aaa] mt-0.5">Deadlines se aproximando</p>
+            <p class="text-[0.7rem] text-[#aaa] mt-0.5">Datas importantes se aproximando</p>
           </div>
 
           <div v-if="loading" class="p-5 flex justify-center">
@@ -123,7 +123,7 @@
             v-else-if="upcomingEvents.length === 0"
             class="px-5 py-10 text-center text-[0.8rem] text-[#bbb]"
           >
-            Nenhum deadline nos próximos 30 dias
+            Nenhuma data importante nos próximos 30 dias
           </div>
 
           <div v-else class="divide-y divide-[#f7f5f0]">
@@ -150,7 +150,12 @@
                   >
                     {{ event.categoryLabel }}
                   </span>
-
+                  <span v-if="event.eventType === 'start'" class="text-[0.6rem] text-[#079272] font-medium">
+                    Início
+                  </span>
+                  <span v-else-if="event.eventType === 'end'" class="text-[0.6rem] text-[#dc2626] font-medium">
+                    Término
+                  </span>
                   <span class="text-[0.68rem]" :class="daysLeft(event.deadline).cls">
                     {{ daysLeft(event.deadline).text }}
                   </span>
@@ -176,7 +181,7 @@
             class="border-t border-[#f7f5f0] px-5 py-3 text-center"
           >
             <p class="text-[0.65rem] text-[#ccc]">
-              {{ allEvents.length }} oportunidade{{ allEvents.length !== 1 ? 's' : '' }} com deadline
+              {{ allEvents.length }} evento{{ allEvents.length !== 1 ? 's' : '' }} importantes
             </p>
           </div>
         </div>
@@ -364,12 +369,16 @@
                   >
                     {{ event.categoryLabel }}
                   </span>
-
+                  <span v-if="event.eventType === 'start'" class="text-[0.6rem] text-[#079272] font-medium">
+                    Início
+                  </span>
+                  <span v-else-if="event.eventType === 'end'" class="text-[0.6rem] text-[#dc2626] font-medium">
+                    Término
+                  </span>
                   <span v-if="event.modality" class="text-[0.65rem] text-[#999]">
                     <i :class="`fas ${MODALITY_ICON[event.modality] || ''}`" class="mr-1"></i>
                     {{ event.modality }}
                   </span>
-
                   <span v-if="event.country" class="text-[0.65rem] text-[#bbb] ml-auto">
                     {{ event.country }}
                   </span>
@@ -599,30 +608,60 @@ function labelFor(post: any) {
   return CATEGORY_MAP[classifyPost(post)]?.label ?? 'Outros'
 }
 
-// Normalize olympiad to event shape
-function normalizeOlympiad(olympiad: any): any {
-  // Use end_date as deadline
-  const deadline = olympiad.end_date ? new Date(olympiad.end_date) : null
-  if (!deadline) return null
+// Normalize olympiad to event(s) – one for start date, one for end date
+function normalizeOlympiad(olympiad: any): any[] {
+  const events: any[] = []
+  const category = 'olimpiadas'
+  const categoryLabel = CATEGORY_MAP.olimpiadas.label
+  const categoryColor = CATEGORY_MAP.olimpiadas.color
 
-  return {
-    id: `olympiad-${olympiad.id}`,
-    originalId: olympiad.id,
-    title: olympiad.title || olympiad.name,
-    slug: olympiad.slug,
-    excerpt: olympiad.description ? olympiad.description.substring(0, 120) : '',
-    deadline: olympiad.end_date,
-    category: 'olimpiadas',
-    categoryLabel: CATEGORY_MAP.olimpiadas.label,
-    categoryColor: CATEGORY_MAP.olimpiadas.color,
-    type: 'olympiad',
-    author_name: olympiad.organizer || 'Organização',
-    author_profile_picture_url: null,
-    modality: olympiad.modalities?.[0] || 'online',
-    country: olympiad.location?.includes('Internacional') ? '🌍 Internacional' : '🇧🇷 Brasil',
-    cover_url: olympiad.cover_url,
-    raw: olympiad,
+  // Start date event
+  if (olympiad.start_date) {
+    events.push({
+      id: `olympiad-start-${olympiad.id}`,
+      originalId: olympiad.id,
+      title: olympiad.title,
+      slug: olympiad.slug,
+      excerpt: olympiad.description ? olympiad.description.substring(0, 120) : '',
+      deadline: olympiad.start_date,
+      category,
+      categoryLabel,
+      categoryColor,
+      type: 'olympiad',
+      eventType: 'start',
+      author_name: olympiad.organizer || 'Organização',
+      author_profile_picture_url: null,
+      modality: olympiad.modalities?.[0] || 'online',
+      country: olympiad.location?.includes('Internacional') ? '🌍 Internacional' : '🇧🇷 Brasil',
+      cover_url: olympiad.cover_url,
+      raw: olympiad,
+    })
   }
+
+  // End date event (only if different from start)
+  if (olympiad.end_date && olympiad.end_date !== olympiad.start_date) {
+    events.push({
+      id: `olympiad-end-${olympiad.id}`,
+      originalId: olympiad.id,
+      title: olympiad.title,
+      slug: olympiad.slug,
+      excerpt: olympiad.description ? olympiad.description.substring(0, 120) : '',
+      deadline: olympiad.end_date,
+      category,
+      categoryLabel,
+      categoryColor,
+      type: 'olympiad',
+      eventType: 'end',
+      author_name: olympiad.organizer || 'Organização',
+      author_profile_picture_url: null,
+      modality: olympiad.modalities?.[0] || 'online',
+      country: olympiad.location?.includes('Internacional') ? '🌍 Internacional' : '🇧🇷 Brasil',
+      cover_url: olympiad.cover_url,
+      raw: olympiad,
+    })
+  }
+
+  return events
 }
 
 // Normalize post to event shape
@@ -639,6 +678,7 @@ function normalizePostToEvent(post: any): any {
     categoryLabel: labelFor(post),
     categoryColor: colorFor(post),
     type: 'post',
+    eventType: 'deadline',
     author_name: post.author_name,
     author_profile_picture_url: post.author_profile_picture_url,
     modality: post.modality,
@@ -648,10 +688,10 @@ function normalizePostToEvent(post: any): any {
   }
 }
 
-// Combined events (posts + olympiads) after filtering by active categories
+// Combined events (posts + olympiad start/end) after filtering by active categories
 const allEvents = computed<any[]>(() => {
   const postEvents = posts.value.map(p => normalizePostToEvent(p))
-  const olympiadEvents = olympiads.value.map(o => normalizeOlympiad(o)).filter(Boolean)
+  const olympiadEvents = olympiads.value.flatMap(o => normalizeOlympiad(o))
   const combined = [...postEvents, ...olympiadEvents]
   return combined.filter(event => activeCategories.value[event.category] === true)
 })
@@ -666,7 +706,7 @@ const calendarAttributes = computed(() => {
       style: { backgroundColor: event.categoryColor },
     },
     popover: {
-      label: `${event.categoryLabel} · ${event.title}`,
+      label: `${event.categoryLabel}${event.eventType === 'start' ? ' (Início)' : event.eventType === 'end' ? ' (Término)' : ''} · ${event.title}`,
     },
     customData: event,
   }))
@@ -715,7 +755,7 @@ function handleDayClick(day: any) {
 function openEvent(event: any) {
   showModal.value = false
   if (event.type === 'olympiad') {
-    // Redirect to the olympiads listing page
+    // Redirect to the olympiads listing page (no slug)
     router.push('/olimpiadas')
   } else {
     router.push(`/feed/${event.slug}`)
