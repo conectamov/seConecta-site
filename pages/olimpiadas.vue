@@ -23,38 +23,91 @@ const STATUS_ENUM: Record<string, string> = {
 
 const statusOptions = Object.keys(STATUS_ENUM)
 
-// ─── Normalize API → shape expected by child components ──────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function normalizeResource(r: any) {
+  if (!r || typeof r !== 'object') return null
+
+  const name =
+    r.name ??
+    r.title ??
+    r.label ??
+    r.text ??
+    r.description ??
+    'Recurso'
+
+  const url =
+    r.url ??
+    r.href ??
+    r.link ??
+    r.website ??
+    r.official_site_url ??
+    r.external_url ??
+    null
+
+  return {
+    ...r,
+    name,
+    title: name,
+    label: name,
+    url,
+    href: url,
+    link: url,
+  }
+}
+
+function normalizeDate(value: any) {
+  if (!value) return null
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? null : value
+}
+
+// ─── Normalize API → shape expected by child components ─────────────────────
 
 function normalize(o: any) {
   const statusLabel = STATUS_LABEL[o.status] ?? o.status
 
+  const resources = Array.isArray(o.resources)
+    ? o.resources.map(normalizeResource).filter(Boolean)
+    : []
+
   return {
+    // identity
     id: o.id,
     name: o.title,
     title: o.title,
+    slug: o.slug ?? null,
     description: o.description ?? '',
     organizer: o.organizer ?? '',
 
+    // media
     banner_url: o.cover_url,
     cover_url: o.cover_url,
+    coverUrl: o.cover_url,
+    bannerUrl: o.cover_url,
 
+    // status
     status: statusLabel,
     statusEnum: o.status,
+    status_label: statusLabel,
 
+    // categorization
     area: o.categories?.[0] ?? '',
-    tags: o.categories ?? [],
-    categories: o.levels ?? [],
+    tags: o.categories ?? [],      // area tags
+    categories: o.levels ?? [],    // levels for modal cards
     levels: o.levels ?? [],
     languages: o.languages ?? [],
     modalities: o.modalities ?? [],
 
+    // quick stats
     rating: o.rating,
     participants_count: o.participants_count ?? null,
     difficulty_level: o.difficulty,
     estimated_duration: o.duration,
 
-    location: o.location,
-    target_audience: o.target_audience,
+    // details
+    location: o.location ?? '',
+    target_audience: o.target_audience ?? '',
     taxes: o.is_free ? 'Gratuito' : 'Pago',
     is_free: o.is_free,
     certificate: o.has_certificate,
@@ -64,26 +117,43 @@ function normalize(o: any) {
     international: o.location?.toLowerCase().includes('internacional') ?? false,
     team_allowed: false,
 
-    start_date: o.start_date,
-    end_date: o.end_date,
-    next_edition_date: o.next_edition_date,
+    // dates
+    start_date: normalizeDate(o.start_date),
+    end_date: normalizeDate(o.end_date),
+    next_edition_date: normalizeDate(o.next_edition_date),
 
-    application_process: o.how_to_register,
-    prizes: o.prizes,
-    requirements: o.requirements,
+    // extra aliases for child components/modals
+    startDate: normalizeDate(o.start_date),
+    endDate: normalizeDate(o.end_date),
+    nextEditionDate: normalizeDate(o.next_edition_date),
 
-    website: o.official_site_url,
-    official_site_url: o.official_site_url,
+    // text sections
+    application_process: o.how_to_register ?? '',
+    how_to_register: o.how_to_register ?? '',
+    prizes: o.prizes ?? '',
+    requirements: o.requirements ?? '',
+
+    // links & resources
+    website: o.official_site_url ?? '',
+    official_site_url: o.official_site_url ?? '',
+    officialSiteUrl: o.official_site_url ?? '',
     past_exams_url: null,
-    resources: o.resources ?? [],
+    resources,
 
-    highlighted: o.is_featured,
-    is_featured: o.is_featured,
+    // feature flags
+    highlighted: !!o.is_featured,
+    is_featured: !!o.is_featured,
+    approved: !!o.approved,
 
-    author_name: o.author_name,
-    author_profile_url: o.author_profile_url,
+    // author (optional)
+    author_id: o.author_id ?? null,
+    author_name: o.author_name ?? '',
+    author_profile_url: o.author_profile_url ?? '',
 
+    // popularity proxy for featured sorting
     popularity_score: o.rating ? Math.round(o.rating * 20) : 0,
+
+    // fallback
     deadline_countdown: null,
   }
 }
@@ -135,7 +205,6 @@ async function fetchOlimpiads(reset = true) {
       if (enumVal) params.status = enumVal
     }
 
-    // Adjust this path if your axios baseURL is different.
     const res = await get('/olympiads/', { params })
 
     const data = res.data?.data ?? []
@@ -400,6 +469,7 @@ function fmtCount(n: any) {
       </div>
 
       <div class="bg-white max-w-[900px] mx-auto px-4 md:px-8 pt-10 pb-4">
+        <!-- Error state -->
         <div v-if="error && !loading" class="flex flex-col items-center justify-center py-20 px-6 text-center">
           <div class="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
             <svg class="w-6 h-6 text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -421,6 +491,7 @@ function fmtCount(n: any) {
           >Tentar novamente</button>
         </div>
 
+        <!-- Empty state -->
         <div
           v-else-if="!loading && !error && filtered.length === 0"
           class="flex flex-col items-center justify-center py-28 px-6 text-center"
@@ -443,6 +514,7 @@ function fmtCount(n: any) {
           >Limpar filtros</button>
         </div>
 
+        <!-- Skeleton -->
         <div v-if="loading && filtered.length === 0" class="px-6 md:px-10 mb-12 space-y-10">
           <div class="h-[260px] md:h-[320px] rounded-2xl bg-zinc-100 animate-pulse"></div>
 
@@ -458,7 +530,9 @@ function fmtCount(n: any) {
           </div>
         </div>
 
+        <!-- Content -->
         <template v-if="filtered.length > 0">
+          <!-- Featured Banner -->
           <div
             v-if="featuredOlimpiad && !search && !activeStatus"
             class="px-6 md:px-10 mb-12"
@@ -552,6 +626,7 @@ function fmtCount(n: any) {
             </div>
           </div>
 
+          <!-- Highlighted Section -->
           <div v-if="highlighted.length > 0" class="mb-10">
             <div class="flex items-center gap-2.5 px-6 md:px-10 mb-4">
               <div class="w-0.5 h-[18px] rounded-full bg-gradient-to-b from-emerald-600 to-blue-600"></div>
@@ -601,6 +676,7 @@ function fmtCount(n: any) {
             </div>
           </div>
 
+          <!-- Tag Sections -->
           <div v-for="section in tagSections" :key="section.tag" class="mb-10">
             <div class="flex items-center gap-2.5 px-6 md:px-10 mb-4">
               <div class="w-0.5 h-[18px] rounded-full bg-gradient-to-b from-emerald-600 to-blue-600"></div>
@@ -653,6 +729,7 @@ function fmtCount(n: any) {
             </div>
           </div>
 
+          <!-- Load More -->
           <div v-if="hasMore" class="flex justify-center pb-12 mt-4">
             <button
               @click="loadMore"
@@ -675,6 +752,7 @@ function fmtCount(n: any) {
       </div>
     </div>
 
+    <!-- Modal -->
     <OlimpiadasOlimpiadModal
       :olimpiad="selectedOlimpiad"
       @close="selectedOlimpiad = null"
