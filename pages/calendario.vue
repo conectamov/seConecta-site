@@ -468,7 +468,7 @@ const CATEGORY_MAP: Record<string, { label: string; color: string; hints: string
     hints: ['estagio', 'estágio', 'internship', 'trainee'],
   },
   acampamentos: {
-    label: 'Summer Cams',
+    label: 'Summer Camps',
     color: '#F59E0B',
     hints: ['camp', 'summer camp', 'acampamento', 'verao', 'verão', 'ferias', 'férias'],
   },

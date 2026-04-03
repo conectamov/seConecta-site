@@ -172,7 +172,7 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
                 Olimpíadas
               </button>
               
-              <button class="w-full text-left px-4 py-2.5 text-[0.83rem] text-gray-700 hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors cursor-pointer bg-transparent border-none flex items-center gap-2" @click="go('calendar')">
+              <button class="w-full text-left px-4 py-2.5 text-[0.83rem] text-gray-700 hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors cursor-pointer bg-transparent border-none flex items-center gap-2" @click="go('calendario')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                   <line x1="16" y1="2" x2="16" y2="6"/>
@@ -360,7 +360,7 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
               Olimpíadas
             </button>
             
-            <button @click="go('calendar')" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[0.88rem] font-medium text-[#333] hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors border-none bg-transparent cursor-pointer text-left">
+            <button @click="go('calendario')" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-[0.88rem] font-medium text-[#333] hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors border-none bg-transparent cursor-pointer text-left">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                 <line x1="16" y1="2" x2="16" y2="6"/>
