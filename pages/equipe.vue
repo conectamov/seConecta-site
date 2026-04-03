@@ -31,7 +31,7 @@ const teamAdmin = [
 
 const teamEmb = [
   {
-    id: 1, name: 'Marcos Vinicius', role: 'Embaixador',
+    id: 1, name: 'Marcos Vinício', role: 'Embaixador',
     description: 'Iniciei na computação aos 13 anos, desenvolvendo jogos ao mesmo tempo que aprendia a ligar um computador. Aos 16 anos criei um game educativo reconhecido como a Melhor Solução Ambiental do Rio de Janeiro na maior competição da NASA, a Space Apps Challenge. No mesmo ano fui convidado pelo IMPA para palestrar no Festival Nacional da Matemática sobre "O Poder dos Jogos". Retornei ao projeto social que me formou, dessa vez não como aluno, mas como desenvolvedor, criando games que podem inspirar jovens, assim como uma vez fui inspirado.',
     skills: [], colorA: '#F59E0B', colorB: '#D97706',
     photo: "https://neps.nyc3.cdn.digitaloceanspaces.com/users/38710.webp"
