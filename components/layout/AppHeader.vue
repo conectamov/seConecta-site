@@ -242,10 +242,11 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
           </Transition>
         </div>
 
+        <!-- Desktop Avatar - AGORA CIRCULAR (SEM CORTE) -->
         <div class="relative hidden lg:block" data-menu>
           <button class="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-[#f7f5f0] transition-colors border-none bg-transparent cursor-pointer"
             @click.stop="showUserMenu = !showUserMenu; showNotifs = false; showProgramas = false; showExplorar = false">
-            <div class="w-12 h-8 rounded-2xl overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center">
+            <div class="w-9 h-9 rounded-full overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center">
               <img v-if="currentUser?.profile_picture_url" :src="currentUser.profile_picture_url" :alt="currentUser.full_name" class="w-full h-full object-cover" @error="($event.target as HTMLElement).style.display='none'" />
               <span v-else class="text-sm font-bold text-white">{{ userInitial }}</span>
             </div>
@@ -326,7 +327,11 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
             </button>
           </div>
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">{{ userInitial }}</div>
+            <!-- Avatar mobile também circular e com foto -->
+            <div class="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center flex-shrink-0">
+              <img v-if="currentUser?.profile_picture_url" :src="currentUser.profile_picture_url" :alt="currentUser.full_name" class="w-full h-full object-cover" @error="($event.target as HTMLElement).style.display='none'" />
+              <span v-else class="text-base font-bold text-white">{{ userInitial }}</span>
+            </div>
             <div class="min-w-0">
               <div class="text-white font-semibold text-sm truncate">{{ currentUser?.full_name || currentUser?.username }}</div>
               <div class="text-white/50 text-xs truncate">@{{ currentUser?.username }}</div>
