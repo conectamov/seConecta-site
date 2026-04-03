@@ -210,11 +210,10 @@ async function fetchOlimpiads(reset = true) {
   error.value = null
 
   try {
-  const params: Record<string, any> = {
-    page: olympiadsPage.value,
-    limit: OLYMPIADS_LIMIT,
-    approved: false,
-  }
+    const params: Record<string, any> = {
+      page: currentPage.value,
+      limit: PAGE_SIZE,
+    }
 
     if (search.value.trim()) params.search = search.value.trim()
 
