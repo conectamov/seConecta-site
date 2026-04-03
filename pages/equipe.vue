@@ -87,6 +87,7 @@ const teamTech = [
     id: 1, name: 'Gabriel Masterson', role: 'Dev Full-stack',
     description: 'Backend em FastAPI e frontend em Vue 3 com Tailwind CSS. Focado em interfaces rápidas e acessíveis.',
     skills: ['Python', 'Vue 3', 'Tailwind CSS'], colorA: '#079272', colorB: '#0DA790',
+    photo: "https://gcdnb.pbrd.co/images/mNO2sXoxufi2.jpg?o=1"
   },
   {
     id: 2, name: 'Otávio Pinheiro', role: 'Dev Backend',
