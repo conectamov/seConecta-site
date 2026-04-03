@@ -77,10 +77,10 @@ function normalizeLabel(text: string) {
 }
 
 function addToList(list: string[], value: string, lower = false) {
-  const cleaned = normalizeLabel(value)
+  const cleaned = value
   if (!cleaned) return list
 
-  const finalValue = lower ? slugify(cleaned) : cleaned
+  const finalValue = cleaned
   if (!finalValue) return list
   if (list.includes(finalValue)) return list
   if (list.length >= 10) return list
