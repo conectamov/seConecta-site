@@ -84,7 +84,7 @@ const teamEmb = [
     id: 9, name: 'Letícia Setubal', role: 'Embaixadora',
     description: "Sou Ana Letícia Setúbal, tenho 16 anos e moro em Fortaleza. Sou apaixonada pelas ciências da natureza, em especial química, e em olimpíadas da área. Como embaixadora, espero compartilhar oportunidades e conhecimento para mais estudantes, como aconteceu comigo!",
     skills: [], colorA: '#F59E0B', colorB: '#D97706',
-    photo: "https://gcdnb.pbrd.co/images/zrkbYiP3GUhO.png?o=1"
+    photo: "https://i.postimg.cc/PqqpMZhk/leticiasetubal.jpg"
   }, 
 
 ]
