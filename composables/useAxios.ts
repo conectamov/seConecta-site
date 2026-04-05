@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { useRoute } from 'vue-router'
+import { navigateTo } from 'nuxt/app'
 
 const BASE_URL = 'https://api.seconecta.org/api/v1'
 
@@ -19,11 +21,17 @@ axiosInstance.interceptors.request.use((cfg) => {
 axiosInstance.interceptors.response.use(
   (res) => res,
   async (err) => {
+    
     if (err.response?.status === 401 && import.meta.client) {
       localStorage.removeItem('conecta_token')
       localStorage.removeItem('conecta_token_expiry')
       localStorage.removeItem('conecta_user')
-      window.location.href = '/login'
+
+      const route = useRoute()
+
+      if (route.meta.requiresAuth) {
+        navigateTo('/login')
+      }
     }
     return Promise.reject(err)
   }
