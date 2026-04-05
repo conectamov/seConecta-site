@@ -11,7 +11,7 @@ const form = ref({
   excerpt: '',
   cover_url: '',
   tags: [] as string[],
-  deadline: '' // 👈 campo novo (string vazia = não definido)
+  deadline: ''
 })
 const tagInput = ref('')
 const submitting = ref(false)
@@ -20,6 +20,32 @@ const success = ref(false)
 const activeTab = ref<'write' | 'preview'>('write')
 const errors = ref<Record<string, string>>({})
 const activeGuide = ref<number | null>(null)
+const hasDraft = ref(false)
+
+// Restaura rascunho ao abrir
+onMounted(() => {
+  const saved = localStorage.getItem('new-post-draft')
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved)
+      if (parsed.title || parsed.content_md) {
+        Object.assign(form.value, parsed)
+        hasDraft.value = true
+      }
+    } catch {}
+  }
+})
+
+// Salva rascunho sempre que o form mudar
+watch(form, (val) => {
+  localStorage.setItem('new-post-draft', JSON.stringify(val))
+}, { deep: true })
+
+function discardDraft() {
+  form.value = { title: '', content_md: '', excerpt: '', cover_url: '', tags: [], deadline: '' }
+  localStorage.removeItem('new-post-draft')
+  hasDraft.value = false
+}
 
 function slugify(text: string) {
   return text.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
@@ -44,22 +70,17 @@ function validate() {
   else if (form.value.title.length > 256) errors.value.title = 'Máximo 256 caracteres.'
   if (!form.value.content_md.trim()) errors.value.content_md = 'O conteúdo é obrigatório.'
   if (form.value.cover_url && !/^https?:\/\/.+/.test(form.value.cover_url)) errors.value.cover_url = 'URL inválida.'
-
-  // Validação do deadline (se preenchido)
   if (form.value.deadline) {
     const deadlineDate = new Date(form.value.deadline)
-    if (isNaN(deadlineDate.getTime())) {
-      errors.value.deadline = 'Data inválida.'
-    }
+    if (isNaN(deadlineDate.getTime())) errors.value.deadline = 'Data inválida.'
   }
-
   return !Object.keys(errors.value).length
 }
 
 watch(() => form.value.title, () => delete errors.value.title)
 watch(() => form.value.content_md, () => delete errors.value.content_md)
 watch(() => form.value.cover_url, () => delete errors.value.cover_url)
-watch(() => form.value.deadline, () => delete errors.value.deadline) // 👈 limpa erro ao editar
+watch(() => form.value.deadline, () => delete errors.value.deadline)
 
 const wordCount = computed(() => form.value.content_md.trim().split(/\s+/).filter(Boolean).length)
 const readTime = computed(() => Math.max(1, Math.ceil(wordCount.value / 200)))
@@ -84,10 +105,11 @@ async function handleSubmit() {
   if (form.value.excerpt.trim()) payload.excerpt = form.value.excerpt.trim()
   if (form.value.cover_url.trim()) payload.cover_url = form.value.cover_url.trim()
   if (form.value.tags.length) payload.tags = form.value.tags
-  if (form.value.deadline) payload.deadline = form.value.deadline // 👈 envia como string (ex: "2025-12-31T23:59")
+  if (form.value.deadline) payload.deadline = form.value.deadline
 
   try {
     await apiPost('/posts/', payload)
+    localStorage.removeItem('new-post-draft') // 👈 limpa o rascunho após publicar
     success.value = true
     setTimeout(() => router.push('/feed'), 2500)
   } catch (err: any) {
@@ -135,6 +157,19 @@ const topics = [
 
     <!-- Editor principal -->
     <main class="flex-1 min-w-0">
+
+      <!-- Aviso de rascunho salvo -->
+      <Transition name="slide-fade">
+        <div v-if="hasDraft" class="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-[0.8rem] flex items-center justify-between gap-3">
+          <span>📝 Rascunho restaurado automaticamente.</span>
+          <button
+            class="text-amber-500 hover:text-red-500 text-[0.75rem] underline bg-transparent border-none cursor-pointer whitespace-nowrap"
+            @click="discardDraft">
+            Descartar
+          </button>
+        </div>
+      </Transition>
+
       <!-- Sucesso -->
       <Transition name="slide-fade">
         <div v-if="success" class="mb-6 p-5 rounded-2xl bg-[#f0faf7] border border-[#079272]/20 flex items-start gap-3">
@@ -218,7 +253,7 @@ const topics = [
               class="w-full px-4 py-2.5 rounded-xl border border-[#e8e4dc] text-[0.85rem] outline-none focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15 resize-none transition-all"></textarea>
           </div>
 
-          <!-- 👇 NOVO CAMPO DE DEADLINE -->
+          <!-- Deadline -->
           <div>
             <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">
               Data limite <span class="text-[#bbb] font-normal">(opcional)</span>
