@@ -86,6 +86,12 @@ const teamEmb = [
     skills: [], colorA: '#F59E0B', colorB: '#D97706',
     photo: "https://i.postimg.cc/PqqpMZhk/leticiasetubal.jpg"
   }, 
+  {
+    id: 10, name: 'Miguel Arthur', role: 'Embaixadora',
+    description: "Olá, pessoal! Eu me sou Miguel, natural de Fortaleza, Ceará. Minha jornada nas olimpíadas começou quando estava na minha 4° série do fundamental, quando conheci a obmep. Desde lá venho seguindo nessa jornada. Sou apaixonado por aprender e de viajar ao redor do mundo através das oportunidades acadêmicas. Espero contribuir na divulgação de oportunidades ao redor do mundo para estudantes, ajundando milhares de pessoas a realizar seus sonhos.",
+    skills: [], colorA: '#F59E0B', colorB: '#D97706',
+    photo: "https://i.postimg.cc/kMv0VH4f/miguelarthur.jpg"
+  }, 
 
 ]
 
