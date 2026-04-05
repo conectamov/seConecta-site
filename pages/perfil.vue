@@ -9,20 +9,26 @@ const { currentUser, fetchMe, logout, isAuthenticated } = useAuth()
 const activeTab = ref('info')
 
 // ── Country definitions ───────────────────────────────────────────────────────
+// localDigitsRange: [min, max] count of LOCAL digits (no country code).
+// BR landline: DDD(2) + 8 = 10. BR mobile: DDD(2) + 9 = 11.
+// US/AR/MX/CO: area(3) + 7 = 10. PT: 9 digits flat.
 const COUNTRIES = [
-  { code: 'BR', flag: '🇧🇷', dial: '55',  placeholder: '(38) 98825-2013', minDigits: 12 },
-  { code: 'US', flag: '🇺🇸', dial: '1',   placeholder: '(555) 867-5309',  minDigits: 11 },
-  { code: 'PT', flag: '🇵🇹', dial: '351', placeholder: '912 345 678',     minDigits: 12 },
-  { code: 'AR', flag: '🇦🇷', dial: '54',  placeholder: '(11) 2345-6789',  minDigits: 12 },
-  { code: 'MX', flag: '🇲🇽', dial: '52',  placeholder: '(55) 1234-5678',  minDigits: 12 },
-  { code: 'CO', flag: '🇨🇴', dial: '57',  placeholder: '(300) 123-4567',  minDigits: 12 },
+  { code: 'BR', flag: '🇧🇷', dial: '55',  placeholder: '(38) 98825-2013', localDigitsRange: [10, 11] as [number, number] },
+  { code: 'US', flag: '🇺🇸', dial: '1',   placeholder: '(555) 867-5309',  localDigitsRange: [10, 10] as [number, number] },
+  { code: 'PT', flag: '🇵🇹', dial: '351', placeholder: '912 345 678',     localDigitsRange: [9,  9]  as [number, number] },
+  { code: 'AR', flag: '🇦🇷', dial: '54',  placeholder: '(11) 2345-6789',  localDigitsRange: [10, 10] as [number, number] },
+  { code: 'MX', flag: '🇲🇽', dial: '52',  placeholder: '(55) 1234-5678',  localDigitsRange: [10, 10] as [number, number] },
+  { code: 'CO', flag: '🇨🇴', dial: '57',  placeholder: '(300) 123-4567',  localDigitsRange: [10, 10] as [number, number] },
 ]
 
 const phoneCountry    = ref('BR')
 const phoneDisplay    = ref('')
 const selectedCountry = computed(() => COUNTRIES.find(c => c.code === phoneCountry.value) ?? COUNTRIES[0])
 
-// ── Máscaras e conversão (mesmo código original) ─────────────────────────────
+// ── Local digit count (pure helper, no side-effects) ─────────────────────────
+const localDigitCount = computed(() => phoneDisplay.value.replace(/\D/g, '').length)
+
+// ── Máscaras ──────────────────────────────────────────────────────────────────
 function maskDigits(digits: string, country: string): string {
   const d = digits.replace(/\D/g, '')
   if (!d) return ''
@@ -46,81 +52,74 @@ function maskDigits(digits: string, country: string): string {
   return d
 }
 
+// ── E164 builder ─────────────────────────────────────────────────────────────
+// Builds the E164 string from whatever the user has typed so far.
+// Always returns a string (possibly partial/invalid); validation is in phoneError.
+// Returns '' only when the field is completely empty.
 function buildE164(): string {
-  const c = selectedCountry.value
-  let digits = phoneDisplay.value.replace(/\D/g, '')
-  if (!digits) return ''
-
-  // Brasil: preserve o número exatamente como foi digitado,
-  // só removendo um 55 duplicado se o usuário já tiver colado o país junto.
-  if (c.code === 'BR') {
-    // Se o usuário digitou o país junto, tira uma única vez
-    if (digits.startsWith('55') && digits.length > 11) {
-      digits = digits.slice(2)
-    }
-
-    // Para BR, o número final deve ficar com DDD + número local
-    // 10 dígitos = fixo (DDD + 8)
-    // 11 dígitos = celular (DDD + 9)
-    if (digits.length === 10 || digits.length === 11) {
-      return `+55${digits}`
-    }
-
-    return ''
-  }
-
-  const dial = c.dial.startsWith('+') ? c.dial : `+${c.dial}`
-  return `${dial}${digits}`
+  const c          = selectedCountry.value
+  const localDigits = phoneDisplay.value.replace(/\D/g, '')
+  if (!localDigits) return ''
+  return `+${c.dial}${localDigits}`
 }
 
-function storedToDisplay(raw: string): { country: string; display: string } {
-  if (!raw) return { country: 'BR', display: '' }
-  const digits = raw.replace(/\D/g, '')
-  const sorted = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length)
-  for (const c of sorted) {
-    if (digits.startsWith(c.dial)) {
-      const local = digits.slice(c.dial.length)
-      return { country: c.code, display: maskDigits(local, c.code) }
-    }
-  }
-  return { country: 'BR', display: maskDigits(digits.slice(2), 'BR') }
-}
-
-const willStripNine = computed(() => {
-  if (phoneCountry.value !== 'BR') return false
-  const d     = phoneDisplay.value.replace(/\D/g, '')
-  const local = d.slice(2)
-  return local.length === 9 && local.startsWith('9')
+// ── Phone error – validated against localDigitsRange ─────────────────────────
+// Shows nothing while the field is empty; only fires once the user has typed.
+const phoneError = computed((): string | null => {
+  if (!phoneDisplay.value.trim()) return null
+  const count        = localDigitCount.value
+  const [min, max]   = selectedCountry.value.localDigitsRange
+  if (count < min)   return `Número incompleto. São necessários ${min === max ? min : `${min}–${max}`} dígitos locais.`
+  if (count > max)   return `Número muito longo. Máximo ${max} dígitos locais.`
+  return null
 })
 
+// ── Derived phone state ───────────────────────────────────────────────────────
 const phoneE164Form = computed(() => buildE164())
 const savedPhone    = computed(() => currentUser.value?.phone ?? '')
 const isLinked      = computed(() => currentUser.value?.linked ?? false)
 const phoneUnsaved  = computed(() => phoneE164Form.value !== savedPhone.value)
 
-const phoneError = computed(() => {
-  const e164 = phoneE164Form.value
-  if (!e164) return null
-  const expected = selectedCountry.value.minDigits
-  if (e164.length !== expected) {
-    return `Número incompleto. Deve ter ${expected - selectedCountry.value.dial.length} dígitos após o código do país.`
-  }
-  return null
+// True when the user is typing a 9-digit BR mobile (informational only)
+const willStripNine = computed(() => {
+  if (phoneCountry.value !== 'BR') return false
+  const d = phoneDisplay.value.replace(/\D/g, '') // local digits: DDD + number
+  return d.length === 11 && d[2] === '9'
 })
 
 function onPhoneInput(e: Event) {
   const raw    = (e.target as HTMLInputElement).value
   const digits = raw.replace(/\D/g, '')
-  const max = phoneCountry.value === 'BR' ? 11 : 13
+  const max    = selectedCountry.value.localDigitsRange[1]
   phoneDisplay.value = maskDigits(digits.slice(0, max), phoneCountry.value)
 }
 
 watch(phoneCountry, (newCountry) => {
   const digits = phoneDisplay.value.replace(/\D/g, '')
-  phoneDisplay.value = maskDigits(digits, newCountry)
+  const max    = COUNTRIES.find(c => c.code === newCountry)?.localDigitsRange[1] ?? 11
+  phoneDisplay.value = maskDigits(digits.slice(0, max), newCountry)
 })
 
-// ── Info form (with new fields) ──────────────────────────────────────────────
+// ── Stored E164 → display ────────────────────────────────────────────────────
+// Strips the country prefix from a stored "+CC..." string and re-masks locally.
+function storedToDisplay(raw: string): { country: string; display: string } {
+  if (!raw) return { country: 'BR', display: '' }
+  // Normalise: strip leading + or non-digits
+  const digits = raw.replace(/\D/g, '')
+  // Match longest dial code first to avoid partial matches (e.g. '1' vs '54')
+  const sorted = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length)
+  for (const c of sorted) {
+    if (digits.startsWith(c.dial)) {
+      const local = digits.slice(c.dial.length)
+      const max   = c.localDigitsRange[1]
+      return { country: c.code, display: maskDigits(local.slice(0, max), c.code) }
+    }
+  }
+  // Fallback: treat as bare BR local number
+  return { country: 'BR', display: maskDigits(digits.slice(0, 11), 'BR') }
+}
+
+// ── Info form ─────────────────────────────────────────────────────────────────
 const infoForm = ref({
   full_name: '', email: '', birthdate: '',
   public_title: '', bio: '', location: '',
@@ -139,7 +138,7 @@ const infoError   = ref<string | null>(null)
 const interestInput = ref('')
 const interests     = ref<string[]>([])
 
-// ── Social link normalisation ────────────────────────────────────────────────
+// ── Social link normalisation ─────────────────────────────────────────────────
 function normalizeInstagram(input: string): string {
   if (!input) return ''
   let url = input.trim()
@@ -182,21 +181,22 @@ function syncInfoForm(u: any) {
   phoneCountry.value = parsed.country
   phoneDisplay.value = parsed.display
 
+  // Snapshot for dirty-checking (use E164 so format changes don't trigger)
   originalInfo.value = {
-    full_name: infoForm.value.full_name,
-    email: infoForm.value.email,
-    birthdate: infoForm.value.birthdate,
-    public_title: infoForm.value.public_title,
-    bio: infoForm.value.bio,
-    location: infoForm.value.location,
+    full_name:           infoForm.value.full_name,
+    email:               infoForm.value.email,
+    birthdate:           infoForm.value.birthdate,
+    public_title:        infoForm.value.public_title,
+    bio:                 infoForm.value.bio,
+    location:            infoForm.value.location,
     profile_picture_url: infoForm.value.profile_picture_url,
-    opportunities: infoForm.value.opportunities,
-    interests: [...interests.value],
-    phone: phoneE164Form.value,
-    username: infoForm.value.username,
-    organization: infoForm.value.organization,
-    instagram: infoForm.value.instagram,
-    linkedin: infoForm.value.linkedin,
+    opportunities:       infoForm.value.opportunities,
+    interests:           [...interests.value],
+    phone:               phoneE164Form.value,
+    username:            infoForm.value.username,
+    organization:        infoForm.value.organization,
+    instagram:           infoForm.value.instagram,
+    linkedin:            infoForm.value.linkedin,
   }
 }
 watch(currentUser, syncInfoForm, { immediate: true })
@@ -212,76 +212,74 @@ function removeInterest(tag: string) {
   interests.value = interests.value.filter(t => t !== tag)
 }
 
-// ── Validation (inclui telefone, username, social links) ─────────────────────
+// ── Validation ────────────────────────────────────────────────────────────────
 function validateInfo() {
   infoErrors.value = {}
-  if (!infoForm.value.email.trim()) infoErrors.value.email = 'Email é obrigatório.'
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(infoForm.value.email)) infoErrors.value.email = 'Email inválido.'
-  if (infoForm.value.full_name.length > 255) infoErrors.value.full_name = 'Máximo 255 caracteres.'
-  if (infoForm.value.bio.length > 500) infoErrors.value.bio = 'Máximo 500 caracteres.'
-
-  if (infoForm.value.username && !/^[a-zA-Z0-9_]{3,30}$/.test(infoForm.value.username)) {
-    infoErrors.value.username = 'Usuário deve ter 3-30 caracteres, apenas letras, números e underscore.'
-  }
-
-  if (infoForm.value.instagram && !/^https?:\/\/(www\.)?instagram\.com\/[^\/]+$/.test(normalizeInstagram(infoForm.value.instagram))) {
+  if (!infoForm.value.email.trim())
+    infoErrors.value.email = 'Email é obrigatório.'
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(infoForm.value.email))
+    infoErrors.value.email = 'Email inválido.'
+  if (infoForm.value.full_name.length > 255)
+    infoErrors.value.full_name = 'Máximo 255 caracteres.'
+  if (infoForm.value.bio.length > 500)
+    infoErrors.value.bio = 'Máximo 500 caracteres.'
+  if (infoForm.value.username && !/^[a-zA-Z0-9_]{3,30}$/.test(infoForm.value.username))
+    infoErrors.value.username = 'Usuário deve ter 3–30 caracteres: letras, números ou underscore.'
+  if (infoForm.value.instagram && !/^https?:\/\/(www\.)?instagram\.com\/[^/]+\/?$/.test(normalizeInstagram(infoForm.value.instagram)))
     infoErrors.value.instagram = 'URL do Instagram inválida.'
-  }
-  if (infoForm.value.linkedin && !/^https?:\/\/(www\.)?linkedin\.com\/in\/[^\/]+$/.test(normalizeLinkedIn(infoForm.value.linkedin))) {
+  if (infoForm.value.linkedin && !/^https?:\/\/(www\.)?linkedin\.com\/in\/[^/]+\/?$/.test(normalizeLinkedIn(infoForm.value.linkedin)))
     infoErrors.value.linkedin = 'URL do LinkedIn inválida.'
-  }
 
-  if (phoneE164Form.value && phoneError.value) {
+  // Phone: only validate if the user actually typed something
+  if (phoneDisplay.value.trim() && phoneError.value)
     infoErrors.value.phone = phoneError.value
-  }
 
   return !Object.keys(infoErrors.value).length
 }
 
-// ── infoChanged (comparação com snapshot original) ────────────────────────────
+// ── Dirty check ───────────────────────────────────────────────────────────────
 const infoChanged = computed(() => {
   if (!currentUser.value) return false
-
   const current = {
-    full_name: infoForm.value.full_name,
-    email: infoForm.value.email,
-    birthdate: infoForm.value.birthdate,
-    public_title: infoForm.value.public_title,
-    bio: infoForm.value.bio,
-    location: infoForm.value.location,
+    full_name:           infoForm.value.full_name,
+    email:               infoForm.value.email,
+    birthdate:           infoForm.value.birthdate,
+    public_title:        infoForm.value.public_title,
+    bio:                 infoForm.value.bio,
+    location:            infoForm.value.location,
     profile_picture_url: infoForm.value.profile_picture_url,
-    opportunities: infoForm.value.opportunities,
-    interests: [...interests.value].sort(),
-    phone: phoneE164Form.value,
-    username: infoForm.value.username,
-    organization: infoForm.value.organization,
-    instagram: infoForm.value.instagram,
-    linkedin: infoForm.value.linkedin,
+    opportunities:       infoForm.value.opportunities,
+    interests:           [...interests.value].sort(),
+    phone:               phoneE164Form.value,
+    username:            infoForm.value.username,
+    organization:        infoForm.value.organization,
+    instagram:           infoForm.value.instagram,
+    linkedin:            infoForm.value.linkedin,
   }
   const original = {
-    full_name: originalInfo.value.full_name ?? '',
-    email: originalInfo.value.email ?? '',
-    birthdate: originalInfo.value.birthdate ?? '',
-    public_title: originalInfo.value.public_title ?? '',
-    bio: originalInfo.value.bio ?? '',
-    location: originalInfo.value.location ?? '',
+    full_name:           originalInfo.value.full_name           ?? '',
+    email:               originalInfo.value.email               ?? '',
+    birthdate:           originalInfo.value.birthdate           ?? '',
+    public_title:        originalInfo.value.public_title        ?? '',
+    bio:                 originalInfo.value.bio                 ?? '',
+    location:            originalInfo.value.location            ?? '',
     profile_picture_url: originalInfo.value.profile_picture_url ?? '',
-    opportunities: originalInfo.value.opportunities ?? false,
-    interests: [...(originalInfo.value.interests ?? [])].sort(),
-    phone: originalInfo.value.phone ?? '',
-    username: originalInfo.value.username ?? '',
-    organization: originalInfo.value.organization ?? '',
-    instagram: originalInfo.value.instagram ?? '',
-    linkedin: originalInfo.value.linkedin ?? '',
+    opportunities:       originalInfo.value.opportunities       ?? false,
+    interests:           [...(originalInfo.value.interests ?? [])].sort(),
+    phone:               originalInfo.value.phone               ?? '',
+    username:            originalInfo.value.username            ?? '',
+    organization:        originalInfo.value.organization        ?? '',
+    instagram:           originalInfo.value.instagram           ?? '',
+    linkedin:            originalInfo.value.linkedin            ?? '',
   }
-
   return JSON.stringify(current) !== JSON.stringify(original)
 })
 
-// ── Save info (inclui novos campos) ──────────────────────────────────────────
+// ── Save info ─────────────────────────────────────────────────────────────────
 async function saveInfo() {
   if (!validateInfo()) return
   infoSaving.value = true; infoError.value = null; infoSuccess.value = false
+
   const payload: Record<string, any> = {
     email:         infoForm.value.email.trim(),
     interests:     interests.value,
@@ -293,55 +291,54 @@ async function saveInfo() {
   if (infoForm.value.bio.trim())                 payload.bio                 = infoForm.value.bio.trim()
   if (infoForm.value.location.trim())            payload.location            = infoForm.value.location.trim()
   if (infoForm.value.profile_picture_url.trim()) payload.profile_picture_url = infoForm.value.profile_picture_url.trim()
-  if (phoneE164Form.value && !phoneError.value)  payload.phone               = phoneE164Form.value
   if (infoForm.value.username.trim())            payload.username            = infoForm.value.username.trim()
   if (infoForm.value.organization.trim())        payload.organization        = infoForm.value.organization.trim()
   if (infoForm.value.instagram.trim())           payload.instagram           = normalizeInstagram(infoForm.value.instagram)
   if (infoForm.value.linkedin.trim())            payload.linkedin            = normalizeLinkedIn(infoForm.value.linkedin)
 
+  // Only include phone if the user typed something valid and without errors
+  if (phoneDisplay.value.trim() && !phoneError.value && phoneE164Form.value)
+    payload.phone = phoneE164Form.value
+
   try {
     await patch('/users/me', payload)
     await fetchMe()
     originalInfo.value = {
-      full_name: infoForm.value.full_name,
-      email: infoForm.value.email,
-      birthdate: infoForm.value.birthdate,
-      public_title: infoForm.value.public_title,
-      bio: infoForm.value.bio,
-      location: infoForm.value.location,
+      full_name:           infoForm.value.full_name,
+      email:               infoForm.value.email,
+      birthdate:           infoForm.value.birthdate,
+      public_title:        infoForm.value.public_title,
+      bio:                 infoForm.value.bio,
+      location:            infoForm.value.location,
       profile_picture_url: infoForm.value.profile_picture_url,
-      opportunities: infoForm.value.opportunities,
-      interests: [...interests.value],
-      phone: phoneE164Form.value,
-      username: infoForm.value.username,
-      organization: infoForm.value.organization,
-      instagram: infoForm.value.instagram,
-      linkedin: infoForm.value.linkedin,
+      opportunities:       infoForm.value.opportunities,
+      interests:           [...interests.value],
+      phone:               phoneE164Form.value,
+      username:            infoForm.value.username,
+      organization:        infoForm.value.organization,
+      instagram:           infoForm.value.instagram,
+      linkedin:            infoForm.value.linkedin,
     }
     infoSuccess.value = true
     setTimeout(() => { infoSuccess.value = false }, 3000)
   } catch (e: any) {
-    if (e?.response?.status === 429) {
+    if (e?.response?.status === 429)
       infoError.value = 'Você fez muitas alterações em pouco tempo. Tente novamente em alguns minutos.'
-    } else if (e?.response?.status === 409) {
+    else if (e?.response?.status === 409)
       infoError.value = 'Email, usuário ou número de telefone já em uso.'
-    } else if (e?.response?.status === 404) {
+    else if (e?.response?.status === 404)
       infoError.value = 'Número de telefone não existe ou não está cadastrado no WhatsApp.'
-    } else {
+    else
       infoError.value = 'Erro ao salvar. Tente novamente.'
-    }
   } finally {
     infoSaving.value = false
   }
 }
 
-// ── Auto-save do toggle de newsletter (idêntico ao original) ─────────────────
+// ── Auto-save newsletter toggle ───────────────────────────────────────────────
 let updatingOpportunities = false
 watch(() => infoForm.value.opportunities, async (newVal, oldVal) => {
-  if (updatingOpportunities) return
-  if (newVal === oldVal) return
-  if (!currentUser.value) return
-
+  if (updatingOpportunities || newVal === oldVal || !currentUser.value) return
   updatingOpportunities = true
   try {
     await patch('/users/me', { opportunities: newVal })
@@ -358,7 +355,7 @@ watch(() => infoForm.value.opportunities, async (newVal, oldVal) => {
   }
 })
 
-// ── WhatsApp verification (idêntico ao original) ─────────────────────────────
+// ── WhatsApp verification ─────────────────────────────────────────────────────
 const verifying        = ref(false)
 const verifySuccess    = ref(false)
 const verifyError      = ref<string | null>(null)
@@ -449,10 +446,14 @@ watch(() => pwForm.value.new_password,     () => delete pwErrors.value.new_passw
 watch(() => pwForm.value.confirm_password, () => delete pwErrors.value.confirm_password)
 function validatePw() {
   pwErrors.value = {}
-  if (!pwForm.value.current_password) pwErrors.value.current_password = 'Senha atual é obrigatória.'
-  if (!pwForm.value.new_password || pwForm.value.new_password.length < 8) pwErrors.value.new_password = 'Mínimo 8 caracteres.'
-  else if (pwForm.value.new_password.length > 128) pwErrors.value.new_password = 'Máximo 128 caracteres.'
-  if (pwForm.value.new_password !== pwForm.value.confirm_password) pwErrors.value.confirm_password = 'As senhas não coincidem.'
+  if (!pwForm.value.current_password)
+    pwErrors.value.current_password = 'Senha atual é obrigatória.'
+  if (!pwForm.value.new_password || pwForm.value.new_password.length < 8)
+    pwErrors.value.new_password = 'Mínimo 8 caracteres.'
+  else if (pwForm.value.new_password.length > 128)
+    pwErrors.value.new_password = 'Máximo 128 caracteres.'
+  if (pwForm.value.new_password !== pwForm.value.confirm_password)
+    pwErrors.value.confirm_password = 'As senhas não coincidem.'
   return !Object.keys(pwErrors.value).length
 }
 async function savePassword() {
@@ -467,7 +468,9 @@ async function savePassword() {
     pwForm.value = { current_password: '', new_password: '', confirm_password: '' }
     setTimeout(() => { pwSuccess.value = false }, 4000)
   } catch (e: any) {
-    pwError.value = e?.response?.status === 400 ? 'Senha atual incorreta.' : 'Erro ao alterar senha. Tente novamente.'
+    pwError.value = e?.response?.status === 400
+      ? 'Senha atual incorreta.'
+      : 'Erro ao alterar senha. Tente novamente.'
   } finally {
     pwSaving.value = false
   }
@@ -475,8 +478,10 @@ async function savePassword() {
 const pwStrength = computed(() => {
   const p = pwForm.value.new_password; if (!p) return 0
   let score = 0
-  if (p.length >= 8)       score++; if (p.length >= 12)     score++
-  if (/[A-Z]/.test(p))     score++; if (/[0-9]/.test(p))    score++
+  if (p.length >= 8)          score++
+  if (p.length >= 12)         score++
+  if (/[A-Z]/.test(p))        score++
+  if (/[0-9]/.test(p))        score++
   if (/[^A-Za-z0-9]/.test(p)) score++
   return score
 })
@@ -740,7 +745,6 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                         class="ml-1.5 normal-case font-medium text-[0.62rem] px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-full border border-amber-200 align-middle">não verificado</span>
                     </label>
 
-                    <!-- Single smart input with country selector -->
                     <div class="flex gap-1.5">
                       <select v-model="phoneCountry"
                         class="h-11 px-2 text-sm bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] transition-all cursor-pointer flex-shrink-0">
@@ -751,19 +755,19 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                         @input="onPhoneInput"
                         type="tel"
                         :placeholder="selectedCountry.placeholder"
-                        class="flex-1 h-11 px-3 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all min-w-0"
+                        class="flex-1 h-11 px-3 text-sm text-[#111] bg-[#f7f5f0] border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all min-w-0"
+                        :class="phoneError ? 'border-red-400' : 'border-transparent'"
                       />
                     </div>
-
-                    <!-- Exibição do erro de telefone -->
                     <p v-if="phoneError" class="text-red-500 text-xs mt-1">{{ phoneError }}</p>
+                    <p v-else-if="infoErrors.phone" class="text-red-500 text-xs mt-1">{{ infoErrors.phone }}</p>
                   </div>
                 </div>
 
                 <!-- ── Bloco de verificação WhatsApp ──────────────────────────────────────── -->
                 <div class="clear-both mt-4">
-                  <!-- Caso 1: nenhum número em lugar algum -->
-                  <div v-if="!savedPhone && !phoneE164Form"
+                  <!-- Caso 1: nenhum número digitado ou salvo -->
+                  <div v-if="!savedPhone && !phoneDisplay.trim()"
                     class="flex items-start gap-3 bg-[#f7f5f0] border border-[#e8e4dc] rounded-xl px-4 py-3.5">
                     <div class="w-8 h-8 rounded-lg bg-[#e8e4dc] flex items-center justify-center flex-shrink-0 mt-0.5">
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.07 1.18 2 2 0 012.04 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.07 7.91a16 16 0 006.02 6.02l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
@@ -774,8 +778,8 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                     </div>
                   </div>
 
-                  <!-- Caso 2: número digitado mas não salvo -->
-                  <div v-else-if="phoneUnsaved && phoneE164Form"
+                  <!-- Caso 2: número digitado mas não salvo (ou mudou) -->
+                  <div v-else-if="phoneUnsaved && phoneDisplay.trim() && !phoneError"
                     class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5">
                     <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -839,9 +843,8 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                 </div>
                 <!-- ── fim verificação ──────────────────────────────────── -->
 
-                <!-- Nascimento + New fields -->
+                <!-- Username + Organization + Social links + Birthdate -->
                 <div class="grid grid-cols-1 gap-4">
-                  <!-- Row 1: Username + Organization -->
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">Usuário</label>
@@ -857,7 +860,6 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                     </div>
                   </div>
 
-                  <!-- Row 2: Instagram + LinkedIn -->
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">Instagram</label>
@@ -875,7 +877,6 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                     </div>
                   </div>
 
-                  <!-- Row 3: Birthdate (single column) -->
                   <div>
                     <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">Data de nascimento</label>
                     <input v-model="infoForm.birthdate" type="date"
@@ -883,36 +884,6 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                   </div>
                 </div>
 
-                <!-- Interesses
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">
-                    Interesses <span class="text-[#ccc] normal-case font-normal">({{ interests.length }}/10)</span>
-                  </label>
-                  <div v-if="interests.length" class="flex flex-wrap gap-1.5 mb-2">
-                    <span v-for="tag in interests" :key="tag"
-                      class="inline-flex items-center gap-1 text-[0.72rem] font-medium px-2.5 py-1 bg-[#f0faf7] border border-[#c5e8df] text-[#079272] rounded-full">
-                      #{{ tag }}
-                      <button type="button"
-                        class="w-3.5 h-3.5 rounded-full bg-[#c5e8df] hover:bg-red-100 hover:text-red-500 flex items-center justify-center border-none cursor-pointer transition-colors flex-shrink-0 ml-0.5"
-                        :title="`Remover ${tag}`" @click.stop="removeInterest(tag)">
-                        <svg width="7" height="7" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8">
-                          <line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/>
-                        </svg>
-                      </button>
-                    </span>
-                  </div>
-                  <div class="flex gap-2">
-                    <input v-model="interestInput" type="text" placeholder="Ex: tecnologia, saúde, finanças"
-                      class="flex-1 h-10 px-3 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"
-                      :disabled="interests.length >= 10"
-                      @keydown.enter.prevent="addInterest" @keydown.188.prevent="addInterest"/>
-                    <button type="button"
-                      class="h-10 px-4 text-sm font-semibold bg-[#f7f5f0] text-[#555] hover:bg-[#e8e4dc] rounded-xl border-none cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      :disabled="!interestInput.trim() || interests.length >= 10" @click="addInterest">+ Adicionar</button>
-                  </div>
-                  <p class="text-[0.68rem] text-[#bbb] mt-1">Pressione Enter ou vírgula para adicionar. Usado para personalizar seu feed.</p>
-                </div>
-              -->
                 <!-- Feedbacks -->
                 <div v-if="infoSuccess" class="flex items-center gap-2 text-[0.82rem] text-[#079272] font-medium">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
