@@ -108,6 +108,11 @@ const teamTech = [
     skills: ['Python', 'FastAPI'], colorA: '#079272', colorB: '#0DA790',
     photo: "https://media.licdn.com/dms/image/v2/D4D03AQEI3BbKYT6W8A/profile-displayphoto-shrink_400_400/B4DZbwW.bWGwAg-/0/1747789279403?e=1776902400&v=beta&t=WEyCxgaEkjE2hGZIeIi6M0l148Or4pgbuGjP4amb2PI"
   },
+  {
+    id: 3, name: 'Augustus Araújo', role: 'Dev Backend',
+    colorA: '#079272', colorB: '#0DA790',
+    photo: "https://media.licdn.com/dms/image/v2/D4E03AQE-BWIr_02HaA/profile-displayphoto-shrink_200_200/B4EZWKkr9uHUAc-/0/1741786628388?e=1776902400&v=beta&t=xpxNhSJEzWkCSfHijHyEJRTvbJgIJtZiBh62GApbLFM"
+  }
 ]
 
 </script>
