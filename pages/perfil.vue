@@ -876,7 +876,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                   </div>
                 </div>
 
-                <!-- Interesses -->
+                <!-- Interesses
                 <div>
                   <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">
                     Interesses <span class="text-[#ccc] normal-case font-normal">({{ interests.length }}/10)</span>
@@ -905,7 +905,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                   </div>
                   <p class="text-[0.68rem] text-[#bbb] mt-1">Pressione Enter ou vírgula para adicionar. Usado para personalizar seu feed.</p>
                 </div>
-
+              -->
                 <!-- Feedbacks -->
                 <div v-if="infoSuccess" class="flex items-center gap-2 text-[0.82rem] text-[#079272] font-medium">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
