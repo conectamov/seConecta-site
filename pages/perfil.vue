@@ -47,17 +47,30 @@ function maskDigits(digits: string, country: string): string {
 }
 
 function buildE164(): string {
-  const c      = selectedCountry.value
-  const digits = phoneDisplay.value.replace(/\D/g, '')
+  const c = selectedCountry.value
+  let digits = phoneDisplay.value.replace(/\D/g, '')
   if (!digits) return ''
+
+  // Brasil: preserve o número exatamente como foi digitado,
+  // só removendo um 55 duplicado se o usuário já tiver colado o país junto.
   if (c.code === 'BR') {
-    const area  = digits.slice(0, 2)
-    let   local = digits.slice(2)
-    if (local.length === 9 && local.startsWith('9')) local = local.slice(1)
-    if (!local) return ''
-    return `${c.dial}${area}${local}`
+    // Se o usuário digitou o país junto, tira uma única vez
+    if (digits.startsWith('55') && digits.length > 11) {
+      digits = digits.slice(2)
+    }
+
+    // Para BR, o número final deve ficar com DDD + número local
+    // 10 dígitos = fixo (DDD + 8)
+    // 11 dígitos = celular (DDD + 9)
+    if (digits.length === 10 || digits.length === 11) {
+      return `+55${digits}`
+    }
+
+    return ''
   }
-  return `${c.dial}${digits}`
+
+  const dial = c.dial.startsWith('+') ? c.dial : `+${c.dial}`
+  return `${dial}${digits}`
 }
 
 function storedToDisplay(raw: string): { country: string; display: string } {
@@ -741,12 +754,6 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                         class="flex-1 h-11 px-3 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all min-w-0"
                       />
                     </div>
-
-                    <!-- 9-stripping notice -->
-                    <p v-if="willStripNine" class="text-[0.68rem] text-[#999] mt-1.5 flex items-center gap-1">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                      O 9 inicial será removido ao salvar — formato esperado pelo bot.
-                    </p>
 
                     <!-- Exibição do erro de telefone -->
                     <p v-if="phoneError" class="text-red-500 text-xs mt-1">{{ phoneError }}</p>
