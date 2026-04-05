@@ -12,15 +12,6 @@ const activeTab = ref('info')
 // localDigitsRange: [min, max] count of LOCAL digits (no country code).
 // BR landline: DDD(2) + 8 = 10. BR mobile: DDD(2) + 9 = 11.
 // US/AR/MX/CO: area(3) + 7 = 10. PT: 9 digits flat.
-const COUNTRIES = [
-  { code: 'BR', flag: '🇧🇷', dial: '55',  placeholder: '(38) 98825-2013', localDigitsRange: [10, 11] as [number, number] },
-  { code: 'US', flag: '🇺🇸', dial: '1',   placeholder: '(555) 867-5309',  localDigitsRange: [10, 10] as [number, number] },
-  { code: 'PT', flag: '🇵🇹', dial: '351', placeholder: '912 345 678',     localDigitsRange: [9,  9]  as [number, number] },
-  { code: 'AR', flag: '🇦🇷', dial: '54',  placeholder: '(11) 2345-6789',  localDigitsRange: [10, 10] as [number, number] },
-  { code: 'MX', flag: '🇲🇽', dial: '52',  placeholder: '(55) 1234-5678',  localDigitsRange: [10, 10] as [number, number] },
-  { code: 'CO', flag: '🇨🇴', dial: '57',  placeholder: '(300) 123-4567',  localDigitsRange: [10, 10] as [number, number] },
-]
-
 const phoneCountry    = ref('BR')
 const phoneDisplay    = ref('')
 const selectedCountry = computed(() => COUNTRIES.find(c => c.code === phoneCountry.value) ?? COUNTRIES[0])
@@ -56,23 +47,33 @@ function maskDigits(digits: string, country: string): string {
 // Builds the E164 string from whatever the user has typed so far.
 // Always returns a string (possibly partial/invalid); validation is in phoneError.
 // Returns '' only when the field is completely empty.
+// 1. Replace buildE164 entirely
 function buildE164(): string {
-  const c          = selectedCountry.value
   const localDigits = phoneDisplay.value.replace(/\D/g, '')
   if (!localDigits) return ''
-  return `+${c.dial}${localDigits}`
+  return `+${selectedCountry.value.dial}${localDigits}`
 }
 
-// ── Phone error – validated against localDigitsRange ─────────────────────────
-// Shows nothing while the field is empty; only fires once the user has typed.
+// 2. Replace phoneError entirely
 const phoneError = computed((): string | null => {
   if (!phoneDisplay.value.trim()) return null
-  const count        = localDigitCount.value
-  const [min, max]   = selectedCountry.value.localDigitsRange
-  if (count < min)   return `Número incompleto. São necessários ${min === max ? min : `${min}–${max}`} dígitos locais.`
-  if (count > max)   return `Número muito longo. Máximo ${max} dígitos locais.`
+  const count = phoneDisplay.value.replace(/\D/g, '').length
+  const [min, max] = selectedCountry.value.localDigitsRange
+  if (count < min) return `Número incompleto (${count}/${max} dígitos).`
+  if (count > max) return `Número muito longo. Máximo ${max} dígitos.`
   return null
 })
+
+
+// 3. Replace COUNTRIES — change minDigits → localDigitsRange
+const COUNTRIES = [
+  { code: 'BR', flag: '🇧🇷', dial: '55',  placeholder: '(38) 98825-2013', localDigitsRange: [10, 11] as [number, number] },
+  { code: 'US', flag: '🇺🇸', dial: '1',   placeholder: '(555) 867-5309',  localDigitsRange: [10, 10] as [number, number] },
+  { code: 'PT', flag: '🇵🇹', dial: '351', placeholder: '912 345 678',     localDigitsRange: [9,  9]  as [number, number] },
+  { code: 'AR', flag: '🇦🇷', dial: '54',  placeholder: '(11) 2345-6789',  localDigitsRange: [10, 10] as [number, number] },
+  { code: 'MX', flag: '🇲🇽', dial: '52',  placeholder: '(55) 1234-5678',  localDigitsRange: [10, 10] as [number, number] },
+  { code: 'CO', flag: '🇨🇴', dial: '57',  placeholder: '(300) 123-4567',  localDigitsRange: [10, 10] as [number, number] },
+]
 
 // ── Derived phone state ───────────────────────────────────────────────────────
 const phoneE164Form = computed(() => buildE164())
