@@ -166,7 +166,7 @@ async function handleSubmit() {
   if (form.value.tags.length) payload.tags = form.value.tags
 
   try {
-    await apiPost('/api/v1/guides/', payload)
+    await apiPost('/guides/', payload)
     localStorage.removeItem('new-guide-draft')
     success.value = true
     setTimeout(() => router.push('/guides'), 2500)
