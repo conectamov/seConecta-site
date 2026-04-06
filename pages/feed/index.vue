@@ -119,7 +119,7 @@ onMounted(() => {
 const feedTitle = computed(() => {
   if (activeView.value === 'guides') return 'Guias de Estudo'
   if (feedMode.value === 'personalized') return 'Para você'
-  if (activeTag.value) return `#${activeTag.value}`
+  if (activeTag.value) return `${activeTag.value}`
   return 'Explorar'
 })
 </script>
