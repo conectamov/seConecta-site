@@ -76,35 +76,33 @@ function normalizeLabel(text: string) {
   return text.trim().replace(/\s+/g, ' ')
 }
 
-function addToList(list: string[], value: string, lower = false) {
-  const cleaned = value
+function addToList(list: string[], value: string) {
+  const cleaned = value.trim()
   if (!cleaned) return list
 
-  const finalValue = cleaned
-  if (!finalValue) return list
-  if (list.includes(finalValue)) return list
+  if (list.includes(cleaned)) return list
   if (list.length >= 10) return list
 
-  return [...list, finalValue]
+  return [...list, cleaned]
 }
 
 function addCategory() {
-  form.value.categories = addToList(form.value.categories, categoryInput.value, true)
+  form.value.categories = addToList(form.value.categories, categoryInput.value.toLowerCase())
   categoryInput.value = ''
 }
 
 function addLevel() {
-  form.value.levels = addToList(form.value.levels, levelInput.value)
+  form.value.levels = addToList(form.value.levels, normalizeLabel(levelInput.value))
   levelInput.value = ''
 }
 
 function addLanguage() {
-  form.value.languages = addToList(form.value.languages, languageInput.value)
+  form.value.languages = addToList(form.value.languages, normalizeLabel(languageInput.value))
   languageInput.value = ''
 }
 
 function addModality() {
-  form.value.modalities = addToList(form.value.modalities, modalityInput.value)
+  form.value.modalities = addToList(form.value.modalities, normalizeLabel(modalityInput.value))
   modalityInput.value = ''
 }
 
@@ -164,14 +162,19 @@ function validate() {
   if (!form.value.languages.length) errors.value.languages = 'Adicione ao menos um idioma.'
   if (!form.value.modalities.length) errors.value.modalities = 'Adicione ao menos uma modalidade.'
 
-  if (!form.value.start_date) errors.value.start_date = 'A data de início é obrigatória.'
-  if (!form.value.end_date) errors.value.end_date = 'A data de término é obrigatória.'
+  if (form.value.start_date) {
+    const start = new Date(form.value.start_date)
+    if (Number.isNaN(start.getTime())) errors.value.start_date = 'Data de início inválida.'
+  }
+
+  if (form.value.end_date) {
+    const end = new Date(form.value.end_date)
+    if (Number.isNaN(end.getTime())) errors.value.end_date = 'Data de término inválida.'
+  }
 
   if (form.value.start_date && form.value.end_date) {
     const start = new Date(form.value.start_date)
     const end = new Date(form.value.end_date)
-    if (Number.isNaN(start.getTime())) errors.value.start_date = 'Data de início inválida.'
-    if (Number.isNaN(end.getTime())) errors.value.end_date = 'Data de término inválida.'
     if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end < start) {
       errors.value.end_date = 'A data de término deve ser depois da data de início.'
     }
@@ -237,8 +240,6 @@ async function handleSubmit() {
     levels: form.value.levels,
     languages: form.value.languages,
     modalities: form.value.modalities,
-    start_date: localDateTimeToIso(form.value.start_date),
-    end_date: localDateTimeToIso(form.value.end_date),
     official_site_url: form.value.official_site_url.trim(),
     location: form.value.location.trim(),
     is_free: form.value.is_free,
@@ -249,6 +250,9 @@ async function handleSubmit() {
     prizes: form.value.prizes.trim(),
     requirements: form.value.requirements.trim(),
   }
+
+  if (form.value.start_date) payload.start_date = localDateTimeToIso(form.value.start_date)
+  if (form.value.end_date) payload.end_date = localDateTimeToIso(form.value.end_date)
 
   const cleanedResources = form.value.resources
     .map(r => ({
@@ -281,7 +285,6 @@ async function handleSubmit() {
 
 <template>
   <div class="min-h-screen flex gap-5 px-4 md:px-8 py-6 max-w-[1400px] mx-auto relative z-10">
-    <!-- Guia lateral -->
     <aside class="hidden xl:flex flex-col w-56 flex-shrink-0">
       <div class="bg-white rounded-2xl border border-[#e8e4dc] p-5 sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto">
         <h2 class="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-[#aaa] mb-4">Guia rápido</h2>
@@ -342,7 +345,6 @@ async function handleSubmit() {
         </div>
 
         <div class="p-6 space-y-5">
-          <!-- Top fields -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Título</label>
@@ -393,21 +395,19 @@ async function handleSubmit() {
             <p v-if="errors.description" class="text-red-500 text-[0.73rem] mt-1">{{ errors.description }}</p>
           </div>
 
-          <!-- Status and dates -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
               <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Status</label>
               <select
                 v-model="form.status"
                 class="w-full px-4 py-2.5 rounded-xl border text-[0.85rem] outline-none transition-all bg-white"
-                :class="errors.status ? 'border-red-300 bg-red-50' : 'border-[#e8e4dc] focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15'"
               >
                 <option v-for="s in statusOptions" :key="s.value" :value="s.value">{{ s.label }}</option>
               </select>
             </div>
 
             <div>
-              <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Início</label>
+              <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Início <span class="text-[#bbb] font-normal">(opcional)</span></label>
               <input
                 v-model="form.start_date"
                 type="datetime-local"
@@ -418,7 +418,7 @@ async function handleSubmit() {
             </div>
 
             <div>
-              <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Término</label>
+              <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Término <span class="text-[#bbb] font-normal">(opcional)</span></label>
               <input
                 v-model="form.end_date"
                 type="datetime-local"
@@ -429,7 +429,6 @@ async function handleSubmit() {
             </div>
           </div>
 
-          <!-- Main cards -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Localização</label>
@@ -468,7 +467,6 @@ async function handleSubmit() {
             <p v-if="errors.target_audience" class="text-red-500 text-[0.73rem] mt-1">{{ errors.target_audience }}</p>
           </div>
 
-          <!-- boolean flags -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label class="flex items-center gap-3 p-4 rounded-xl border border-[#e8e4dc] bg-white cursor-pointer">
               <input v-model="form.is_free" type="checkbox" class="w-4 h-4 accent-[#079272]" />
@@ -486,7 +484,6 @@ async function handleSubmit() {
             </label>
           </div>
 
-          <!-- Arrays with chips -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div>
               <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Categorias</label>
@@ -573,7 +570,6 @@ async function handleSubmit() {
             </div>
           </div>
 
-          <!-- Extra info -->
           <div>
             <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Como se inscrever</label>
             <textarea
@@ -610,7 +606,6 @@ async function handleSubmit() {
             <p v-if="errors.requirements" class="text-red-500 text-[0.73rem] mt-1">{{ errors.requirements }}</p>
           </div>
 
-          <!-- Resources -->
           <div>
             <div class="flex items-center justify-between gap-3 mb-2">
               <label class="block text-[0.78rem] font-semibold text-[#555]">Recursos</label>
@@ -661,4 +656,4 @@ async function handleSubmit() {
 .slide-fade-leave-active { transition: all 0.12s ease; }
 .slide-fade-enter-from { opacity: 0; transform: translateY(6px); }
 .slide-fade-leave-to { opacity: 0; transform: translateY(-4px); }
-</style>
+</style>  
