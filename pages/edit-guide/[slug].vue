@@ -162,9 +162,6 @@ async function handleSubmit() {
 async function handleDelete() {
   if (!guide.value?.id || !isManager.value) return
 
-  const confirmed = window.confirm('Tem certeza que deseja deletar este guia? Esta ação é irreversível.')
-  if (!confirmed) return
-
   submitting.value = true
   error.value = null
 
