@@ -35,7 +35,7 @@ const feedMode = ref<FeedMode>('general')
 
 const hasMore        = computed(() => posts.value.length < totalCount.value)
 const hasInterests   = computed(() => (currentUser.value?.interests?.length ?? 0) > 0)
-const popularTags    = ['carreira', 'tecnologia', 'startup', 'design', 'produto', 'python', 'gestão']
+const popularTags    = ['oportunidade', 'olimpíada', 'inscrições', 'camp', 'exterior', 'stem', 'tecnologia']
 const todayLabel     = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
 
 // Fetching Logic
