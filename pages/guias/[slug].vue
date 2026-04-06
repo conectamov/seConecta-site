@@ -98,7 +98,7 @@ async function fetchGuide() {
 
     // Ajuste estes endpoints se o backend expuser outra rota.
     try {
-      res = await get(`/api/v1/guides/slug/${slug}`)
+      res = await get(`/guides/slug/${slug}`)
     } catch {
       res = await get(`/guides/slug/${slug}`)
     }
