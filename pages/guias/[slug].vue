@@ -267,7 +267,6 @@ useSeoMeta({
               v-if="guide.approved"
               class="text-[0.65rem] font-semibold px-2 py-0.5 rounded-full bg-[#079272]/20 text-[#079272]"
             >
-              Guia aprovado
             </span>
             <span
               v-else
