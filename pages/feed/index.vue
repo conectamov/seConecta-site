@@ -266,7 +266,7 @@ const feedTitle = computed(() => {
             <div 
               v-for="guide in guides" 
               :key="guide.id"
-              @click="router.push(`/guides/${guide.id}`)"
+              @click="router.push(`/guias/${guide.slug}`)"
               class="group bg-white rounded-2xl border border-[#e8e4dc] p-6 hover:border-[#079272] transition-all cursor-pointer shadow-sm hover:shadow-md"
             >
               <div class="flex items-center gap-3 mb-4">

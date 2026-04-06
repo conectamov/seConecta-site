@@ -98,9 +98,9 @@ async function fetchGuide() {
 
     // Ajuste estes endpoints se o backend expuser outra rota.
     try {
-      res = await get(`/guides/${slug}`)
+      res = await get(`/api/v1/guides/slug/${slug}`)
     } catch {
-      res = await get(`/guides/${slug}`)
+      res = await get(`/guides/slug/${slug}`)
     }
 
     const raw = res?.data?.data ?? res?.data ?? null
@@ -131,7 +131,8 @@ const isOwner = computed(() => {
   if (!currentUser.value || !guide.value) return false
   return String(currentUser.value.id) === String(guide.value.author_id)
 })
-const canEdit = computed(() => isOwner.value || !!currentUser.value?.is_superuser)
+const isManager = computed(() => !!currentUser.value?.is_manager || !!currentUser.value?.is_superuser)
+const canEdit = computed(() => isOwner.value || isManager.value)
 
 function openChildGuide(child: any) {
   if (!child?.slug) return
