@@ -136,13 +136,17 @@ const feedTitle = computed(() => {
           <span>Feed ao vivo · {{ todayLabel }}</span>
         </div>
 
-        <h1 class="font-extrabold text-black mb-4 leading-[1.1] tracking-[-0.03em] text-[clamp(2.5rem,7vw,4rem)]">
-          <span data-aos="fade-up" data-aos-delay="50" class="block">Conecte-se com</span>
-          <span data-aos="fade-up" data-aos-delay="150" class="block text-black">o seu próximo</span>
+        <h1 id="hero-heading" class="font-extrabold text-black mb-4 leading-[1.1] tracking-[-0.03em] text-[clamp(2.5rem,7vw,4rem)]">
+          <span data-aos="fade-up" data-aos-delay="50" class="block">Fique por dentro</span>
+          <span data-aos="fade-up" data-aos-delay="150" class="block text-black">das últimas</span>
           <span data-aos="fade-up" data-aos-delay="250" class="block">
-            <em class="not-italic bg-gradient-to-r from-[#079272] to-[#2464E8] bg-clip-text text-transparent">conhecimento.</em>
+            <em class="not-italic bg-gradient-to-r from-[#079272] to-[#2464E8] bg-clip-text text-transparent">novidades!</em>
           </span>
         </h1>
+
+        <p data-aos="fade-up" data-aos-delay="350" class="font-medium text-[#079272] max-w-[440px] leading-relaxed mb-8 text-base">
+          Acompanhe oportunidades, eventos e histórias inspiradoras do mundo dos estudos no nosso feed personalizado!
+        </p>
       </div>
     </section>
 
