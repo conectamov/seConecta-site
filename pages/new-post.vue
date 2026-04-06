@@ -9,6 +9,7 @@ const form = ref({
   title: '',
   content_md: '',
   excerpt: '',
+  keywords: '', // 👈 Added keywords field
   cover_url: '',
   tags: [] as string[],
   deadline: ''
@@ -42,7 +43,7 @@ watch(form, (val) => {
 }, { deep: true })
 
 function discardDraft() {
-  form.value = { title: '', content_md: '', excerpt: '', cover_url: '', tags: [], deadline: '' }
+  form.value = { title: '', content_md: '', excerpt: '', keywords: '', cover_url: '', tags: [], deadline: '' }
   localStorage.removeItem('new-post-draft')
   hasDraft.value = false
 }
@@ -70,6 +71,12 @@ function validate() {
   else if (form.value.title.length > 256) errors.value.title = 'Máximo 256 caracteres.'
   if (!form.value.content_md.trim()) errors.value.content_md = 'O conteúdo é obrigatório.'
   if (form.value.cover_url && !/^https?:\/\/.+/.test(form.value.cover_url)) errors.value.cover_url = 'URL inválida.'
+  
+  // Optional: Validation for keywords phrase length if you want to ensure quality
+  if (form.value.keywords && form.value.keywords.length < 10) {
+    errors.value.keywords = 'A frase de palavras-chave deve ser um pouco mais descritiva.'
+  }
+
   if (form.value.deadline) {
     const deadlineDate = new Date(form.value.deadline)
     if (isNaN(deadlineDate.getTime())) errors.value.deadline = 'Data inválida.'
@@ -81,6 +88,7 @@ watch(() => form.value.title, () => delete errors.value.title)
 watch(() => form.value.content_md, () => delete errors.value.content_md)
 watch(() => form.value.cover_url, () => delete errors.value.cover_url)
 watch(() => form.value.deadline, () => delete errors.value.deadline)
+watch(() => form.value.keywords, () => delete errors.value.keywords)
 
 const wordCount = computed(() => form.value.content_md.trim().split(/\s+/).filter(Boolean).length)
 const readTime = computed(() => Math.max(1, Math.ceil(wordCount.value / 200)))
@@ -103,13 +111,14 @@ async function handleSubmit() {
     content_md: form.value.content_md.trim()
   }
   if (form.value.excerpt.trim()) payload.excerpt = form.value.excerpt.trim()
+  if (form.value.keywords.trim()) payload.keywords = form.value.keywords.trim() // 👈 Added to request
   if (form.value.cover_url.trim()) payload.cover_url = form.value.cover_url.trim()
   if (form.value.tags.length) payload.tags = form.value.tags
   if (form.value.deadline) payload.deadline = form.value.deadline
 
   try {
     await apiPost('/posts/', payload)
-    localStorage.removeItem('new-post-draft') // 👈 limpa o rascunho após publicar
+    localStorage.removeItem('new-post-draft')
     success.value = true
     setTimeout(() => router.push('/feed'), 2500)
   } catch (err: any) {
@@ -137,7 +146,6 @@ const topics = [
 <template>
   <div class="min-h-screen flex gap-5 px-4 md:px-8 py-6 max-w-[1400px] mx-auto relative z-10">
 
-    <!-- Guia Markdown (sidebar) -->
     <aside class="hidden xl:flex flex-col w-52 flex-shrink-0">
       <div class="bg-white rounded-2xl border border-[#e8e4dc] p-5 sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto">
         <h2 class="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-[#aaa] mb-4">Guia Markdown</h2>
@@ -155,10 +163,8 @@ const topics = [
       </div>
     </aside>
 
-    <!-- Editor principal -->
     <main class="flex-1 min-w-0">
 
-      <!-- Aviso de rascunho salvo -->
       <Transition name="slide-fade">
         <div v-if="hasDraft" class="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-[0.8rem] flex items-center justify-between gap-3">
           <span>📝 Rascunho restaurado automaticamente.</span>
@@ -170,7 +176,6 @@ const topics = [
         </div>
       </Transition>
 
-      <!-- Sucesso -->
       <Transition name="slide-fade">
         <div v-if="success" class="mb-6 p-5 rounded-2xl bg-[#f0faf7] border border-[#079272]/20 flex items-start gap-3">
           <div class="w-8 h-8 rounded-full bg-[#079272] flex items-center justify-center flex-shrink-0">
@@ -183,15 +188,12 @@ const topics = [
         </div>
       </Transition>
 
-      <!-- Erro -->
       <div v-if="error" class="mb-4 p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-[0.83rem] flex items-center gap-2">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         {{ error }}
       </div>
 
-      <!-- Card principal -->
       <div class="bg-white rounded-2xl border border-[#e8e4dc] shadow-sm overflow-hidden">
-        <!-- Header -->
         <div class="px-6 pt-6 pb-4 border-b border-[#f7f5f0] flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 class="text-[1.1rem] font-extrabold text-[#111] tracking-[-0.02em]">Novo post</h1>
@@ -208,14 +210,12 @@ const topics = [
         </div>
 
         <div class="p-6 space-y-5">
-          <!-- Título -->
           <div>
             <input v-model="form.title" type="text" placeholder="Título do post…"
               class="w-full text-[1.4rem] font-extrabold text-[#111] placeholder-[#ccc] border-none outline-none bg-transparent tracking-[-0.02em]" />
             <p v-if="errors.title" class="text-red-500 text-[0.73rem] mt-1">{{ errors.title }}</p>
           </div>
 
-          <!-- Capa URL -->
           <div>
             <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">URL da imagem de capa <span class="text-[#bbb] font-normal">(opcional)</span></label>
             <input v-model="form.cover_url" type="url" placeholder="https://…"
@@ -224,7 +224,6 @@ const topics = [
             <p v-if="errors.cover_url" class="text-red-500 text-[0.73rem] mt-1">{{ errors.cover_url }}</p>
           </div>
 
-          <!-- Editor / Preview tabs -->
           <div class="border border-[#e8e4dc] rounded-xl overflow-hidden">
             <div class="flex border-b border-[#e8e4dc] bg-[#f8fafc]">
               <button
@@ -246,14 +245,21 @@ const topics = [
           </div>
           <p v-if="errors.content_md" class="text-red-500 text-[0.73rem]">{{ errors.content_md }}</p>
 
-          <!-- Resumo -->
+          <div>
+            <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Conceitos e Palavras-chave <span class="text-[#bbb] font-normal">(frase representativa)</span></label>
+            <input v-model="form.keywords" type="text" placeholder="Ex: Oportunidade de estágio backend em Python e ciência de dados..."
+              class="w-full px-4 py-2.5 rounded-xl border text-[0.85rem] outline-none transition-all"
+              :class="errors.keywords ? 'border-red-300 bg-red-50' : 'border-[#e8e4dc] focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15'" />
+            <p v-if="errors.keywords" class="text-red-500 text-[0.73rem] mt-1">{{ errors.keywords }}</p>
+            <p class="text-[0.7rem] text-[#aaa] mt-1">Escreva uma frase que resuma os principais temas para ajudar o algoritmo de recomendação.</p>
+          </div>
+
           <div>
             <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Resumo <span class="text-[#bbb] font-normal">(opcional — gerado automaticamente se vazio)</span></label>
             <textarea v-model="form.excerpt" placeholder="Breve descrição do post…" rows="2"
               class="w-full px-4 py-2.5 rounded-xl border border-[#e8e4dc] text-[0.85rem] outline-none focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15 resize-none transition-all"></textarea>
           </div>
 
-          <!-- Deadline -->
           <div>
             <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">
               Data limite <span class="text-[#bbb] font-normal">(opcional)</span>
@@ -268,7 +274,6 @@ const topics = [
             <p class="text-[0.7rem] text-[#aaa] mt-1">Use este campo para informar o prazo de uma oportunidade (inscrição, evento, etc.)</p>
           </div>
 
-          <!-- Tags -->
           <div>
             <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Tags <span class="text-[#bbb] font-normal">(máx. 5)</span></label>
             <div class="flex flex-wrap gap-1.5 p-3 border border-[#e8e4dc] rounded-xl focus-within:border-[#079272] focus-within:ring-2 focus-within:ring-[#079272]/15 transition-all bg-white min-h-[44px]">
