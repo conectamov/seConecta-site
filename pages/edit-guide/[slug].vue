@@ -4,7 +4,7 @@ useSeoMeta({ title: 'Editar Guia — seConecta' })
 
 const route = useRoute()
 const router = useRouter()
-const { get, patch: apiPatch } = useAxios()
+const { get, patch: apiPatch, delete: apiDelete } = useAxios()
 const { currentUser } = useAuth()
 
 const guide = ref<any | null>(null)
@@ -36,6 +36,7 @@ const isOwner = computed(() => {
   return String(currentUser.value.id) === String(guide.value.author_id)
 })
 const isManager = computed(() => !!currentUser.value?.is_manager || !!currentUser.value?.is_superuser)
+const isSuperUser = computed(() => !!currentUser.value?.is_superuser)
 const canEdit = computed(() => isOwner.value || isManager.value)
 
 const wordCount = computed(() => form.value.description_md.trim().split(/\s+/).filter(Boolean).length)
@@ -62,10 +63,6 @@ function slugify(text: string) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '')
-}
-
-function normalizeLabel(text: string) {
-  return text.trim().replace(/\s+/g, ' ')
 }
 
 function addTag() {
@@ -230,6 +227,28 @@ async function handleSubmit() {
   }
 }
 
+async function handleDelete() {
+  if (!guide.value?.id) return
+  if (!isSuperUser.value) return
+
+  const confirmed = window.confirm('Tem certeza que deseja deletar este guia? Esta ação não pode ser desfeita.')
+  if (!confirmed) return
+
+  submitting.value = true
+  error.value = null
+
+  try {
+    await apiDelete(`/guides/${guide.value.id}`)
+    router.push('/guias')
+  } catch (err: any) {
+    const status = err?.response?.status
+    if (status === 401 || status === 403) error.value = 'Sem permissão para deletar guias.'
+    else error.value = 'Erro ao deletar o guia. Tente novamente.'
+  } finally {
+    submitting.value = false
+  }
+}
+
 onMounted(async () => {
   await fetchGuide()
 })
@@ -343,7 +362,7 @@ useSeoMeta({
                 Prévia
               </button>
             </div>
-            <Transition name="slide-fade" mode="out-in">
+            <div class="min-h-[320px]">
               <textarea
                 v-if="activeTab === 'write'"
                 v-model="form.description_md"
@@ -351,8 +370,8 @@ useSeoMeta({
                 class="w-full min-h-[320px] p-5 text-[0.88rem] font-mono text-[#374151] border-none outline-none resize-none bg-white leading-relaxed"
                 :class="errors.description_md ? 'bg-red-50' : ''"
               ></textarea>
-              <div v-else class="min-h-[320px] p-5 prose prose-sm max-w-none text-[#374151]" v-html="markdownPreview"></div>
-            </Transition>
+              <div v-else class="p-5 prose prose-sm max-w-none text-[#374151]" v-html="markdownPreview"></div>
+            </div>
           </div>
           <p v-if="errors.description_md" class="text-red-500 text-[0.73rem]">{{ errors.description_md }}</p>
 
@@ -383,8 +402,7 @@ useSeoMeta({
             <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Guia pai <span class="text-[#bbb] font-normal">(opcional)</span></label>
             <select
               v-model="form.parent_guide_id"
-              class="w-full px-4 py-2.5 rounded-xl border text-[0.85rem] outline-none transition-all bg-white"
-              :class="'border-[#e8e4dc] focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15'"
+              class="w-full px-4 py-2.5 rounded-xl border text-[0.85rem] outline-none transition-all bg-white border-[#e8e4dc] focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15"
             >
               <option :value="null">Sem guia pai</option>
               <option v-for="g in guides" :key="g.id" :value="g.id">{{ g.title }}</option>
@@ -422,8 +440,18 @@ useSeoMeta({
             >
               Restaurar dados originais
             </button>
-            <div class="text-[0.72rem] text-[#aaa]">
-              Editável por autor ou manager
+            <div class="flex items-center gap-2 flex-wrap">
+              <div class="text-[0.72rem] text-[#aaa]">
+                Editável por autor ou manager
+              </div>
+              <button
+                v-if="isSuperUser"
+                type="button"
+                class="px-4 py-2.5 rounded-xl border border-red-200 text-[0.8rem] font-semibold text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
+                @click="handleDelete"
+              >
+                Deletar guia
+              </button>
             </div>
           </div>
         </div>
@@ -441,4 +469,9 @@ useSeoMeta({
 .slide-fade-leave-active { transition: all 0.12s ease; }
 .slide-fade-enter-from { opacity: 0; transform: translateY(6px); }
 .slide-fade-leave-to { opacity: 0; transform: translateY(-4px); }
+
+/* Ensure prose doesn't break layout */
+.prose {
+  word-break: break-word;
+}
 </style>
