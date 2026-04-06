@@ -37,6 +37,7 @@ const isOwner = computed(() => {
   if (!currentUser.value || !guide.value) return false
   return String(currentUser.value.id) === String(guide.value.author_id)
 })
+console.log(currentUser)
 const isManager = computed(() => !!currentUser.value?.is_manager || !!currentUser.value?.is_superuser)
 const canEdit = computed(() => isOwner.value || isManager.value)
 
