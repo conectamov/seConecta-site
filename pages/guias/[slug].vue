@@ -7,7 +7,7 @@ import { useUserCache } from '@/composables/useUserCache'
 const route = useRoute()
 const router = useRouter()
 const { get } = useAxios()
-const { currentUser, isAuthenticated } = useAuth()
+const { currentUser } = useAuth()
 const { getUser, displayName, displayInitial } = useUserCache()
 
 const guide = ref<any | null>(null)
@@ -16,7 +16,6 @@ const loadingGuide = ref(true)
 const errorGuide = ref<string | null>(null)
 const contentHtml = ref('')
 const activeTab = ref<'guide' | 'children' | 'posts'>('guide')
-const mounted = ref(false)
 
 const relatedPosts = computed(() => Array.isArray(guide.value?.posts) ? guide.value.posts : [])
 const childGuides = computed(() => Array.isArray(guide.value?.children_guides) ? guide.value.children_guides : [])
@@ -94,14 +93,7 @@ async function fetchGuide() {
 
   try {
     const slug = String(route.params.slug ?? '')
-    let res: any
-
-    // Ajuste estes endpoints se o backend expuser outra rota.
-    try {
-      res = await get(`//guides/${slug}`)
-    } catch {
-      res = await get(`/guides/${slug}`)
-    }
+    const res = await get(`/guides/${slug}`)
 
     const raw = res?.data?.data ?? res?.data ?? null
     if (!raw) throw new Error('Guide not found')
@@ -127,10 +119,12 @@ const formattedUpdatedAt = computed(() => safeDateTime(guide.value?.updated_at))
 const authorProfileUrl = computed(() => guideAuthor.value?.profile_picture_url || null)
 const authorName = computed(() => displayName(guideAuthor.value) || 'Autor desconhecido')
 const authorInitial = computed(() => displayInitial(guideAuthor.value) || 'A')
+
 const isOwner = computed(() => {
   if (!currentUser.value || !guide.value) return false
   return String(currentUser.value.id) === String(guide.value.author_id)
 })
+
 const isManager = computed(() => !!currentUser.value?.is_manager || !!currentUser.value?.is_superuser)
 const canEdit = computed(() => isOwner.value || isManager.value)
 
@@ -178,16 +172,7 @@ watch(
   { immediate: true }
 )
 
-watch(
-  () => guide.value?.children_guides,
-  async () => {
-    await nextTick()
-  },
-  { deep: true }
-)
-
 onMounted(async () => {
-  mounted.value = true
   await fetchGuide()
 })
 
@@ -278,10 +263,16 @@ useSeoMeta({
               Criado em {{ formattedCreatedAt }}
             </span>
 
-            <span v-if="guide.approved" class="text-[0.65rem] font-semibold px-2 py-0.5 rounded-full bg-[#079272]/20 text-[#079272]">
+            <span
+              v-if="guide.approved"
+              class="text-[0.65rem] font-semibold px-2 py-0.5 rounded-full bg-[#079272]/20 text-[#079272]"
+            >
               Guia aprovado
             </span>
-            <span v-else class="text-[0.65rem] font-semibold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-400/20">
+            <span
+              v-else
+              class="text-[0.65rem] font-semibold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-400/20"
+            >
               Em revisão
             </span>
           </div>
@@ -381,10 +372,113 @@ useSeoMeta({
               </button>
             </div>
 
-            <div v-show="activeTab === 'guide'" class="article-body prose max-w-none bg-white p-6 md:p-8">
-              <div v-if="contentHtml" v-html="contentHtml"></div>
-              <div v-else class="text-sm text-[#666]">
-                Este guia ainda não tem descrição detalhada.
+            <div v-show="activeTab === 'guide'" class="bg-white">
+              <div class="article-body prose max-w-none p-6 md:p-8">
+                <div v-if="contentHtml" v-html="contentHtml"></div>
+                <div v-else class="text-sm text-[#666]">
+                  Este guia ainda não tem descrição detalhada.
+                </div>
+              </div>
+
+              <div class="px-6 md:px-8 pb-8">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="text-[0.95rem] font-bold text-[#111] tracking-[-0.02em]">
+                    Subguias
+                  </h2>
+                  <span class="text-[0.72rem] text-[#888]">{{ childGuides.length }} itens</span>
+                </div>
+
+                <div v-if="childGuides.length === 0" class="py-6 text-center text-sm text-[#aaa] border border-dashed border-[#e8e4dc] rounded-xl">
+                  Este guia ainda não possui subguias.
+                </div>
+
+                <div v-else class="grid gap-4 sm:grid-cols-2">
+                  <article
+                    v-for="child in childGuides"
+                    :key="child.id"
+                    class="rounded-2xl border border-[#e8e4dc] overflow-hidden bg-white hover:shadow-md hover:border-[#079272]/20 transition-all cursor-pointer group"
+                    @click="openChildGuide(child)"
+                  >
+                    <div class="h-36 bg-[#f8fafc] relative overflow-hidden">
+                      <img
+                        v-if="child.cover_url"
+                        :src="child.cover_url"
+                        :alt="child.title"
+                        class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div class="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent"></div>
+                    </div>
+                    <div class="p-4 space-y-2">
+                      <h3 class="font-bold text-[#111] line-clamp-2 group-hover:text-[#079272] transition-colors">
+                        {{ child.title }}
+                      </h3>
+                      <p class="text-xs text-[#666] line-clamp-3">
+                        {{ child.excerpt || 'Sem resumo disponível.' }}
+                      </p>
+                      <div v-if="child.tags?.length" class="flex flex-wrap gap-1.5 pt-1">
+                        <span
+                          v-for="tag in child.tags.slice(0, 3)"
+                          :key="tag"
+                          class="text-[0.65rem] font-semibold px-2 py-0.5 bg-[#079272]/10 text-[#079272] rounded-full"
+                        >
+                          #{{ tag }}
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div class="px-6 md:px-8 pb-8 border-t border-[#f1eee8] pt-8">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="text-[0.95rem] font-bold text-[#111] tracking-[-0.02em]">
+                    Posts ligados
+                  </h2>
+                  <span class="text-[0.72rem] text-[#888]">{{ relatedPosts.length }} itens</span>
+                </div>
+
+                <div v-if="relatedPosts.length === 0" class="py-6 text-center text-sm text-[#aaa] border border-dashed border-[#e8e4dc] rounded-xl">
+                  Este guia ainda não possui posts ligados.
+                </div>
+
+                <div v-else class="grid gap-4">
+                  <article
+                    v-for="post in relatedPosts"
+                    :key="post.id"
+                    class="rounded-2xl border border-[#e8e4dc] overflow-hidden bg-white hover:shadow-md hover:border-[#079272]/20 transition-all cursor-pointer group"
+                    @click="openPost(post)"
+                  >
+                    <div class="grid sm:grid-cols-[180px_1fr]">
+                      <div class="h-40 sm:h-full bg-[#f8fafc] relative overflow-hidden">
+                        <img
+                          v-if="post.cover_url"
+                          :src="post.cover_url"
+                          :alt="post.title"
+                          class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent"></div>
+                      </div>
+                      <div class="p-5 flex flex-col gap-3">
+                        <h3 class="font-bold text-[#111] text-[1rem] line-clamp-2 group-hover:text-[#079272] transition-colors">
+                          {{ post.title }}
+                        </h3>
+                        <p class="text-sm text-[#666] line-clamp-3">
+                          {{ post.excerpt || 'Sem resumo disponível.' }}
+                        </p>
+
+                        <div v-if="post.tags?.length" class="flex flex-wrap gap-1.5 mt-auto pt-1">
+                          <span
+                            v-for="tag in post.tags.slice(0, 4)"
+                            :key="tag"
+                            class="text-[0.65rem] font-semibold px-2 py-0.5 bg-[#f7f5f0] text-[#666] rounded-full border border-[#e8e4dc]"
+                          >
+                            #{{ tag }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                </div>
               </div>
             </div>
 
@@ -416,15 +510,6 @@ useSeoMeta({
                     <p class="text-xs text-[#666] line-clamp-3">
                       {{ child.excerpt || 'Sem resumo disponível.' }}
                     </p>
-                    <div v-if="child.tags?.length" class="flex flex-wrap gap-1.5 pt-1">
-                      <span
-                        v-for="tag in child.tags.slice(0, 3)"
-                        :key="tag"
-                        class="text-[0.65rem] font-semibold px-2 py-0.5 bg-[#079272]/10 text-[#079272] rounded-full"
-                      >
-                        #{{ tag }}
-                      </span>
-                    </div>
                   </div>
                 </article>
               </div>
@@ -459,16 +544,6 @@ useSeoMeta({
                       <p class="text-sm text-[#666] line-clamp-3">
                         {{ post.excerpt || 'Sem resumo disponível.' }}
                       </p>
-
-                      <div v-if="post.tags?.length" class="flex flex-wrap gap-1.5 mt-auto pt-1">
-                        <span
-                          v-for="tag in post.tags.slice(0, 4)"
-                          :key="tag"
-                          class="text-[0.65rem] font-semibold px-2 py-0.5 bg-[#f7f5f0] text-[#666] rounded-full border border-[#e8e4dc]"
-                        >
-                          #{{ tag }}
-                        </span>
-                      </div>
                     </div>
                   </div>
                 </article>
