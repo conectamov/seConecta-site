@@ -58,7 +58,7 @@ async function handleLogin() {
   submitting.value = true; errorMsg.value = ''
   try {
     await login(loginForm.value.email, loginForm.value.password)
-    router.replace((route.query.redirect as string) || '/')
+    router.replace((route.query.redirect as string) || '/feed')
   } catch (err: any) {
     const status = err?.response?.status
     errorMsg.value = (status === 401 || status === 400) ? 'E-mail ou senha incorretos.' : 'Erro ao fazer login. Tente novamente.'
@@ -72,7 +72,7 @@ async function handleRegister() {
     await register({ email: registerForm.value.email, username: registerForm.value.username, password: registerForm.value.password, full_name: registerForm.value.full_name })
     successMsg.value = 'Conta criada! Fazendo login...'
     await login(registerForm.value.email, registerForm.value.password)
-    router.replace('/')
+    router.replace('/feed')
   } catch (err: any) {
     const status = err?.response?.status
     const detail = err?.response?.data?.detail

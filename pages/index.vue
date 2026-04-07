@@ -1,4 +1,5 @@
 <script setup lang="ts">
+await navigateTo('/feed')
 </script>
 
 <template>
