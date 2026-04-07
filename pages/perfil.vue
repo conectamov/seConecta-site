@@ -51,7 +51,7 @@ function maskDigits(digits: string, country: string): string {
 function buildE164(): string {
   const localDigits = phoneDisplay.value.replace(/\D/g, '')
   if (!localDigits) return ''
-  return `+${selectedCountry.value.dial}${localDigits}`
+  return `${selectedCountry.value.dial}${localDigits}`
 }
 
 // 2. Replace phoneError entirely
@@ -624,7 +624,7 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
             </span>
             <span v-if="currentUser?.phone" class="flex items-center gap-1.5">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81 19.79 19.79 0 01.07 1.18 2 2 0 012.04 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.07 7.91a16 16 0 006.02 6.02l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
-              {{ currentUser.phone }}
+              +{{ currentUser.phone }}
               <span v-if="isLinked" class="inline-flex items-center gap-1 text-[#079272] font-semibold">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                 verificado
