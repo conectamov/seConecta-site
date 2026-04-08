@@ -4,18 +4,50 @@ useSeoMeta({ title: 'Entrar — seConecta' })
 
 const router = useRouter()
 const route = useRoute()
-const { login, register } = useAuth()
+const { login, register, loginWithToken } = useAuth()
+
+const GOOGLE_LOGIN_URL = `http://localhost:8000/api/v1/login/google`
 
 const activeTab = ref(route.query.mode === 'register' ? 'register' : 'login')
 const loginForm = ref({ email: '', password: '' })
 const registerForm = ref({ email: '', username: '', password: '', confirmPassword: '', full_name: '' })
 const submitting = ref(false)
+const googleLoading = ref(false)
 const errorMsg = ref('')
 const successMsg = ref('')
 const showPass = ref(false)
 const showConfirm = ref(false)
 const loginErr = ref<Record<string, string>>({})
 const registerErr = ref<Record<string, string>>({})
+
+
+onMounted(async () => {
+  const token = route.query.token as string | undefined
+  const error = route.query.error as string | undefined
+
+  if (token) {
+    await loginWithToken(token)
+    router.replace((route.query.redirect as string) || '/')
+    return
+  }
+
+  if (error) {
+    const messages: Record<string, string> = {
+      google_failed: 'Login com Google cancelado.',
+      google_token_failed: 'Erro ao autenticar com o Google.',
+      google_userinfo_failed: 'Não foi possível obter dados da conta Google.',
+      email_not_verified: 'O e-mail da conta Google não está verificado.',
+      inactive_user: 'Esta conta está inativa.',
+    }
+    errorMsg.value = messages[error] ?? 'Erro ao fazer login com Google.'
+    router.replace({ query: {} })
+  }
+})
+
+function loginWithGoogle() {
+  googleLoading.value = true
+  window.location.href = GOOGLE_LOGIN_URL
+}
 
 function validateLogin() {
   loginErr.value = {}
@@ -156,6 +188,32 @@ function switchTab(tab: string) {
           </p>
         </div>
 
+        <!-- Botão Google (aparece nos dois tabs) -->
+        <button
+          type="button"
+          class="w-full h-11 flex items-center justify-center gap-3 bg-white border border-[#e8e4dc] rounded-xl text-sm font-semibold text-[#333] hover:bg-[#f0ede8] hover:border-[#ccc] transition-all duration-200 mb-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="googleLoading"
+          @click="loginWithGoogle"
+        >
+          <!-- Spinner -->
+          <svg v-if="googleLoading" class="animate-spin text-[#aaa]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          <!-- Logo Google -->
+          <svg v-else width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#EA4335" d="M24 9.5c3.14 0 5.95 1.08 8.17 2.86l6.1-6.1C34.36 3.07 29.43 1 24 1 14.82 1 7.01 6.48 3.56 14.27l7.1 5.52C12.33 13.61 17.71 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.52 24.5c0-1.64-.15-3.22-.42-4.74H24v8.98h12.68c-.55 2.94-2.2 5.43-4.68 7.1l7.18 5.58C43.35 37.57 46.52 31.5 46.52 24.5z"/>
+            <path fill="#FBBC05" d="M10.66 28.22A14.53 14.53 0 0 1 9.5 24c0-1.47.25-2.9.66-4.22l-7.1-5.52A23.94 23.94 0 0 0 0 24c0 3.87.93 7.53 2.56 10.74l8.1-6.52z"/>
+            <path fill="#34A853" d="M24 47c5.43 0 9.99-1.8 13.32-4.88l-7.18-5.58c-1.8 1.21-4.1 1.96-6.14 1.96-6.3 0-11.67-4.11-13.34-9.78l-8.1 6.52C7.01 41.52 14.82 47 24 47z"/>
+          </svg>
+          {{ googleLoading ? 'Redirecionando...' : (activeTab === 'login' ? 'Entrar com Google' : 'Cadastrar com Google') }}
+        </button>
+
+        <!-- Divisor -->
+        <div class="flex items-center gap-3 mb-4">
+          <div class="flex-1 h-px bg-[#e8e4dc]"></div>
+          <span class="text-xs text-[#ccc]">ou continue com e-mail</span>
+          <div class="flex-1 h-px bg-[#e8e4dc]"></div>
+        </div>
+
         <!-- Sucesso -->
         <div v-if="successMsg" class="flex items-center gap-2.5 bg-[#e8f5f2] border border-[#b2dfdb] text-[#079272] rounded-xl px-4 py-3 mb-5 text-sm font-medium">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -204,8 +262,6 @@ function switchTab(tab: string) {
             <svg v-if="submitting" class="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
             {{ submitting ? 'Entrando...' : 'Entrar' }}
           </button>
-
-          <div class="flex items-center gap-3"><div class="flex-1 h-px bg-[#e8e4dc]"></div><span class="text-xs text-[#ccc]">ou</span><div class="flex-1 h-px bg-[#e8e4dc]"></div></div>
 
           <p class="text-center text-sm text-[#aaa]">
             Não tem conta?

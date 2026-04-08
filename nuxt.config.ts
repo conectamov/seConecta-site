@@ -12,6 +12,10 @@ export default defineNuxtConfig({
     port: 5173
   },
 
+  image: {
+    domains: ['lh3.googleusercontent.com'],
+  },
+
   app: {
     head: {
       htmlAttrs: { lang: 'pt-BR' },
@@ -112,7 +116,7 @@ export default defineNuxtConfig({
     server: {
       proxy: {
         '/api': {
-          target: 'https://api.seconecta.org',
+          target: 'http://localhost:8000',
           changeOrigin: true,
           secure: false,
         },

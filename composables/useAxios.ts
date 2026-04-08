@@ -2,7 +2,7 @@ import axios from 'axios'
 import { useRoute } from 'vue-router'
 import { navigateTo } from 'nuxt/app'
 
-const BASE_URL = 'https://api.seconecta.org/api/v1'
+const BASE_URL = 'http://localhost:8000/api/v1'
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
