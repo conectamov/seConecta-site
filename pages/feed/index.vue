@@ -68,7 +68,6 @@ async function fetchGuides() {
   loadingGuides.value = true
   guidesError.value = null
   try {
-    // Calling the guides endpoint we created earlier
     const res = await get('/guides/')
     guides.value = res.data.data ?? []
   } catch {
@@ -125,7 +124,20 @@ const feedTitle = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-screen">
+  <div class="min-h-screen relative">
+    
+    <button 
+      v-if="isAuthenticated"
+      @click="router.push('/new-post')"
+      class="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-50 flex items-center justify-center w-14 h-14 bg-[#079272] text-white rounded-full shadow-[0_8px_24px_rgba(7,146,114,0.4)] hover:bg-[#057a5f] hover:scale-105 hover:-translate-y-1 transition-all duration-300 cursor-pointer group"
+      title="Criar novo post"
+    >
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+
     <section class="relative overflow-hidden py-16 px-8 bg-none">
       <div class="absolute rounded-full blur-[60px] opacity-10 pointer-events-none w-[300px] h-[300px] top-[5%] right-[5%] bg-[#079272] max-sm:hidden"></div>
       <div class="absolute rounded-full blur-[60px] opacity-10 pointer-events-none w-[200px] h-[200px] bottom-[10%] right-[25%] bg-[#2464E8] max-sm:hidden"></div>
@@ -144,9 +156,19 @@ const feedTitle = computed(() => {
           </span>
         </h1>
 
-        <p data-aos="fade-up" data-aos-delay="350" class="font-medium text-[#079272] max-w-[440px] leading-relaxed mb-8 text-base">
+        <p data-aos="fade-up" data-aos-delay="350" class="font-medium text-[#079272] max-w-[440px] leading-relaxed mb-8 text-base mx-auto md:mx-0">
           Acompanhe oportunidades, eventos e histórias inspiradoras do mundo dos estudos no nosso feed personalizado!
         </p>
+
+        <div data-aos="fade-up" data-aos-delay="400" class="flex justify-center md:justify-start">
+          <button 
+            @click="router.push('/calendario')" 
+            class="flex items-center gap-2 px-6 py-3 bg-[#111] text-white rounded-xl text-[0.9rem] font-bold hover:bg-[#333] hover:shadow-lg transition-all border-none cursor-pointer"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            Ver Calendário de Oportunidades
+          </button>
+        </div>
       </div>
     </section>
 
@@ -160,7 +182,7 @@ const feedTitle = computed(() => {
             </div>
             <div>
               <h3 class="text-[0.95rem] font-bold text-[#8a6500] mb-1">Você ainda não está conectado</h3>
-              <p class="text-[0.85rem] text-[#a67c00] leading-snug">Faça login para salvar conteúdos e acessar seu feed personalizado.</p>
+              <p class="text-[0.85rem] text-[#a67c00] leading-snug">Faça login para salvar conteúdos, publicar histórias e acessar seu feed personalizado.</p>
             </div>
           </div>
           <button @click="router.push('/login')" class="flex-shrink-0 text-[0.85rem] font-bold px-5 py-2.5 bg-[#d9a000] text-white rounded-xl hover:bg-[#b38600] transition-colors border-none cursor-pointer">
@@ -168,22 +190,33 @@ const feedTitle = computed(() => {
           </button>
         </div>
 
-        <div class="flex items-center gap-1 bg-[#f7f5f0] border border-[#e8e4dc] rounded-2xl p-1.5 w-fit mb-10 mx-auto md:mx-0">
+        <div class="flex items-center justify-between mb-10 mx-auto md:mx-0 flex-wrap gap-4">
+          <div class="flex items-center gap-1 bg-[#f7f5f0] border border-[#e8e4dc] rounded-2xl p-1.5 w-fit">
+            <button 
+              @click="switchTab('stories')"
+              class="flex items-center gap-2 px-6 py-2 rounded-xl text-[0.85rem] font-bold transition-all border-none cursor-pointer"
+              :class="activeView === 'stories' ? 'bg-white text-[#111] shadow-sm' : 'text-[#aaa] hover:text-[#777] bg-transparent'"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+              Histórias
+            </button>
+            <button 
+              @click="switchTab('guides')"
+              class="flex items-center gap-2 px-6 py-2 rounded-xl text-[0.85rem] font-bold transition-all border-none cursor-pointer"
+              :class="activeView === 'guides' ? 'bg-white text-[#111] shadow-sm' : 'text-[#aaa] hover:text-[#777] bg-transparent'"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              Guias
+            </button>
+          </div>
+
           <button 
-            @click="switchTab('stories')"
-            class="flex items-center gap-2 px-6 py-2 rounded-xl text-[0.85rem] font-bold transition-all border-none cursor-pointer"
-            :class="activeView === 'stories' ? 'bg-white text-[#111] shadow-sm' : 'text-[#aaa] hover:text-[#777] bg-transparent'"
+            v-if="isAuthenticated" 
+            @click="router.push('/new-post')" 
+            class="hidden md:flex items-center gap-2 px-4 py-2 bg-[#f7f5f0] text-[#111] border border-[#e8e4dc] rounded-xl text-[0.85rem] font-bold hover:border-[#079272] hover:text-[#079272] transition-colors cursor-pointer"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-            Histórias
-          </button>
-          <button 
-            @click="switchTab('guides')"
-            class="flex items-center gap-2 px-6 py-2 rounded-xl text-[0.85rem] font-bold transition-all border-none cursor-pointer"
-            :class="activeView === 'guides' ? 'bg-white text-[#111] shadow-sm' : 'text-[#aaa] hover:text-[#777] bg-transparent'"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-            Guias
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Publicar
           </button>
         </div>
 
