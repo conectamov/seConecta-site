@@ -1,6 +1,8 @@
 <script setup lang="ts">
 useSeoMeta({ title: 'Feed — seConecta' })
 
+
+
 const router = useRouter()
 const { get } = useAxios()
 const { currentUser, isAuthenticated } = useAuth()
