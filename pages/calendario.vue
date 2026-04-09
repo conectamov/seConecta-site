@@ -501,7 +501,7 @@ const CATEGORY_ORDER = [
 const CATEGORY_MAP: Record<string, { label: string; color: string; hints: string[] }> = {
   olimpiadas: {
     label: 'Olimpíadas',
-    color: '#079272',
+    color: '#FFFE7B',
     hints: ['olimpiada', 'olimpíada', 'obmep', 'obf', 'obo', 'obq', 'competição', 'competicao', 'olympiad'],
   },
   bolsas: {
