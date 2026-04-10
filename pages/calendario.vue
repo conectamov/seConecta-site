@@ -108,9 +108,31 @@
 
         <!-- Upcoming sidebar -->
         <div class="bg-white border border-[#e8e4dc] rounded-2xl shadow-sm overflow-hidden">
-          <div class="px-5 py-4 border-b border-[#f0ece5]">
-            <h2 class="text-[0.88rem] font-bold text-[#111]">Próximos 30 dias</h2>
-            <p class="text-[0.7rem] text-[#aaa] mt-0.5">Datas importantes se aproximando</p>
+          <div class="px-5 py-4 border-b border-[#f0ece5] flex items-center justify-between">
+            <div>
+              <h2 class="text-[0.88rem] font-bold text-[#111]">Próximos 30 dias</h2>
+              <p class="text-[0.7rem] text-[#aaa] mt-0.5">Datas importantes se aproximando</p>
+            </div>
+            <div class="flex gap-1.5" v-if="allUpcomingEvents.length > SIDEBAR_PAGE_SIZE">
+              <button
+                @click="sidebarPage--"
+                :disabled="sidebarPage === 0"
+                class="w-7 h-7 rounded-lg border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+              <button
+                @click="sidebarPage++"
+                :disabled="sidebarPage >= sidebarMaxPage"
+                class="w-7 h-7 rounded-lg border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div v-if="loading" class="p-5 flex justify-center">
@@ -120,7 +142,7 @@
           </div>
 
           <div
-            v-else-if="upcomingEvents.length === 0"
+            v-else-if="allUpcomingEvents.length === 0"
             class="px-5 py-10 text-center text-[0.8rem] text-[#bbb]"
           >
             Nenhuma data importante nos próximos 30 dias
@@ -128,7 +150,7 @@
 
           <div v-else class="divide-y divide-[#f7f5f0]">
             <button
-              v-for="event in upcomingEvents"
+              v-for="event in sidebarDisplayEvents"
               :key="event.id"
               class="w-full px-5 py-3.5 flex items-start gap-3 hover:bg-[#fafaf9] transition-colors cursor-pointer text-left group border-none bg-transparent"
               @click="openEvent(event)"
@@ -177,11 +199,11 @@
           </div>
 
           <div
-            v-if="!loading && allEvents.length > 0"
+            v-if="!loading && allUpcomingEvents.length > 0"
             class="border-t border-[#f7f5f0] px-5 py-3 text-center"
           >
             <p class="text-[0.65rem] text-[#ccc]">
-              {{ allEvents.length }} evento{{ allEvents.length !== 1 ? 's' : '' }} importantes
+              {{ allUpcomingEvents.length }} evento{{ allUpcomingEvents.length !== 1 ? 's' : '' }} importantes
             </p>
           </div>
         </div>
@@ -465,6 +487,10 @@ const showModal = ref(false)
 const mounted = ref(false)
 const authReady = ref(false)
 
+// Sidebar pagination
+const SIDEBAR_PAGE_SIZE = 3
+const sidebarPage = ref(0)
+
 // Recommendation related
 const recommendedPosts = ref<any[]>([])
 const recommendedLoading = ref(false)
@@ -557,12 +583,14 @@ const hasInactiveCategories = computed(() => {
 
 function toggleCategory(key: string) {
   activeCategories.value[key] = !activeCategories.value[key]
+  sidebarPage.value = 0
 }
 
 function resetCategories() {
   CATEGORY_ORDER.forEach(cat => {
     activeCategories.value[cat.key] = true
   })
+  sidebarPage.value = 0
 }
 
 // Helper functions
@@ -608,14 +636,12 @@ function labelFor(post: any) {
   return CATEGORY_MAP[classifyPost(post)]?.label ?? 'Outros'
 }
 
-// Normalize olympiad to event(s) – one for start date, one for end date
 function normalizeOlympiad(olympiad: any): any[] {
   const events: any[] = []
   const category = 'olimpiadas'
   const categoryLabel = CATEGORY_MAP.olimpiadas.label
   const categoryColor = CATEGORY_MAP.olimpiadas.color
 
-  // Start date event
   if (olympiad.start_date) {
     events.push({
       id: `olympiad-start-${olympiad.id}`,
@@ -638,7 +664,6 @@ function normalizeOlympiad(olympiad: any): any[] {
     })
   }
 
-  // End date event (only if different from start)
   if (olympiad.end_date && olympiad.end_date !== olympiad.start_date) {
     events.push({
       id: `olympiad-end-${olympiad.id}`,
@@ -664,7 +689,6 @@ function normalizeOlympiad(olympiad: any): any[] {
   return events
 }
 
-// Normalize post to event shape
 function normalizePostToEvent(post: any): any {
   const category = classifyPost(post)
   return {
@@ -688,7 +712,6 @@ function normalizePostToEvent(post: any): any {
   }
 }
 
-// Combined events (posts + olympiad start/end) after filtering by active categories
 const allEvents = computed<any[]>(() => {
   const postEvents = posts.value.map(p => normalizePostToEvent(p))
   const olympiadEvents = olympiads.value.flatMap(o => normalizeOlympiad(o))
@@ -696,7 +719,6 @@ const allEvents = computed<any[]>(() => {
   return combined.filter(event => activeCategories.value[event.category] === true)
 })
 
-// Calendar attributes (dots on days)
 const calendarAttributes = computed(() => {
   return allEvents.value.map((event, idx) => ({
     key: `${event.id}-${idx}`,
@@ -712,8 +734,8 @@ const calendarAttributes = computed(() => {
   }))
 })
 
-// Upcoming events (next 30 days)
-const upcomingEvents = computed<any[]>(() => {
+// All upcoming events (no slice limit — pagination handles display)
+const allUpcomingEvents = computed<any[]>(() => {
   const now = Date.now()
   const limit = now + 30 * 86_400_000
 
@@ -723,10 +745,24 @@ const upcomingEvents = computed<any[]>(() => {
       return t >= now && t <= limit
     })
     .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-    .slice(0, 10)
 })
 
-// Events selected for a specific day (modal)
+const sidebarMaxPage = computed(() =>
+  Math.max(0, Math.ceil(allUpcomingEvents.value.length / SIDEBAR_PAGE_SIZE) - 1)
+)
+
+const sidebarDisplayEvents = computed(() => {
+  const start = sidebarPage.value * SIDEBAR_PAGE_SIZE
+  return allUpcomingEvents.value.slice(start, start + SIDEBAR_PAGE_SIZE)
+})
+
+// Reset sidebar page when events change
+watch(allUpcomingEvents, () => {
+  if (sidebarPage.value > sidebarMaxPage.value) {
+    sidebarPage.value = sidebarMaxPage.value
+  }
+})
+
 const selectedEvents = computed(() => {
   if (!selectedDay.value) return []
   const key = toKey(selectedDay.value)
@@ -755,7 +791,6 @@ function handleDayClick(day: any) {
 function openEvent(event: any) {
   showModal.value = false
   if (event.type === 'olympiad') {
-    // Redirect to the olympiads listing page (no slug)
     router.push('/olimpiadas')
   } else {
     router.push(`/feed/${event.slug}`)
@@ -776,7 +811,6 @@ const selectedDayLabel = computed(() =>
     : ''
 )
 
-// Data fetching
 async function fetchPosts() {
   try {
     const res = await get('/posts/', { params: { limit: 300, approved: true } })
@@ -811,7 +845,6 @@ async function fetchAllData() {
   }
 }
 
-// Recommendations
 async function fetchRecommended() {
   if (!authReady.value || !isAuthenticated.value || !isLinked.value) {
     recommendedPosts.value = []
