@@ -2,6 +2,7 @@
 /// <reference types="@nuxt/telemetry" />
 /// <reference types="@nuxtjs/tailwindcss" />
 /// <reference types="@pinia/nuxt" />
+/// <reference types="@vite-pwa/nuxt" />
 /// <reference path="types/nitro-layouts.d.ts" />
 /// <reference path="types/builder-env.d.ts" />
 /// <reference types="nuxt" />

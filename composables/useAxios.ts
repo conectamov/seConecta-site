@@ -2,18 +2,23 @@ import axios from 'axios'
 import { useRoute } from 'vue-router'
 import { navigateTo } from 'nuxt/app'
 
-const BASE_URL = 'https://api.seconecta.org/api/v1'
+const BASE_URL = 'http://localhost:8000/api/v1'
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
 
 axiosInstance.interceptors.request.use((cfg) => {
   if (import.meta.client) {
     const token = localStorage.getItem('conecta_token')
-    if (token) cfg.headers.Authorization = `Bearer ${token}`
+    if (token) {
+      cfg.headers.Authorization = `Bearer ${token}`
+    } else {
+      delete cfg.headers?.Authorization
+    }
   }
   return cfg
 })

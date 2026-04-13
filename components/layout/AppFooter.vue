@@ -5,7 +5,7 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
 
 <template>
   <template v-if="!isHidden">
-    <footer class="z-50 bg-gradient-to-r from-[#60b6c1] to-[#36ad90] text-white px-8 md:px-16 lg:px-20 py-6 relative flex flex-col items-center">
+    <footer class="z-40 bg-gradient-to-r from-[#60b6c1] to-[#36ad90] text-white px-8 md:px-16 lg:px-20 py-6 relative flex flex-col items-center">
       <div class="mb-4 w-full flex flex-col items-center justify-center">
         <p class="text-lg mb-6 leading-relaxed text-white/90 text-center">
           Uma rede de crescimento feita por estudantes, para estudantes. Juntos, criamos pontes entre potencial e oportunidade.

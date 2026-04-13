@@ -15,6 +15,9 @@ type LazyComponent<T> = DefineComponent<HydrationStrategies, {}, {}, {}, {}, {},
 
 
 export const BetaTesterCard: typeof import("../components/BetaTesterCard.vue")['default']
+export const ClubCard: typeof import("../components/ClubCard.vue")['default']
+export const ClubMemberItem: typeof import("../components/ClubMemberItem.vue")['default']
+export const ClubPostItem: typeof import("../components/ClubPostItem.vue")['default']
 export const TeamMember: typeof import("../components/TeamMember.vue")['default']
 export const FeedCommentItem: typeof import("../components/feed/CommentItem.vue")['default']
 export const FeedPostCard: typeof import("../components/feed/PostCard.vue")['default']
@@ -59,6 +62,9 @@ export const Html: typeof import("../node_modules/nuxt/dist/head/runtime/compone
 export const Body: typeof import("../node_modules/nuxt/dist/head/runtime/components")['Body']
 export const NuxtIsland: typeof import("../node_modules/nuxt/dist/app/components/nuxt-island")['default']
 export const LazyBetaTesterCard: LazyComponent<typeof import("../components/BetaTesterCard.vue")['default']>
+export const LazyClubCard: LazyComponent<typeof import("../components/ClubCard.vue")['default']>
+export const LazyClubMemberItem: LazyComponent<typeof import("../components/ClubMemberItem.vue")['default']>
+export const LazyClubPostItem: LazyComponent<typeof import("../components/ClubPostItem.vue")['default']>
 export const LazyTeamMember: LazyComponent<typeof import("../components/TeamMember.vue")['default']>
 export const LazyFeedCommentItem: LazyComponent<typeof import("../components/feed/CommentItem.vue")['default']>
 export const LazyFeedPostCard: LazyComponent<typeof import("../components/feed/PostCard.vue")['default']>

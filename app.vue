@@ -10,3 +10,4 @@ router.afterEach(() => {
     <NuxtPage />
   </NuxtLayout>
 </template>
+

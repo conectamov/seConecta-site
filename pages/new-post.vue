@@ -116,6 +116,15 @@ async function handleSubmit() {
   if (form.value.tags.length) payload.tags = form.value.tags
   if (form.value.deadline) payload.deadline = form.value.deadline
 
+  if (import.meta.client) {
+    const userRaw = localStorage.getItem('conecta_user')
+    if (!userRaw) {
+      error.value = 'Usuário não autenticado. Faça login novamente.'
+      submitting.value = false
+      return
+    }
+  }
+
   try {
     await apiPost('/posts/', payload)
     localStorage.removeItem('new-post-draft')
@@ -287,6 +296,13 @@ const topics = [
                 @keydown="onTagKeydown" @blur="addTag" />
             </div>
           </div>
+
+          <!-- Deadlines -->
+          <div>
+            <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">Deadline</label>
+            <input v-model="form.deadline" type="date" class="w-full px-4 py-2.5 rounded-xl border border-[#e8e4dc] text-[0.85rem] outline-none focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15 transition-all bg-white" />
+          </div>
+
         </div>
       </div>
     </main>

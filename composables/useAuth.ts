@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import axios from 'axios'
 
-const BASE_URL = 'https://api.seconecta.org/api/v1'
+const BASE_URL = 'http://localhost:8000/api/v1'
 const TOKEN_KEY = 'conecta_token'
 const TOKEN_EXPIRY_KEY = 'conecta_token_expiry'
 const USER_KEY = 'conecta_user'
@@ -111,5 +111,13 @@ export function useAuth() {
 
   function getAccessToken() { return accessToken.value }
 
-  return { isAuthenticated, currentUser, authLoading, login, register, logout, restoreSession, fetchMe, getAccessToken }
+  async function loginWithToken(token: string) {
+    accessToken.value = token
+    saveToken(token)
+    await fetchMe()
+  }
+
+
+
+  return { isAuthenticated, currentUser, authLoading, login, register, logout, restoreSession, fetchMe, getAccessToken, loginWithToken  }
 }
