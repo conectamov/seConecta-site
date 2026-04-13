@@ -6,7 +6,7 @@ const router = useRouter()
 const route = useRoute()
 const { login, register, loginWithToken } = useAuth()
 
-const GOOGLE_LOGIN_URL = `http://localhost:8000/api/v1/login/google`
+const GOOGLE_LOGIN_URL = `https://api.seconecta.org/api/v1/login/google`
 
 const activeTab = ref(route.query.mode === 'register' ? 'register' : 'login')
 const loginForm = ref({ email: '', password: '' })
