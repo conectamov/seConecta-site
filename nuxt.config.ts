@@ -116,7 +116,7 @@ export default defineNuxtConfig({
     server: {
       proxy: {
         '/api': {
-          target: 'https://api.seconecta.org',
+          target: 'http://localhost:8000',
           changeOrigin: true,
           secure: false,
         },
