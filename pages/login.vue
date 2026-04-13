@@ -189,15 +189,15 @@ function switchTab(tab: string) {
         </div>
 
         <!-- Botão Google (aparece nos dois tabs) -->
-        <button
+        <!-- <button
           type="button"
           class="w-full h-11 flex items-center justify-center gap-3 bg-white border border-[#e8e4dc] rounded-xl text-sm font-semibold text-[#333] hover:bg-[#f0ede8] hover:border-[#ccc] transition-all duration-200 mb-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           :disabled="googleLoading"
           @click="loginWithGoogle"
         >
-          <!-- Spinner -->
+          
           <svg v-if="googleLoading" class="animate-spin text-[#aaa]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-          <!-- Logo Google -->
+         
           <svg v-else width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
             <path fill="#EA4335" d="M24 9.5c3.14 0 5.95 1.08 8.17 2.86l6.1-6.1C34.36 3.07 29.43 1 24 1 14.82 1 7.01 6.48 3.56 14.27l7.1 5.52C12.33 13.61 17.71 9.5 24 9.5z"/>
             <path fill="#4285F4" d="M46.52 24.5c0-1.64-.15-3.22-.42-4.74H24v8.98h12.68c-.55 2.94-2.2 5.43-4.68 7.1l7.18 5.58C43.35 37.57 46.52 31.5 46.52 24.5z"/>
@@ -205,7 +205,7 @@ function switchTab(tab: string) {
             <path fill="#34A853" d="M24 47c5.43 0 9.99-1.8 13.32-4.88l-7.18-5.58c-1.8 1.21-4.1 1.96-6.14 1.96-6.3 0-11.67-4.11-13.34-9.78l-8.1 6.52C7.01 41.52 14.82 47 24 47z"/>
           </svg>
           {{ googleLoading ? 'Redirecionando...' : (activeTab === 'login' ? 'Entrar com Google' : 'Cadastrar com Google') }}
-        </button>
+        </button> -->
 
         <!-- Divisor -->
         <div class="flex items-center gap-3 mb-4">
