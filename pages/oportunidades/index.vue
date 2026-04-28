@@ -662,7 +662,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                   >
                     <div class="opp-timeline__dot"></div>
                     <div class="opp-timeline__content">
-                      <span class="opp-timeline__label">{{ event.label ?? event.title ?? event.name ?? 'Evento' }}</span>
+                      <span class="opp-timeline__label">{{ event.details ?? event.label ?? event.title ?? event.name ?? 'Evento' }}</span>
                       <span v-if="event.date" class="opp-timeline__date">{{ fmtDate(event.date) }}</span>
                     </div>
                   </div>
