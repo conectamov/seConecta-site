@@ -60,9 +60,24 @@ function fmtDate(raw: string | null | undefined) {
   return new Date(raw).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
+// Priority 0–5 set by humans. Drives visual treatment:
+//   5 → pin/hero banner   4 → alta prioridade (destaque row)
+//   3 → destaque (destaque row)   2 → recomendado (badge)
+//   1 → relevante (badge)   0 → normal
+
+const PRIORITY_LABEL: Record<number, { label: string; color: string; glow: string }> = {
+  5: { label: 'Editorial Pick', color: '#f59e0b', glow: 'rgba(245,158,11,0.35)' },
+  4: { label: 'Alta Prioridade', color: '#10b981', glow: 'rgba(16,185,129,0.3)' },
+  3: { label: 'Destaque',        color: '#6366f1', glow: 'rgba(99,102,241,0.25)' },
+  2: { label: 'Recomendado',     color: '#0ea5e9', glow: 'rgba(14,165,233,0.2)' },
+  1: { label: 'Relevante',       color: '#a78bfa', glow: 'rgba(167,139,250,0.2)' },
+  0: { label: '',                color: '',        glow: '' },
+}
+
 function normalize(o: any) {
-  const meta = CATEGORY_META[o.category] ?? CATEGORY_META['POST']
+  const meta     = CATEGORY_META[o.category] ?? CATEGORY_META['POST']
   const deadline = formatDeadline(o.next_deadline)
+  const priority = typeof o.priority === 'number' ? Math.min(5, Math.max(0, o.priority)) : 0
 
   return {
     id: o.id,
@@ -82,6 +97,8 @@ function normalize(o: any) {
     tags: Array.isArray(o.tags) ? o.tags : [],
     category_data: o.category_data ?? {},
     human_verified: !!o.human_verified,
+    priority,
+    priorityMeta: PRIORITY_LABEL[priority],
     created_at: o.created_at,
     updated_at: o.updated_at,
   }
@@ -145,10 +162,27 @@ onMounted(() => fetchOpportunities(true))
 
 // ─── Derived ──────────────────────────────────────────────────────────────────
 
-const filtered  = computed(() => opportunities.value)
-const hasMore   = computed(() => opportunities.value.length < totalCount.value)
-const activeFilters = computed(() =>
-  (search.value ? 1 : 0) + (activeCategory.value ? 1 : 0) + (freeOnly.value ? 1 : 0)
+const filtered      = computed(() => opportunities.value)
+const hasMore       = computed(() => opportunities.value.length < totalCount.value)
+const activeFilters = computed(
+  () => (search.value ? 1 : 0) + (activeCategory.value ? 1 : 0) + (freeOnly.value ? 1 : 0)
+)
+
+const filtersActive = computed(() => activeFilters.value > 0)
+
+// priority 5 → single cinematic hero banner
+const pinnedItem = computed(() =>
+  filtersActive.value ? null : (filtered.value.find(o => o.priority === 5) ?? null)
+)
+
+// priority 3–4 → horizontal "Em Destaque" row (pinned excluded)
+const featuredItems = computed(() =>
+  filtersActive.value ? [] : filtered.value.filter(o => o.priority >= 3 && o.priority <= 4)
+)
+
+// Regular grid: all items except pinned hero (which already has its own banner)
+const gridItems = computed(() =>
+  filtersActive.value ? filtered.value : filtered.value.filter(o => o.priority !== 5)
 )
 
 function clearFilters() {
@@ -301,13 +335,155 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
           <div v-for="i in 9" :key="i" class="opp-skeleton"></div>
         </div>
 
+        <!-- ── PINNED HERO (priority 5) ──────────────────────────────────────── -->
+        <div v-if="pinnedItem" class="opp-pin-banner" @click="selectedItem = pinnedItem">
+          <div class="opp-pin-banner__bg">
+            <img
+              v-if="pinnedItem.cover_url"
+              :src="pinnedItem.cover_url"
+              :alt="pinnedItem.title"
+              class="opp-pin-banner__img"
+            />
+            <div
+              v-else
+              class="opp-pin-banner__img-fallback"
+              :style="{ background: `linear-gradient(135deg, ${pinnedItem.categoryMeta.color}40, ${pinnedItem.categoryMeta.color}10)` }"
+            >
+              <span style="font-size:5rem;opacity:.25">{{ pinnedItem.categoryMeta.icon }}</span>
+            </div>
+            <div class="opp-pin-banner__overlay"></div>
+          </div>
+
+          <div class="opp-pin-banner__content">
+            <div class="opp-pin-banner__top">
+              <span class="opp-pin-banner__pin-badge">
+                <svg fill="currentColor" viewBox="0 0 20 20" style="width:11px;height:11px"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                Editorial Pick
+              </span>
+              <span
+                class="opp-badge"
+                :style="{ background: pinnedItem.categoryMeta.color + '25', color: pinnedItem.categoryMeta.color, border: `1px solid ${pinnedItem.categoryMeta.color}45` }"
+              >{{ pinnedItem.categoryMeta.icon }} {{ pinnedItem.categoryMeta.label }}</span>
+              <span v-if="pinnedItem.is_free" class="opp-pin-banner__free-badge">Gratuito</span>
+            </div>
+
+            <h2 class="opp-pin-banner__title">{{ pinnedItem.title }}</h2>
+            <p class="opp-pin-banner__excerpt">{{ pinnedItem.excerpt }}</p>
+
+            <div class="opp-pin-banner__bottom">
+              <div
+                v-if="pinnedItem.next_deadline"
+                class="opp-pin-banner__deadline"
+                :class="{ 'opp-pin-banner__deadline--urgent': pinnedItem.deadline.urgent }"
+              >
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"/></svg>
+                {{ pinnedItem.deadline.label }}
+              </div>
+
+              <span class="opp-pin-banner__location">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                {{ pinnedItem.location }}
+              </span>
+
+              <button class="opp-pin-banner__cta">
+                Ver detalhes
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── FEATURED ROW (priority 3–4) ──────────────────────────────────── -->
+        <div v-if="featuredItems.length > 0" class="opp-featured-section">
+          <div class="opp-section-header">
+            <div class="opp-section-header__bar"></div>
+            <h2 class="opp-section-header__title">Em Destaque</h2>
+            <span class="opp-section-header__count">{{ featuredItems.length }}</span>
+          </div>
+
+          <div class="opp-featured-row">
+            <article
+              v-for="item in featuredItems"
+              :key="item.id"
+              class="opp-featured-card"
+              @click="selectedItem = item"
+              role="button"
+              tabindex="0"
+              @keydown.enter="selectedItem = item"
+            >
+              <div class="opp-featured-card__cover">
+                <img v-if="item.cover_url" :src="item.cover_url" :alt="item.title" class="opp-card__img" loading="lazy"/>
+                <div
+                  v-else
+                  class="opp-card__cover-fallback"
+                  :style="{ background: `linear-gradient(135deg, ${item.categoryMeta.color}25, ${item.categoryMeta.color}08)` }"
+                >
+                  <span class="opp-card__cover-emoji">{{ item.categoryMeta.icon }}</span>
+                </div>
+
+                <!-- priority glow ring -->
+                <div
+                  class="opp-featured-card__glow-ring"
+                  :style="{ '--glow': item.priorityMeta.glow }"
+                ></div>
+
+                <div class="opp-card__badges">
+                  <span
+                    class="opp-badge"
+                    :style="{ background: item.categoryMeta.color + '22', color: item.categoryMeta.color, border: `1px solid ${item.categoryMeta.color}44` }"
+                  >{{ item.categoryMeta.icon }} {{ item.categoryMeta.label }}</span>
+                </div>
+
+                <div class="opp-featured-card__priority-chip" :style="{ background: item.priorityMeta.color }">
+                  {{ item.priorityMeta.label }}
+                </div>
+
+                <div
+                  v-if="item.next_deadline"
+                  class="opp-card__deadline"
+                  :class="{ 'opp-card__deadline--urgent': item.deadline.urgent, 'opp-card__deadline--overdue': item.deadline.overdue }"
+                >
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"/></svg>
+                  {{ item.deadline.label }}
+                </div>
+              </div>
+
+              <div class="opp-card__body">
+                <h3 class="opp-card__title">{{ item.title }}</h3>
+                <p class="opp-card__excerpt">{{ item.excerpt }}</p>
+                <div class="opp-card__meta">
+                  <span class="opp-meta-chip">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    {{ item.location }}
+                  </span>
+                  <span v-if="item.is_free" class="opp-meta-chip opp-meta-chip--free">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Gratuito
+                  </span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <!-- ── ALL / REGULAR GRID ─────────────────────────────────────────────── -->
+        <div v-if="gridItems.length > 0 && (pinnedItem || featuredItems.length > 0)" class="opp-section-header" style="margin-bottom: 16px;">
+          <div class="opp-section-header__bar"></div>
+          <h2 class="opp-section-header__title">Todas as oportunidades</h2>
+          <span class="opp-section-header__count">{{ gridItems.length }}</span>
+        </div>
+
         <!-- Cards grid -->
-        <div v-if="filtered.length > 0" class="opp-grid">
+        <div v-if="gridItems.length > 0" class="opp-grid">
           <article
-            v-for="item in filtered"
+            v-for="item in gridItems"
             :key="item.id"
             class="opp-card"
-            :class="{ 'opp-card--urgent': item.deadline.urgent, 'opp-card--overdue': item.deadline.overdue }"
+            :class="{
+              'opp-card--urgent':   item.deadline.urgent,
+              'opp-card--overdue':  item.deadline.overdue,
+              'opp-card--priority': item.priority >= 1 && item.priority <= 2
+            }"
             @click="selectedItem = item"
             role="button"
             tabindex="0"
@@ -340,8 +516,15 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                 </span>
               </div>
 
-              <!-- deadline chip -->
+              <!-- priority strip (priority 1–2 only) -->
               <div
+                v-if="item.priority >= 1 && item.priority <= 2"
+                class="opp-card__priority-strip"
+                :style="{ background: item.priorityMeta.color + '15', color: item.priorityMeta.color, borderColor: item.priorityMeta.color + '35' }"
+              >
+                <svg fill="currentColor" viewBox="0 0 20 20" style="width:9px;height:9px;flex-shrink:0"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                {{ item.priorityMeta.label }}
+              </div>
                 v-if="item.next_deadline"
                 class="opp-card__deadline"
                 :class="{
@@ -435,6 +618,13 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                   </span>
                   <span v-if="selectedItem.human_verified" class="opp-badge opp-badge--verified">✓ Verificado</span>
                   <span v-if="selectedItem.is_free" class="opp-badge opp-badge--free">Gratuito</span>
+                  <span
+                    v-if="selectedItem.priority >= 1"
+                    class="opp-badge"
+                    :style="{ background: selectedItem.priorityMeta.color + '18', color: selectedItem.priorityMeta.color, border: `1px solid ${selectedItem.priorityMeta.color}35` }"
+                  >
+                    ★ {{ selectedItem.priorityMeta.label }}
+                  </span>
                 </div>
 
                 <h2 class="opp-modal__title">{{ selectedItem.title }}</h2>
