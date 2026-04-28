@@ -55,9 +55,36 @@ function formatDeadline(raw: string | null | undefined): {
   }
 }
 
+function getTimelineLabel(event: any) {
+  return (
+    event.details ??
+    event.description ??
+    event.label ??
+    event.title ??
+    event.name ??
+    event.event ??
+    'Evento'
+  )
+}
+
 function fmtDate(raw: string | null | undefined) {
   if (!raw) return null
-  return new Date(raw).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+
+  // Corrige datas no formato "YYYY-MM-DD" para não voltar 1 dia por timezone
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [year, month, day] = raw.split('-').map(Number)
+    return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    })
+  }
+
+  return new Date(raw).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
 // Priority 0–5 set by humans. Drives visual treatment:
@@ -72,6 +99,21 @@ const PRIORITY_LABEL: Record<number, { label: string; color: string; glow: strin
   2: { label: 'Recomendado',     color: '#0ea5e9', glow: 'rgba(14,165,233,0.2)' },
   1: { label: 'Relevante',       color: '#a78bfa', glow: 'rgba(167,139,250,0.2)' },
   0: { label: '',                color: '',        glow: '' },
+}
+
+function normalizeTimeline(value: any) {
+  if (Array.isArray(value)) return value
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+
+  return []
 }
 
 function normalize(o: any) {
@@ -93,7 +135,7 @@ function normalize(o: any) {
     is_free: !!o.is_free,
     next_deadline: o.next_deadline ?? null,
     deadline,
-    timeline: Array.isArray(o.timeline) ? o.timeline : [],
+    timeline: normalizeTimeline(o.timeline),
     tags: Array.isArray(o.tags) ? o.tags : [],
     category_data: o.category_data ?? {},
     human_verified: !!o.human_verified,
@@ -662,7 +704,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                   >
                     <div class="opp-timeline__dot"></div>
                     <div class="opp-timeline__content">
-                      <span class="opp-timeline__label">{{ event.details ?? event.label ?? event.title ?? event.name ?? 'Evento' }}</span>
+                      <span class="opp-timeline__label">{{ getTimelineLabel(event) }}</span>
                       <span v-if="event.date" class="opp-timeline__date">{{ fmtDate(event.date) }}</span>
                     </div>
                   </div>
