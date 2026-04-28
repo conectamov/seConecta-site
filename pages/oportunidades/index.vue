@@ -45,13 +45,15 @@ function formatDeadline(raw: string | null | undefined): {
   const dt = new Date(raw)
   const now = new Date()
   const diff = Math.ceil((dt.getTime() - now.getTime()) / 86_400_000)
-  if (diff < 0)  return { label: 'Encerrado',              urgent: false, overdue: true,  daysLeft: diff }
-  if (diff === 0) return { label: 'Último dia!',           urgent: true,  overdue: false, daysLeft: 0 }
-  if (diff <= 3)  return { label: `${diff}d restante${diff > 1 ? 's' : ''}`, urgent: true, overdue: false, daysLeft: diff }
-  if (diff <= 14) return { label: `${diff} dias`,          urgent: false, overdue: false, daysLeft: diff }
+  if (diff < 0) return { label: 'Encerrado', urgent: false, overdue: true, daysLeft: diff }
+  if (diff === 0) return { label: 'Último dia!', urgent: true, overdue: false, daysLeft: 0 }
+  if (diff <= 3) return { label: `${diff}d restante${diff > 1 ? 's' : ''}`, urgent: true, overdue: false, daysLeft: diff }
+  if (diff <= 14) return { label: `${diff} dias`, urgent: false, overdue: false, daysLeft: diff }
   return {
     label: dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-    urgent: false, overdue: false, daysLeft: diff,
+    urgent: false,
+    overdue: false,
+    daysLeft: diff,
   }
 }
 
@@ -70,7 +72,7 @@ function getTimelineLabel(event: any) {
 function fmtDate(raw: string | null | undefined) {
   if (!raw) return null
 
-  // Corrige datas no formato "YYYY-MM-DD" para não voltar 1 dia por timezone
+  // Corrige datas no formato "YYYY-MM-DD" para não voltar 1 dia por timezone.
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
     const [year, month, day] = raw.split('-').map(Number)
     return new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
@@ -95,10 +97,10 @@ function fmtDate(raw: string | null | undefined) {
 const PRIORITY_LABEL: Record<number, { label: string; color: string; glow: string }> = {
   5: { label: 'Editorial Pick', color: '#f59e0b', glow: 'rgba(245,158,11,0.35)' },
   4: { label: 'Alta Prioridade', color: '#10b981', glow: 'rgba(16,185,129,0.3)' },
-  3: { label: 'Destaque',        color: '#6366f1', glow: 'rgba(99,102,241,0.25)' },
-  2: { label: 'Recomendado',     color: '#0ea5e9', glow: 'rgba(14,165,233,0.2)' },
-  1: { label: 'Relevante',       color: '#a78bfa', glow: 'rgba(167,139,250,0.2)' },
-  0: { label: '',                color: '',        glow: '' },
+  3: { label: 'Destaque', color: '#6366f1', glow: 'rgba(99,102,241,0.25)' },
+  2: { label: 'Recomendado', color: '#0ea5e9', glow: 'rgba(14,165,233,0.2)' },
+  1: { label: 'Relevante', color: '#a78bfa', glow: 'rgba(167,139,250,0.2)' },
+  0: { label: '', color: '', glow: '' },
 }
 
 function normalizeTimeline(value: any) {
@@ -117,7 +119,7 @@ function normalizeTimeline(value: any) {
 }
 
 function normalize(o: any) {
-  const meta     = CATEGORY_META[o.category] ?? CATEGORY_META['POST']
+  const meta = CATEGORY_META[o.category] ?? CATEGORY_META.POST
   const deadline = formatDeadline(o.next_deadline)
   const priority = typeof o.priority === 'number' ? Math.min(5, Math.max(0, o.priority)) : 0
 
@@ -148,39 +150,48 @@ function normalize(o: any) {
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-const opportunities  = ref<any[]>([])
-const loading        = ref(true)
-const loadingMore    = ref(false)
-const error          = ref<string | null>(null)
-const totalCount     = ref(0)
-const currentPage    = ref(1)
-const PAGE_SIZE      = 24
+const opportunities = ref<any[]>([])
+const loading = ref(true)
+const loadingMore = ref(false)
+const error = ref<string | null>(null)
+const totalCount = ref(0)
+const currentPage = ref(1)
+const PAGE_SIZE = 24
 
-const selectedItem   = ref<any | null>(null)
-const search         = ref('')
+const selectedItem = ref<any | null>(null)
+const search = ref('')
 const activeCategory = ref('')
-const freeOnly       = ref(false)
+const freeOnly = ref(false)
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
 async function fetchOpportunities(reset = true) {
-  if (reset) { currentPage.value = 1; loading.value = true }
-  else { loadingMore.value = true }
+  if (reset) {
+    currentPage.value = 1
+    loading.value = true
+  } else {
+    loadingMore.value = true
+  }
+
   error.value = null
 
   try {
     const params: Record<string, any> = { page: currentPage.value, limit: PAGE_SIZE }
-    if (search.value.trim())    params.search   = search.value.trim()
-    if (activeCategory.value)   params.category = activeCategory.value
-    if (freeOnly.value)         params.is_free  = true
+    if (search.value.trim()) params.search = search.value.trim()
+    if (activeCategory.value) params.category = activeCategory.value
+    if (freeOnly.value) params.is_free = true
 
     const res = await get('/opportunity/', { params })
-    const data  = res.data?.data ?? []
+    const data = res.data?.data ?? []
     const count = res.data?.count ?? 0
     const normalized = data.map(normalize)
 
-    if (reset) { opportunities.value = normalized; totalCount.value = count }
-    else        { opportunities.value.push(...normalized) }
+    if (reset) {
+      opportunities.value = normalized
+      totalCount.value = count
+    } else {
+      opportunities.value.push(...normalized)
+    }
   } catch (e: any) {
     error.value = e?.response?.data?.detail || e?.message || 'Erro ao carregar oportunidades.'
   } finally {
@@ -204,8 +215,8 @@ onMounted(() => fetchOpportunities(true))
 
 // ─── Derived ──────────────────────────────────────────────────────────────────
 
-const filtered      = computed(() => opportunities.value)
-const hasMore       = computed(() => opportunities.value.length < totalCount.value)
+const filtered = computed(() => opportunities.value)
+const hasMore = computed(() => opportunities.value.length < totalCount.value)
 const activeFilters = computed(
   () => (search.value ? 1 : 0) + (activeCategory.value ? 1 : 0) + (freeOnly.value ? 1 : 0)
 )
@@ -239,16 +250,20 @@ function clearFilters() {
 watch(selectedItem, (val) => {
   document.body.style.overflow = val ? 'hidden' : ''
 })
-onUnmounted(() => { document.body.style.overflow = '' })
+
+onUnmounted(() => {
+  document.body.style.overflow = ''
+})
 
 // ─── Navigate to add ─────────────────────────────────────────────────────────
 
-function handleAddOpportunity() { navigateTo('/new-opportunity') }
+function handleAddOpportunity() {
+  navigateTo('/new-opportunity')
+}
 </script>
 
 <template>
   <div class="opp-page">
-
     <!-- ── HERO ─────────────────────────────────────────────────────────────── -->
     <section class="opp-hero">
       <div class="opp-hero__noise" aria-hidden="true"></div>
@@ -273,7 +288,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
         <!-- search -->
         <div class="opp-search">
           <svg class="opp-search__icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
           </svg>
           <input
             v-model="search"
@@ -282,7 +297,9 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
             class="opp-search__input"
           />
           <button v-if="search" @click="search = ''" class="opp-search__clear" aria-label="Limpar">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
@@ -295,7 +312,6 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 
     <!-- ── BODY ──────────────────────────────────────────────────────────────── -->
     <div class="opp-body">
-
       <!-- sticky filter bar -->
       <div class="opp-filters">
         <div class="opp-filters__inner">
@@ -304,7 +320,9 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
             <button
               @click="activeCategory = ''"
               :class="['opp-pill', !activeCategory && 'opp-pill--active']"
-            >Todos</button>
+            >
+              Todos
+            </button>
 
             <button
               v-for="(meta, key) in CATEGORY_META"
@@ -330,8 +348,8 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 
             <!-- spinner -->
             <svg v-if="loading" class="opp-spinner" fill="none" viewBox="0 0 24 24">
-              <circle class="opp-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opp-spinner__fill" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              <circle class="opp-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opp-spinner__fill" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
 
             <span class="opp-count">
@@ -347,12 +365,11 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 
       <!-- ── MAIN CONTENT ────────────────────────────────────────────────────── -->
       <main class="opp-main">
-
         <!-- Error -->
         <div v-if="error && !loading" class="opp-state">
           <div class="opp-state__icon opp-state__icon--error">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
           </div>
           <p class="opp-state__title">Erro ao carregar oportunidades</p>
@@ -364,7 +381,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
         <div v-else-if="!loading && !error && filtered.length === 0" class="opp-state">
           <div class="opp-state__icon">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z" />
             </svg>
           </div>
           <p class="opp-state__title">Nenhuma oportunidade encontrada</p>
@@ -399,13 +416,17 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
           <div class="opp-pin-banner__content">
             <div class="opp-pin-banner__top">
               <span class="opp-pin-banner__pin-badge">
-                <svg fill="currentColor" viewBox="0 0 20 20" style="width:11px;height:11px"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                <svg fill="currentColor" viewBox="0 0 20 20" style="width:11px;height:11px">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
                 Editorial Pick
               </span>
               <span
                 class="opp-badge"
                 :style="{ background: pinnedItem.categoryMeta.color + '25', color: pinnedItem.categoryMeta.color, border: `1px solid ${pinnedItem.categoryMeta.color}45` }"
-              >{{ pinnedItem.categoryMeta.icon }} {{ pinnedItem.categoryMeta.label }}</span>
+              >
+                {{ pinnedItem.categoryMeta.icon }} {{ pinnedItem.categoryMeta.label }}
+              </span>
               <span v-if="pinnedItem.is_free" class="opp-pin-banner__free-badge">Gratuito</span>
             </div>
 
@@ -418,18 +439,25 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                 class="opp-pin-banner__deadline"
                 :class="{ 'opp-pin-banner__deadline--urgent': pinnedItem.deadline.urgent }"
               >
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"/></svg>
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                </svg>
                 {{ pinnedItem.deadline.label }}
               </div>
 
               <span class="opp-pin-banner__location">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
                 {{ pinnedItem.location }}
               </span>
 
               <button class="opp-pin-banner__cta">
                 Ver detalhes
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
               </button>
             </div>
           </div>
@@ -454,7 +482,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
               @keydown.enter="selectedItem = item"
             >
               <div class="opp-featured-card__cover">
-                <img v-if="item.cover_url" :src="item.cover_url" :alt="item.title" class="opp-card__img" loading="lazy"/>
+                <img v-if="item.cover_url" :src="item.cover_url" :alt="item.title" class="opp-card__img" loading="lazy" />
                 <div
                   v-else
                   class="opp-card__cover-fallback"
@@ -473,7 +501,9 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                   <span
                     class="opp-badge"
                     :style="{ background: item.categoryMeta.color + '22', color: item.categoryMeta.color, border: `1px solid ${item.categoryMeta.color}44` }"
-                  >{{ item.categoryMeta.icon }} {{ item.categoryMeta.label }}</span>
+                  >
+                    {{ item.categoryMeta.icon }} {{ item.categoryMeta.label }}
+                  </span>
                 </div>
 
                 <div class="opp-featured-card__priority-chip" :style="{ background: item.priorityMeta.color }">
@@ -485,7 +515,9 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                   class="opp-card__deadline"
                   :class="{ 'opp-card__deadline--urgent': item.deadline.urgent, 'opp-card__deadline--overdue': item.deadline.overdue }"
                 >
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"/></svg>
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                  </svg>
                   {{ item.deadline.label }}
                 </div>
               </div>
@@ -495,11 +527,16 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                 <p class="opp-card__excerpt">{{ item.excerpt }}</p>
                 <div class="opp-card__meta">
                   <span class="opp-meta-chip">
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
                     {{ item.location }}
                   </span>
                   <span v-if="item.is_free" class="opp-meta-chip opp-meta-chip--free">
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                     Gratuito
                   </span>
                 </div>
@@ -522,8 +559,8 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
             :key="item.id"
             class="opp-card"
             :class="{
-              'opp-card--urgent':   item.deadline.urgent,
-              'opp-card--overdue':  item.deadline.overdue,
+              'opp-card--urgent': item.deadline.urgent,
+              'opp-card--overdue': item.deadline.overdue,
               'opp-card--priority': item.priority >= 1 && item.priority <= 2
             }"
             @click="selectedItem = item"
@@ -540,7 +577,11 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                 class="opp-card__img"
                 loading="lazy"
               />
-              <div v-else class="opp-card__cover-fallback" :style="{ background: `linear-gradient(135deg, ${item.categoryMeta.color}22, ${item.categoryMeta.color}08)` }">
+              <div
+                v-else
+                class="opp-card__cover-fallback"
+                :style="{ background: `linear-gradient(135deg, ${item.categoryMeta.color}22, ${item.categoryMeta.color}08)` }"
+              >
                 <span class="opp-card__cover-emoji">{{ item.categoryMeta.icon }}</span>
               </div>
 
@@ -568,14 +609,9 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                   borderColor: item.priorityMeta.color + '35'
                 }"
               >
-                <svg
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                  style="width:9px;height:9px;flex-shrink:0"
-                >
+                <svg fill="currentColor" viewBox="0 0 20 20" style="width:9px;height:9px;flex-shrink:0">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                 </svg>
-
                 {{ item.priorityMeta.label }}
               </div>
 
@@ -587,21 +623,12 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                   'opp-card__deadline--overdue': item.deadline.overdue
                 }"
               >
-                <svg
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"
-                  />
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
                 </svg>
-
                 {{ item.deadline.label }}
               </div>
+            </div>
 
             <div class="opp-card__body">
               <h3 class="opp-card__title">{{ item.title }}</h3>
@@ -610,13 +637,18 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
               <div class="opp-card__meta">
                 <!-- location -->
                 <span class="opp-meta-chip">
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
                   {{ item.location }}
                 </span>
 
                 <!-- free -->
                 <span v-if="item.is_free" class="opp-meta-chip opp-meta-chip--free">
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                   Gratuito
                 </span>
               </div>
@@ -634,13 +666,12 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
         <div v-if="hasMore" class="opp-load-more">
           <button @click="loadMore" :disabled="loadingMore" class="opp-btn opp-btn--ghost">
             <svg v-if="loadingMore" class="opp-spinner opp-spinner--sm" fill="none" viewBox="0 0 24 24">
-              <circle class="opp-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opp-spinner__fill" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              <circle class="opp-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+              <path class="opp-spinner__fill" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
             {{ loadingMore ? 'Carregando…' : `Carregar mais (${totalCount - opportunities.length} restantes)` }}
           </button>
         </div>
-
       </main>
     </div>
 
@@ -649,7 +680,6 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
       <Transition name="modal">
         <div v-if="selectedItem" class="opp-modal-backdrop" @click.self="selectedItem = null">
           <div class="opp-modal" role="dialog" :aria-label="selectedItem.title">
-
             <!-- Modal cover -->
             <div class="opp-modal__cover">
               <img
@@ -658,7 +688,11 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                 :alt="selectedItem.title"
                 class="opp-modal__cover-img"
               />
-              <div v-else class="opp-modal__cover-fallback" :style="{ background: `linear-gradient(135deg, ${selectedItem.categoryMeta.color}33, ${selectedItem.categoryMeta.color}11)` }">
+              <div
+                v-else
+                class="opp-modal__cover-fallback"
+                :style="{ background: `linear-gradient(135deg, ${selectedItem.categoryMeta.color}33, ${selectedItem.categoryMeta.color}11)` }"
+              >
                 <span style="font-size: 3rem">{{ selectedItem.categoryMeta.icon }}</span>
               </div>
               <div class="opp-modal__cover-overlay"></div>
@@ -666,7 +700,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
               <!-- Close button -->
               <button @click="selectedItem = null" class="opp-modal__close" aria-label="Fechar">
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
@@ -697,14 +731,22 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 
                 <!-- quick info row -->
                 <div class="opp-modal__quick">
-                  <div v-if="selectedItem.next_deadline" class="opp-modal__info-item"
-                    :class="{ 'opp-modal__info-item--urgent': selectedItem.deadline.urgent, 'opp-modal__info-item--overdue': selectedItem.deadline.overdue }">
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"/></svg>
+                  <div
+                    v-if="selectedItem.next_deadline"
+                    class="opp-modal__info-item"
+                    :class="{ 'opp-modal__info-item--urgent': selectedItem.deadline.urgent, 'opp-modal__info-item--overdue': selectedItem.deadline.overdue }"
+                  >
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                    </svg>
                     <span>{{ selectedItem.deadline.label }}</span>
                   </div>
 
                   <div class="opp-modal__info-item">
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
                     <span>{{ selectedItem.location }}</span>
                   </div>
                 </div>
@@ -752,7 +794,9 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
                   class="opp-btn opp-btn--cta"
                 >
                   Acessar site oficial
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
                 </a>
               </div>
             </div>
@@ -760,7 +804,6 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
         </div>
       </Transition>
     </Teleport>
-
   </div>
 </template>
 
@@ -801,15 +844,21 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   pointer-events: none;
   opacity: 0.35;
 }
+
 .opp-hero__glow--a {
-  width: 500px; height: 500px;
+  width: 500px;
+  height: 500px;
   background: radial-gradient(circle, #10b981 0%, transparent 70%);
-  top: -160px; left: 10%;
+  top: -160px;
+  left: 10%;
 }
+
 .opp-hero__glow--b {
-  width: 400px; height: 400px;
+  width: 400px;
+  height: 400px;
   background: radial-gradient(circle, #6366f1 0%, transparent 70%);
-  bottom: -120px; right: 15%;
+  bottom: -120px;
+  right: 15%;
 }
 
 .opp-hero__inner {
@@ -838,7 +887,8 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 }
 
 .opp-hero__dot {
-  width: 6px; height: 6px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #10b981;
   animation: pulse-dot 2s ease-in-out infinite;
@@ -887,7 +937,8 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   left: 16px;
   top: 50%;
   transform: translateY(-50%);
-  width: 16px; height: 16px;
+  width: 16px;
+  height: 16px;
   color: #6b7280;
   pointer-events: none;
 }
@@ -904,7 +955,9 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   outline: none;
   transition: all 0.2s;
 }
+
 .opp-search__input::placeholder { color: #6b7280; }
+
 .opp-search__input:focus {
   background: rgba(255,255,255,0.09);
   border-color: rgba(16, 185, 129, 0.4);
@@ -916,8 +969,11 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   right: 12px;
   top: 50%;
   transform: translateY(-50%);
-  width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(255,255,255,0.08);
   border: none;
   border-radius: 50%;
@@ -925,6 +981,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   cursor: pointer;
   transition: background 0.15s;
 }
+
 .opp-search__clear:hover { background: rgba(255,255,255,0.14); }
 .opp-search__clear svg { width: 11px; height: 11px; }
 
@@ -943,12 +1000,11 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   padding: 0;
   transition: color 0.15s;
 }
+
 .opp-hero__cta-link:hover { color: #6ee7b7; }
 
 /* ── Body ───────────────────────────────────────────────────────────────────── */
-.opp-body {
-  background: #fafaf9;
-}
+.opp-body { background: #fafaf9; }
 
 /* ── Filters ────────────────────────────────────────────────────────────────── */
 .opp-filters {
@@ -979,6 +1035,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
 .opp-filters__pills::-webkit-scrollbar { display: none; }
 
 .opp-pill {
@@ -997,7 +1054,9 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   white-space: nowrap;
   transition: all 0.15s;
 }
+
 .opp-pill:hover { color: #1c1917; border-color: #d6d3d1; }
+
 .opp-pill--active {
   background: #1c1917;
   color: white;
@@ -1026,6 +1085,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   cursor: pointer;
   transition: all 0.2s;
 }
+
 .opp-toggle--on {
   background: #ecfdf5;
   border-color: #a7f3d0;
@@ -1033,29 +1093,30 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 }
 
 .opp-toggle__knob {
-  width: 24px; height: 14px;
+  width: 24px;
+  height: 14px;
   border-radius: 100px;
   background: #d6d3d1;
   position: relative;
   transition: background 0.2s;
   flex-shrink: 0;
 }
+
 .opp-toggle__knob::after {
   content: '';
   position: absolute;
-  width: 10px; height: 10px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: white;
-  top: 2px; left: 2px;
+  top: 2px;
+  left: 2px;
   transition: transform 0.2s;
   box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
-.opp-toggle--on .opp-toggle__knob {
-  background: #10b981;
-}
-.opp-toggle--on .opp-toggle__knob::after {
-  transform: translateX(10px);
-}
+
+.opp-toggle--on .opp-toggle__knob { background: #10b981; }
+.opp-toggle--on .opp-toggle__knob::after { transform: translateX(10px); }
 
 .opp-count {
   font-size: 11px;
@@ -1075,14 +1136,17 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   padding: 0;
   transition: color 0.15s;
 }
+
 .opp-clear:hover { color: #047857; }
 
 /* ── Spinner ────────────────────────────────────────────────────────────────── */
 .opp-spinner {
-  width: 14px; height: 14px;
+  width: 14px;
+  height: 14px;
   animation: spin 0.8s linear infinite;
   color: #a8a29e;
 }
+
 .opp-spinner--sm { width: 13px; height: 13px; }
 .opp-spinner__track { opacity: 0.2; }
 .opp-spinner__fill { opacity: 0.8; }
@@ -1105,14 +1169,19 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   text-align: center;
   gap: 12px;
 }
+
 .opp-state__icon {
-  width: 52px; height: 52px;
+  width: 52px;
+  height: 52px;
   background: #f5f5f4;
   border-radius: 14px;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #d6d3d1;
   margin-bottom: 4px;
 }
+
 .opp-state__icon svg { width: 22px; height: 22px; }
 .opp-state__icon--error { background: #fff1f2; color: #fca5a5; }
 .opp-state__title { font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700; color: #1c1917; }
@@ -1126,6 +1195,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
 }
+
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
@@ -1149,11 +1219,13 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   display: flex;
   flex-direction: column;
 }
+
 .opp-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 12px 32px rgba(0,0,0,0.09);
   border-color: #e7e5e4;
 }
+
 .opp-card:focus-visible {
   outline: 2px solid #10b981;
   outline-offset: 2px;
@@ -1169,23 +1241,33 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   background: #f5f5f4;
   flex-shrink: 0;
 }
+
 .opp-card__img {
-  width: 100%; height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   transition: transform 0.5s;
 }
+
 .opp-card:hover .opp-card__img { transform: scale(1.04); }
 
 .opp-card__cover-fallback {
-  width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: center;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 .opp-card__cover-emoji { font-size: 2.5rem; opacity: 0.7; }
 
 .opp-card__badges {
   position: absolute;
-  top: 10px; left: 10px;
-  display: flex; flex-wrap: wrap; gap: 5px;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .opp-badge {
@@ -1201,11 +1283,13 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
+
 .opp-badge--verified {
   background: rgba(255,255,255,0.9);
   color: #059669;
   border: 1px solid rgba(16,185,129,0.3);
 }
+
 .opp-badge--free {
   background: rgba(16,185,129,0.15);
   color: #047857;
@@ -1214,7 +1298,8 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 
 .opp-card__deadline {
   position: absolute;
-  bottom: 10px; right: 10px;
+  bottom: 10px;
+  right: 10px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -1227,6 +1312,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   color: #e7e5e4;
   backdrop-filter: blur(8px);
 }
+
 .opp-card__deadline svg { width: 12px; height: 12px; }
 .opp-card__deadline--urgent { background: rgba(234, 88, 12, 0.85); color: white; }
 .opp-card__deadline--overdue { background: rgba(107,114,128,0.7); color: #e7e5e4; }
@@ -1280,6 +1366,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   border-radius: 6px;
   border: 1px solid #e7e5e4;
 }
+
 .opp-meta-chip svg { width: 11px; height: 11px; }
 .opp-meta-chip--free { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
 
@@ -1299,6 +1386,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   padding: 2px 8px;
   border-radius: 5px;
 }
+
 .opp-tag--more {
   background: none;
   color: #c4b5a5;
@@ -1319,10 +1407,12 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   border: none;
   transition: all 0.18s;
 }
+
 .opp-btn--primary {
   background: #059669;
   color: white;
 }
+
 .opp-btn--primary:hover { background: #047857; }
 
 .opp-btn--ghost {
@@ -1330,6 +1420,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   color: #57534e;
   border: 1px solid #e7e5e4;
 }
+
 .opp-btn--ghost:hover { color: #1c1917; border-color: #d6d3d1; background: #fafaf9; }
 .opp-btn--ghost:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -1342,7 +1433,13 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   width: 100%;
   justify-content: center;
 }
-.opp-btn--cta:hover { background: #292524; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,0,0,0.18); }
+
+.opp-btn--cta:hover {
+  background: #292524;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+}
+
 .opp-btn--cta svg { width: 16px; height: 16px; }
 
 /* ── Load more ──────────────────────────────────────────────────────────────── */
@@ -1384,6 +1481,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   -ms-overflow-style: none;
   box-shadow: 0 -8px 48px rgba(0,0,0,0.2);
 }
+
 .opp-modal::-webkit-scrollbar { display: none; }
 
 @media (min-width: 640px) {
@@ -1398,14 +1496,21 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   flex-shrink: 0;
   border-radius: 24px 24px 0 0;
 }
+
 .opp-modal__cover-img {
-  width: 100%; height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
+
 .opp-modal__cover-fallback {
-  width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: center;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 .opp-modal__cover-overlay {
   position: absolute;
   inset: 0;
@@ -1414,9 +1519,13 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 
 .opp-modal__close {
   position: absolute;
-  top: 14px; right: 14px;
-  width: 34px; height: 34px;
-  display: flex; align-items: center; justify-content: center;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(0,0,0,0.45);
   backdrop-filter: blur(8px);
   border: none;
@@ -1426,6 +1535,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   transition: background 0.15s;
   z-index: 1;
 }
+
 .opp-modal__close:hover { background: rgba(0,0,0,0.65); }
 .opp-modal__close svg { width: 15px; height: 15px; }
 
@@ -1437,7 +1547,6 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 }
 
 .opp-modal__header { display: flex; flex-direction: column; gap: 10px; }
-
 .opp-modal__badges { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .opp-modal__title {
@@ -1463,6 +1572,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   font-weight: 500;
   color: #78716c;
 }
+
 .opp-modal__info-item svg { width: 14px; height: 14px; }
 .opp-modal__info-item--urgent { color: #ea580c; font-weight: 600; }
 .opp-modal__info-item--overdue { color: #9ca3af; }
@@ -1499,6 +1609,7 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
   padding-bottom: 16px;
   position: relative;
 }
+
 .opp-timeline__item:not(:last-child)::before {
   content: '';
   position: absolute;
@@ -1510,7 +1621,8 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 }
 
 .opp-timeline__dot {
-  width: 11px; height: 11px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: #10b981;
   border: 2px solid white;
@@ -1552,18 +1664,20 @@ function handleAddOpportunity() { navigateTo('/new-opportunity') }
 .modal-leave-active {
   transition: opacity 0.22s ease;
 }
+
 .modal-enter-active .opp-modal,
 .modal-leave-active .opp-modal {
   transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.22s ease;
 }
+
 .modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
+.modal-leave-to { opacity: 0; }
+
 .modal-enter-from .opp-modal {
   transform: translateY(40px);
   opacity: 0;
 }
+
 .modal-leave-to .opp-modal {
   transform: translateY(40px);
   opacity: 0;
