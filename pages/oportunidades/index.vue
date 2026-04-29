@@ -473,7 +473,11 @@ onUnmounted(() => {
   document.body.style.overflow = ''
 })
 
-const filtered = computed(() => opportunities.value)
+const filtered = computed(() => {
+  if (isAdmin.value) return opportunities.value
+
+  return opportunities.value.filter(item => item.human_verified === true)
+})
 const hasMore = computed(() => opportunities.value.length < totalCount.value)
 const activeFilters = computed(
   () => (search.value ? 1 : 0) + (activeCategory.value ? 1 : 0) + (freeOnly.value ? 1 : 0)
