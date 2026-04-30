@@ -14,7 +14,7 @@ const CATEGORY_META: Record<string, {
   text: string
   dot: string
 }> = {
-//  COMPETITION:     { label: 'Competição',       icon: '🏆', color: '#f59e0b', bg: 'bg-amber-50',   ring: 'ring-amber-200',   text: 'text-amber-700',   dot: 'bg-amber-400' },
+  COMPETITION:     { label: 'Competição',       icon: '🏆', color: '#f59e0b', bg: 'bg-amber-50',   ring: 'ring-amber-200',   text: 'text-amber-700',   dot: 'bg-amber-400' },
   OLYMPIAD:        { label: 'Olimpíada',         icon: '🔬', color: '#10b981', bg: 'bg-emerald-50', ring: 'ring-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-400' },
   MUN:             { label: 'MUN',               icon: '🌐', color: '#6366f1', bg: 'bg-indigo-50',  ring: 'ring-indigo-200',  text: 'text-indigo-700',  dot: 'bg-indigo-400' },
   SCHOLARSHIP:     { label: 'Bolsa de estudos',  icon: '🎓', color: '#8b5cf6', bg: 'bg-violet-50',  ring: 'ring-violet-200',  text: 'text-violet-700',  dot: 'bg-violet-400' },
@@ -166,19 +166,37 @@ function normalizeJsonObject(value: any) {
   return {}
 }
 
-function normalizeTimeline(value: any) {
-  if (Array.isArray(value)) return value
+function shouldShowTimelineEventOnCalendar(event: any) {
+  // Regra estrita:
+  // Só aparece no calendário se o dado vier explicitamente como true.
+  // Eventos antigos sem show_on_calendar NÃO devem ser inferidos por palavras como "deadline".
+  if (!event || typeof event !== 'object') return false
 
-  if (typeof value === 'string') {
+  return event.show_on_calendar === true || event.show_on_calendar === 'true'
+}
+
+function normalizeTimeline(value: any) {
+  let timeline: any[] = []
+
+  if (Array.isArray(value)) {
+    timeline = value
+  } else if (typeof value === 'string') {
     try {
       const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : []
+      timeline = Array.isArray(parsed) ? parsed : []
     } catch {
-      return []
+      timeline = []
     }
   }
 
-  return []
+  return timeline
+    .filter(event => event && typeof event === 'object')
+    .map(event => ({
+      ...event,
+      label: event.label ?? event.details ?? event.title ?? event.name ?? 'Evento',
+      details: event.details ?? event.description ?? null,
+      show_on_calendar: shouldShowTimelineEventOnCalendar(event),
+    }))
 }
 
 function normalizeTags(value: any) {
@@ -193,13 +211,45 @@ function normalizeTags(value: any) {
   return []
 }
 
-function getFirstUpcomingTimelineEvent(timeline: any[]) {
+function getFirstCalendarRelevantTimelineEvent(timeline: any[]) {
   const now = new Date()
 
   return [...timeline]
     .map((event) => ({ ...event, _date: parseLocalDate(event?.date) }))
+    .filter((event) => event.show_on_calendar === true)
     .filter((event) => event._date && event._date >= now)
     .sort((a, b) => a._date.getTime() - b._date.getTime())[0] ?? null
+}
+
+function getDeadlinePrefix(event: any) {
+  const text = [
+    event?.label,
+    event?.details,
+    event?.description,
+    event?.title,
+    event?.name,
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  if (text.includes('prova') || text.includes('exame')) return 'Prova em'
+  if (text.includes('resultado')) return 'Resultado em'
+  if (text.includes('envio') || text.includes('submiss')) return 'Envio até'
+  if (text.includes('candidatura') || text.includes('application') || text.includes('apply')) return 'Candidatura até'
+  if (text.includes('inscri')) return 'Inscrições até'
+
+  return 'Prazo em'
+}
+
+function formatActionDeadline(event: any, raw: string | null | undefined) {
+  if (!raw) return ''
+
+  const deadline = formatDeadline(raw)
+  const prefix = getDeadlinePrefix(event)
+
+  if (deadline.urgent || (deadline.daysLeft !== null && deadline.daysLeft <= 14)) {
+    return `${prefix} · ${deadline.label}`
+  }
+
+  return `${prefix} ${fmtShortDate(raw) ?? deadline.label}`
 }
 
 function toTextValue(value: any): string | null {
@@ -336,9 +386,10 @@ function normalize(o: any) {
   const meta = CATEGORY_META[o.category] ?? CATEGORY_META.POST
   const timeline = normalizeTimeline(o.timeline)
   const categoryData = normalizeJsonObject(o.category_data)
-  const nextTimelineEvent = getFirstUpcomingTimelineEvent(timeline)
-  const displayDeadlineRaw = nextTimelineEvent?.date ?? o.next_deadline ?? null
+  const nextTimelineEvent = getFirstCalendarRelevantTimelineEvent(timeline)
+  const displayDeadlineRaw = nextTimelineEvent?.date ?? (timeline.length === 0 ? o.next_deadline : null)
   const deadline = formatDeadline(displayDeadlineRaw)
+  const deadlineActionLabel = formatActionDeadline(nextTimelineEvent, displayDeadlineRaw)
   const priority = typeof o.priority === 'number' ? Math.min(5, Math.max(0, o.priority)) : 0
 
   return {
@@ -356,6 +407,7 @@ function normalize(o: any) {
     next_deadline: displayDeadlineRaw,
     next_timeline_event: nextTimelineEvent,
     deadline,
+    deadlineActionLabel,
     timeline,
     tags: normalizeTags(o.tags),
     category_data: categoryData,
@@ -377,8 +429,12 @@ const PAGE_SIZE = 24
 
 const selectedItem = ref<any | null>(null)
 const search = ref('')
-const activeCategory = ref('')
+const activeCategories = ref<string[]>([])
 const freeOnly = ref(false)
+const onlineOnly = ref(false)
+const quickFilter = ref<'open' | 'urgent' | 'noDeadline' | ''>('')
+const sideFiltersOpen = ref(false)
+const sideFiltersRef = ref<HTMLElement | null>(null)
 
 const currentUser = ref<any | null>(null)
 const isAdmin = computed(() => !!(currentUser.value?.is_superuser || currentUser.value?.is_manager))
@@ -403,11 +459,23 @@ async function fetchOpportunities(reset = true) {
   error.value = null
 
   try {
-    const params: Record<string, any> = { page: currentPage.value, limit: PAGE_SIZE }
+    const multiCategory = activeCategories.value.length > 1
+
+    const params: Record<string, any> = {
+      page: currentPage.value,
+      limit: multiCategory ? 100 : PAGE_SIZE,
+    }
+
     if (search.value.trim()) params.search = search.value.trim()
-    if (activeCategory.value) params.category = activeCategory.value
+
+    // Backend aceita uma categoria por vez. Com múltiplas categorias,
+    // buscamos um lote maior e filtramos no client.
+    if (activeCategories.value.length === 1) {
+      params.category = activeCategories.value[0]
+    }
+
     if (freeOnly.value) params.is_free = true
-    if (isAdmin.value) params.approved_only = false
+    if (onlineOnly.value) params.location = 'Online'
 
     const res = await get('/opportunity/', { params })
     const data = res.data?.data ?? []
@@ -436,8 +504,11 @@ async function loadMore() {
 
 function clearFilters() {
   search.value = ''
-  activeCategory.value = ''
+  activeCategories.value = []
   freeOnly.value = false
+  onlineOnly.value = false
+  quickFilter.value = ''
+  sideFiltersOpen.value = false
   fetchOpportunities(true)
 }
 
@@ -456,31 +527,112 @@ function handleEditOpportunity(item: any) {
   navigateTo(`/oportunidades/edit/${id}`)
 }
 
+
+function toggleTypeFilter(value: string) {
+  if (!value) {
+    activeCategories.value = []
+    return
+  }
+
+  if (activeCategories.value.includes(value)) {
+    activeCategories.value = activeCategories.value.filter(category => category !== value)
+    return
+  }
+
+  activeCategories.value = [...activeCategories.value, value]
+}
+
+function toggleQuickFilter(value: 'open' | 'urgent' | 'noDeadline') {
+  quickFilter.value = quickFilter.value === value ? '' : value
+}
+
+function setDeadlineFilter(value: 'open' | 'urgent' | 'noDeadline' | '') {
+  quickFilter.value = value
+}
+
+function closeSideFiltersOnOutside(event: MouseEvent) {
+  if (!sideFiltersOpen.value) return
+
+  const target = event.target as Node | null
+  if (sideFiltersRef.value && target && !sideFiltersRef.value.contains(target)) {
+    sideFiltersOpen.value = false
+  }
+}
+
+const activeDeadlineLabel = computed(() => {
+  const map: Record<string, string> = {
+    open: 'Inscrições abertas',
+    urgent: 'Fecham em 7 dias',
+    noDeadline: 'Sem prazo ativo',
+  }
+
+  return quickFilter.value ? map[quickFilter.value] : 'Qualquer prazo'
+})
+
+const sideFiltersCount = computed(() => {
+  return (quickFilter.value ? 1 : 0) + (onlineOnly.value ? 1 : 0) + (freeOnly.value ? 1 : 0)
+})
+
+function itemMatchesQuickFilter(item: any) {
+  if (!quickFilter.value) return true
+
+  if (quickFilter.value === 'open') {
+    return !!item.next_deadline && item.deadline.overdue === false
+  }
+
+  if (quickFilter.value === 'urgent') {
+    return item.deadline.daysLeft !== null && item.deadline.daysLeft >= 0 && item.deadline.daysLeft <= 7
+  }
+
+  if (quickFilter.value === 'noDeadline') {
+    return !item.next_deadline
+  }
+
+  return true
+}
+
 watch(search, debounce(() => fetchOpportunities(true), 400))
-watch(activeCategory, () => fetchOpportunities(true))
+watch(activeCategories, () => fetchOpportunities(true), { deep: true })
 watch(freeOnly, () => fetchOpportunities(true))
+watch(onlineOnly, () => fetchOpportunities(true))
 
 watch(selectedItem, (val) => {
   document.body.style.overflow = val ? 'hidden' : ''
 })
 
 onMounted(async () => {
+  document.addEventListener('click', closeSideFiltersOnOutside)
   await fetchCurrentUser()
   await fetchOpportunities(true)
 })
 
 onUnmounted(() => {
   document.body.style.overflow = ''
+  document.removeEventListener('click', closeSideFiltersOnOutside)
 })
 
 const filtered = computed(() => {
-  if (isAdmin.value) return opportunities.value
+  const visible = isAdmin.value
+    ? opportunities.value
+    : opportunities.value.filter(item => item.human_verified === true)
 
-  return opportunities.value.filter(item => item.human_verified === true)
+  return visible
+    .filter(item => activeCategories.value.length === 0 || activeCategories.value.includes(item.category))
+    .filter(itemMatchesQuickFilter)
 })
-const hasMore = computed(() => opportunities.value.length < totalCount.value)
+
+const displayCount = computed(() => {
+  const clientFiltered = quickFilter.value || activeCategories.value.length > 1
+  return clientFiltered ? filtered.value.length : totalCount.value
+})
+
+const hasMore = computed(() => {
+  const clientFiltered = quickFilter.value || activeCategories.value.length > 1
+  return !clientFiltered && opportunities.value.length < totalCount.value
+})
+
 const activeFilters = computed(
-  () => (search.value ? 1 : 0) + (activeCategory.value ? 1 : 0) + (freeOnly.value ? 1 : 0)
+  () => (search.value ? 1 : 0) + (activeCategories.value.length ? 1 : 0) + (freeOnly.value ? 1 : 0) + (onlineOnly.value ? 1 : 0) + (quickFilter.value ? 1 : 0)
 )
 const filtersActive = computed(() => activeFilters.value > 0)
 
@@ -571,10 +723,11 @@ const hasPrioritySections = computed(() =>
     <div class="opp-body">
       <div class="opp-filters">
         <div class="opp-filters__inner">
-          <div class="opp-filters__pills">
+          <div class="opp-type-pills" aria-label="Filtros de tipo">
             <button
-              @click="activeCategory = ''"
-              :class="['opp-pill', !activeCategory && 'opp-pill--active']"
+              type="button"
+              @click="toggleTypeFilter('')"
+              :class="['opp-pill', activeCategories.length === 0 && 'opp-pill--active']"
             >
               Todos
             </button>
@@ -582,22 +735,89 @@ const hasPrioritySections = computed(() =>
             <button
               v-for="(meta, key) in CATEGORY_META"
               :key="key"
-              @click="activeCategory = activeCategory === key ? '' : key"
-              :class="['opp-pill', activeCategory === key && 'opp-pill--active']"
+              type="button"
+              @click="toggleTypeFilter(String(key))"
+              :class="['opp-pill', activeCategories.includes(String(key)) && 'opp-pill--active']"
             >
               <span>{{ meta.icon }}</span> {{ meta.label }}
             </button>
           </div>
 
-          <div class="opp-filters__right">
+          <div class="opp-filters__right" ref="sideFiltersRef">
             <button
-              @click="freeOnly = !freeOnly"
-              :class="['opp-toggle', freeOnly && 'opp-toggle--on']"
-              :title="freeOnly ? 'Mostrar todos' : 'Apenas gratuitos'"
+              type="button"
+              class="opp-side-filter-btn"
+              :class="{ 'opp-side-filter-btn--active': sideFiltersOpen || sideFiltersCount > 0 }"
+              @click="sideFiltersOpen = !sideFiltersOpen"
             >
-              <span class="opp-toggle__knob"></span>
-              Gratuito
+              Filtros
+              <span v-if="sideFiltersCount > 0">{{ sideFiltersCount }}</span>
             </button>
+
+            <div v-if="sideFiltersOpen" class="opp-side-filter-panel">
+              <div class="opp-side-filter-section">
+                <span class="opp-side-filter-title">Prazo</span>
+
+                <button
+                  type="button"
+                  class="opp-side-option"
+                  :class="{ 'opp-side-option--active': !quickFilter }"
+                  @click="setDeadlineFilter('')"
+                >
+                  Qualquer prazo
+                </button>
+
+                <button
+                  type="button"
+                  class="opp-side-option"
+                  :class="{ 'opp-side-option--active': quickFilter === 'open' }"
+                  @click="setDeadlineFilter('open')"
+                >
+                  Inscrições abertas
+                </button>
+
+                <button
+                  type="button"
+                  class="opp-side-option"
+                  :class="{ 'opp-side-option--active': quickFilter === 'urgent' }"
+                  @click="setDeadlineFilter('urgent')"
+                >
+                  Fecham em 7 dias
+                </button>
+
+                <button
+                  type="button"
+                  class="opp-side-option"
+                  :class="{ 'opp-side-option--active': quickFilter === 'noDeadline' }"
+                  @click="setDeadlineFilter('noDeadline')"
+                >
+                  Sem prazo ativo
+                </button>
+              </div>
+
+              <div class="opp-side-filter-section">
+                <span class="opp-side-filter-title">Preferências</span>
+
+                <label class="opp-side-toggle">
+                  <input v-model="onlineOnly" type="checkbox" />
+                  <span>Online</span>
+                </label>
+
+                <label class="opp-side-toggle">
+                  <input v-model="freeOnly" type="checkbox" />
+                  <span>Gratuito</span>
+                </label>
+              </div>
+
+              <button
+                v-if="sideFiltersCount > 0"
+                type="button"
+                class="opp-side-clear"
+                @click="onlineOnly = false; freeOnly = false; quickFilter = ''"
+              >
+                Limpar filtros laterais
+              </button>
+            </div>
 
             <svg v-if="loading" class="opp-spinner" fill="none" viewBox="0 0 24 24">
               <circle class="opp-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
@@ -605,11 +825,11 @@ const hasPrioritySections = computed(() =>
             </svg>
 
             <span class="opp-count">
-              {{ totalCount.toLocaleString('pt-BR') }} resultado{{ totalCount !== 1 ? 's' : '' }}
+              {{ displayCount.toLocaleString('pt-BR') }} resultado{{ displayCount !== 1 ? 's' : '' }}
             </span>
 
             <button v-if="activeFilters > 0" @click="clearFilters" class="opp-clear">
-              Limpar ({{ activeFilters }})
+              Limpar
             </button>
           </div>
         </div>
@@ -693,7 +913,7 @@ const hasPrioritySections = computed(() =>
                   class="opp-editorial-card__deadline"
                   :class="{ 'opp-editorial-card__deadline--urgent': item.deadline.urgent }"
                 >
-                  {{ item.deadline.label }}
+                  {{ item.deadlineActionLabel }}
                 </div>
               </div>
 
@@ -772,7 +992,7 @@ const hasPrioritySections = computed(() =>
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
                   </svg>
-                  {{ item.deadline.label }}
+                  {{ item.deadlineActionLabel }}
                 </div>
               </div>
 
@@ -874,7 +1094,7 @@ const hasPrioritySections = computed(() =>
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
                 </svg>
-                {{ item.deadline.label }}
+                {{ item.deadlineActionLabel }}
               </div>
             </div>
 
@@ -907,6 +1127,8 @@ const hasPrioritySections = computed(() =>
                 <span v-for="tag in item.tags.slice(0, 3)" :key="tag" class="opp-tag">{{ tag }}</span>
                 <span v-if="item.tags.length > 3" class="opp-tag opp-tag--more">+{{ item.tags.length - 3 }}</span>
               </div>
+
+              <div class="opp-card__action">Ver detalhes →</div>
             </div>
           </article>
         </div>
@@ -990,14 +1212,14 @@ const hasPrioritySections = computed(() =>
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
                     </svg>
-                    <span>
-                      <template v-if="selectedItem.next_timeline_event">
-                        {{ getTimelineLabel(selectedItem.next_timeline_event) }} · {{ selectedItem.deadline.label }}
-                      </template>
-                      <template v-else>
-                        {{ selectedItem.deadline.label }}
-                      </template>
-                    </span>
+                    <span>{{ selectedItem.deadlineActionLabel }}</span>
+                  </div>
+
+                  <div v-else class="opp-modal__info-item opp-modal__info-item--muted">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>Sem prazo acionável agora</span>
                   </div>
 
                   <div class="opp-modal__info-item">
@@ -1028,6 +1250,7 @@ const hasPrioritySections = computed(() =>
                     <div class="opp-timeline__content">
                       <span class="opp-timeline__label">{{ getTimelineLabel(event) }}</span>
                       <span v-if="event.date" class="opp-timeline__date">{{ fmtDate(event.date) }}</span>
+                      <span v-if="event.show_on_calendar" class="opp-timeline__calendar-badge">Aparece no calendário</span>
                     </div>
                   </div>
                 </div>
@@ -1127,7 +1350,7 @@ const hasPrioritySections = computed(() =>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,400;0,500;1,400&display=swap');
 
 .opp-page { font-family: 'DM Sans', sans-serif; background: #fafaf9; min-height: 100vh; color: #1c1917; }
-.opp-hero { position: relative; overflow: hidden; background: #0f1117; padding: 80px 24px 72px; display: flex; justify-content: center; }
+.opp-hero { position: relative; overflow: hidden; background: #0f1117; padding: 68px 24px 58px; display: flex; justify-content: center; }
 .opp-hero__noise { position: absolute; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E"); opacity: .6; pointer-events: none; }
 .opp-hero__glow { position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none; opacity: .35; }
 .opp-hero__glow--a { width: 500px; height: 500px; background: radial-gradient(circle, #10b981 0%, transparent 70%); top: -160px; left: 10%; }
@@ -1151,14 +1374,214 @@ const hasPrioritySections = computed(() =>
 .opp-hero__cta-link { color: #34d399; font-weight: 600; background: none; border: none; cursor: pointer; padding: 0; transition: color .15s; }
 .opp-hero__cta-link:hover { color: #6ee7b7; }
 .opp-body { background: #fafaf9; }
-.opp-filters { position: sticky; top: 0; z-index: 30; background: rgba(250,250,249,.9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid #e7e5e4; }
-.opp-filters__inner { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
-.opp-filters__pills { display: flex; align-items: center; gap: 6px; overflow-x: auto; flex: 1; scrollbar-width: none; -ms-overflow-style: none; }
-.opp-filters__pills::-webkit-scrollbar { display: none; }
-.opp-pill { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; border: 1px solid #e7e5e4; background: white; color: #78716c; cursor: pointer; white-space: nowrap; transition: all .15s; }
-.opp-pill:hover { color: #1c1917; border-color: #d6d3d1; }
-.opp-pill--active { background: #1c1917; color: white; border-color: #1c1917; }
-.opp-filters__right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.opp-filters {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(250,250,249,.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.opp-filters__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+}
+
+.opp-type-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #d6d3d1 transparent;
+}
+
+.opp-type-pills::-webkit-scrollbar {
+  height: 5px;
+}
+
+.opp-type-pills::-webkit-scrollbar-thumb {
+  background: #d6d3d1;
+  border-radius: 999px;
+}
+
+.opp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #e7e5e4;
+  background: white;
+  color: #78716c;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  flex: 0 0 auto;
+}
+
+.opp-pill:hover {
+  color: #1c1917;
+  border-color: #d6d3d1;
+}
+
+.opp-pill--active {
+  background: #1c1917;
+  color: white;
+  border-color: #1c1917;
+}
+
+.opp-filters__right {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.opp-side-filter-btn {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #e7e5e4;
+  border-radius: 9px;
+  background: white;
+  color: #57534e;
+  padding: 0 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.opp-side-filter-btn:hover,
+.opp-side-filter-btn--active {
+  border-color: #10b981;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.opp-side-filter-btn span {
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #10b981;
+  color: white;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.opp-side-filter-panel {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: 0;
+  z-index: 60;
+  width: 270px;
+  padding: 12px;
+  border-radius: 16px;
+  background: white;
+  border: 1px solid #e7e5e4;
+  box-shadow: 0 22px 70px rgba(0,0,0,.16);
+}
+
+.opp-side-filter-section + .opp-side-filter-section {
+  margin-top: 13px;
+  padding-top: 13px;
+  border-top: 1px solid #f0ece8;
+}
+
+.opp-side-filter-title {
+  display: block;
+  margin-bottom: 8px;
+  font-family: 'Sora', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  color: #a8a29e;
+  text-transform: uppercase;
+  letter-spacing: .075em;
+}
+
+.opp-side-option {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #57534e;
+  padding: 7px 9px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.opp-side-option:hover {
+  background: #fafaf9;
+  border-color: #e7e5e4;
+}
+
+.opp-side-option--active {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.opp-side-toggle {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #57534e;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.opp-side-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: #10b981;
+}
+
+.opp-side-clear {
+  width: 100%;
+  margin-top: 13px;
+  border: none;
+  border-radius: 10px;
+  background: #f5f5f4;
+  color: #57534e;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.opp-side-clear:hover {
+  background: #e7e5e4;
+  color: #1c1917;
+}
+
 .opp-admin-add { border: none; border-radius: 9px; background: #1c1917; color: white; padding: 7px 12px; font-weight: 700; font-size: 12px; cursor: pointer; }
 .opp-toggle { display: flex; align-items: center; gap: 7px; padding: 6px 12px 6px 8px; border-radius: 8px; font-size: 12px; font-weight: 500; font-family: 'DM Sans', sans-serif; border: 1px solid #e7e5e4; background: white; color: #78716c; cursor: pointer; transition: all .2s; }
 .opp-toggle--on { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
@@ -1220,6 +1643,7 @@ const hasPrioritySections = computed(() =>
 .opp-card__tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
 .opp-tag { font-size: 10.5px; font-weight: 500; color: #a8a29e; background: #f5f5f4; border: 1px solid #e7e5e4; padding: 2px 8px; border-radius: 5px; }
 .opp-tag--more { background: none; color: #c4b5a5; border-color: transparent; }
+.opp-card__action { margin-top: 2px; font-size: 11.5px; font-weight: 800; color: #059669; }
 .opp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all .18s; }
 .opp-btn--primary { background: #059669; color: white; }
 .opp-btn--primary:hover { background: #047857; }
@@ -1284,6 +1708,7 @@ const hasPrioritySections = computed(() =>
 .opp-modal__info-item svg { width: 14px; height: 14px; }
 .opp-modal__info-item--urgent { color: #ea580c; font-weight: 600; }
 .opp-modal__info-item--overdue { color: #9ca3af; }
+.opp-modal__info-item--muted { color: #a8a29e; }
 .opp-modal__section { display: flex; flex-direction: column; gap: 10px; }
 .opp-modal__section-title { font-family: 'Sora', sans-serif; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: #a8a29e; }
 .opp-modal__text { font-size: 14px; line-height: 1.7; color: #44403c; white-space: pre-line; }
@@ -1323,6 +1748,7 @@ const hasPrioritySections = computed(() =>
 .opp-timeline__content { display: flex; flex-direction: column; gap: 2px; }
 .opp-timeline__label { font-size: 13.5px; font-weight: 600; color: #1c1917; }
 .opp-timeline__date { font-size: 12px; color: #a8a29e; }
+.opp-timeline__calendar-badge { width: fit-content; margin-top: 3px; font-size: 10px; font-weight: 800; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 2px 7px; border-radius: 999px; }
 .opp-reference-list { display: flex; flex-direction: column; gap: 8px; }
 .opp-reference-card { display: flex; flex-direction: column; gap: 3px; padding: 11px 12px; border-radius: 12px; background: #f8fafc; border: 1px solid #e2e8f0; text-decoration: none; transition: all .15s; }
 .opp-reference-card:hover { background: #f1f5f9; border-color: #cbd5e1; }
@@ -1335,13 +1761,72 @@ const hasPrioritySections = computed(() =>
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-from .opp-modal { transform: translateY(40px); opacity: 0; }
 .modal-leave-to .opp-modal { transform: translateY(40px); opacity: 0; }
+
+
+
+@media (max-width: 860px) {
+  .opp-filters__inner {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .opp-filters__right {
+    justify-content: space-between;
+  }
+
+  .opp-side-filter-panel {
+    position: fixed;
+    top: 118px;
+    right: 14px;
+    left: 14px;
+    width: auto;
+    max-height: 58vh;
+    overflow: auto;
+  }
+}
+
+@media (max-width: 980px) {
+  .opp-filters__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .opp-filters__pills,
+  .opp-action-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .opp-filters__pills::-webkit-scrollbar,
+  .opp-action-filters::-webkit-scrollbar {
+    height: 5px;
+  }
+
+  .opp-filters__pills::-webkit-scrollbar-thumb,
+  .opp-action-filters::-webkit-scrollbar-thumb {
+    background: #d6d3d1;
+    border-radius: 999px;
+  }
+
+  .opp-filters__right {
+    justify-content: space-between;
+    align-self: stretch;
+  }
+}
+
 @media (max-width: 640px) {
-  .opp-hero { padding: 60px 20px 56px; }
+  .opp-hero { padding: 52px 20px 44px; }
   .opp-filters__inner { padding: 10px 16px; }
   .opp-main { padding: 20px 16px 60px; }
   .opp-grid { grid-template-columns: 1fr; gap: 14px; }
   .opp-modal__body { padding: 20px; }
-  .opp-filters__right { gap: 8px; }
+  .opp-filters__inner { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .opp-action-filters { width: 100%; max-width: 100%; flex-basis: auto; }
+  .opp-filters__right { gap: 8px; width: 100%; justify-content: space-between; }
   .opp-toggle span:not(.opp-toggle__knob) { display: none; }
   .opp-card__facts { grid-template-columns: 1fr; }
 }

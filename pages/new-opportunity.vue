@@ -54,7 +54,7 @@ const form = reactive({
   keywords: '',
   tagsInput: '',
   timeline: [
-    { label: 'Prazo final', date: '', details: '' },
+    { label: 'Prazo final', date: '', details: '', show_on_calendar: true },
   ],
   categoryDataJson: JSON.stringify(defaultCategoryData, null, 2),
 })
@@ -95,11 +95,12 @@ function cleanTimeline() {
       label: item.label?.trim() || item.details?.trim() || 'Evento',
       date: item.date || null,
       details: item.details?.trim() || null,
+      show_on_calendar: item.show_on_calendar === true,
     }))
 }
 
 function addTimelineItem() {
-  form.timeline.push({ label: '', date: '', details: '' })
+  form.timeline.push({ label: '', date: '', details: '', show_on_calendar: false })
 }
 
 function removeTimelineItem(index: number) {
@@ -234,7 +235,7 @@ async function submit() {
           <div class="section-title-row">
             <div>
               <h2>Cronograma</h2>
-              <p>A primeira data futura é a que aparece nos cards.</p>
+              <p>Marque no calendário apenas datas acionáveis: inscrições, prazos, provas ou resultados importantes.</p>
             </div>
             <button type="button" class="small-btn" @click="addTimelineItem">+ Data</button>
           </div>
@@ -244,6 +245,12 @@ async function submit() {
               <input v-model="item.label" placeholder="Nome da etapa" />
               <input v-model="item.date" type="date" />
               <input v-model="item.details" placeholder="Detalhes" />
+
+              <label class="calendar-check" title="Mostrar esta data no calendário e nos cards como prazo acionável">
+                <input v-model="item.show_on_calendar" type="checkbox" />
+                <span>Calendário</span>
+              </label>
+
               <button type="button" @click="removeTimelineItem(idx)">×</button>
             </div>
           </div>
@@ -299,8 +306,12 @@ input:focus, select:focus, textarea:focus { border-color: #10b981; box-shadow: 0
 .section-title-row p { margin: 0; color: #78716c; font-size: 13px; line-height: 1.45; }
 .small-btn { border: 1px solid #d6d3d1; background: #fafaf9; border-radius: 10px; padding: 8px 11px; font-weight: 800; cursor: pointer; white-space: nowrap; }
 .timeline-editor { display: flex; flex-direction: column; gap: 8px; }
-.timeline-row { display: grid; grid-template-columns: 1fr 170px 1fr 38px; gap: 8px; align-items: center; }
+.timeline-row { display: grid; grid-template-columns: 1fr 160px 1fr 125px 38px; gap: 8px; align-items: center; }
 .timeline-row button { border: none; background: #fee2e2; color: #991b1b; height: 38px; border-radius: 10px; cursor: pointer; font-weight: 900; }
+.calendar-check { height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #d6d3d1; background: #fafaf9; border-radius: 12px; padding: 0 10px; font-size: 12px; font-weight: 800; color: #57534e; cursor: pointer; user-select: none; }
+.calendar-check input { width: auto; accent-color: #10b981; }
+.calendar-check:has(input:checked) { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+
 .json-area { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; background: #0f172a; color: #e2e8f0; border-color: #1e293b; }
 .alert { padding: 12px 14px; border-radius: 12px; font-weight: 700; font-size: 13px; margin-top: 18px; }
 .alert--error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }

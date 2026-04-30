@@ -107,7 +107,7 @@ const form = reactive({
   priority: 0,
   keywords: '',
   tags: [] as string[],
-  timeline: [] as Array<{ label: string; date: string; details: string }>,
+  timeline: [] as Array<{ label: string; date: string; details: string; show_on_calendar: boolean }>,
   categoryDataJson: JSON.stringify(categoryDataTemplate, null, 2),
 })
 
@@ -161,6 +161,7 @@ function normalizeTimeline(value: any) {
     label: item?.label || item?.details || item?.title || item?.name || 'Evento',
     date: normalizeDate(item?.date),
     details: item?.details || item?.description || '',
+    show_on_calendar: item?.show_on_calendar === true || item?.show_on_calendar === 'true',
   }))
 }
 
@@ -206,11 +207,12 @@ function cleanTimeline() {
       label: item.label?.trim() || item.details?.trim() || 'Evento',
       date: item.date || null,
       details: item.details?.trim() || null,
+      show_on_calendar: item.show_on_calendar === true,
     }))
 }
 
 function addTimelineItem() {
-  form.timeline.push({ label: '', date: '', details: '' })
+  form.timeline.push({ label: '', date: '', details: '', show_on_calendar: false })
 }
 
 function removeTimelineItem(index: number) {
@@ -701,7 +703,7 @@ onMounted(fetchOpportunity)
           <div class="section-title-row">
             <div>
               <h2>Cronograma</h2>
-              <p>A primeira data futura será exibida nos cards da página.</p>
+              <p>Marque “Calendário” apenas para datas acionáveis: inscrições, prazos, provas ou resultados importantes.</p>
             </div>
             <button type="button" class="small-btn" @click="addTimelineItem">+ Data</button>
           </div>
@@ -711,6 +713,12 @@ onMounted(fetchOpportunity)
               <input v-model="item.label" placeholder="Nome da etapa" />
               <input v-model="item.date" type="date" />
               <input v-model="item.details" placeholder="Detalhes" />
+
+              <label class="calendar-check" title="Mostrar esta data no calendário e nos cards como prazo acionável">
+                <input v-model="item.show_on_calendar" type="checkbox" />
+                <span>Calendário</span>
+              </label>
+
               <button type="button" @click="removeTimelineItem(idx)">×</button>
             </div>
           </div>
@@ -1214,7 +1222,7 @@ textarea:focus {
 
 .timeline-row {
   display: grid;
-  grid-template-columns: 1fr 160px 1fr 38px;
+  grid-template-columns: 1fr 150px 1fr 126px 38px;
   gap: 8px;
   align-items: center;
 }
@@ -1227,6 +1235,34 @@ textarea:focus {
   border-radius: 10px;
   cursor: pointer;
   font-weight: 900;
+}
+
+.calendar-check {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #e8e4dc;
+  background: #fafaf9;
+  border-radius: 12px;
+  padding: 0 10px;
+  color: #57534e;
+  cursor: pointer;
+  font-size: .76rem;
+  font-weight: 900;
+  user-select: none;
+}
+
+.calendar-check input {
+  width: auto;
+  accent-color: #079272;
+}
+
+.calendar-check:has(input:checked) {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
 }
 
 .tabs {
