@@ -1,5 +1,5 @@
 <script setup lang="ts">
-await navigateTo('/feed')
+await navigateTo('/oportunidades')
 </script>
 
 <template>

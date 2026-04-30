@@ -163,13 +163,13 @@ const isHidden = computed(() => ['/login', '/signup'].includes(route.path))
                 Feed
               </button>
 
-              <button class="w-full text-left px-4 py-2.5 text-[0.83rem] text-gray-700 hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors cursor-pointer bg-transparent border-none flex items-center gap-2" @click="go('olimpiadas')">
+              <button class="w-full text-left px-4 py-2.5 text-[0.83rem] text-gray-700 hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors cursor-pointer bg-transparent border-none flex items-center gap-2" @click="go('oportunidades')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M12 2L2 7l10 5 10-5-10-5z"/>
                   <path d="M2 17l10 5 10-5"/>
                   <path d="M2 12l10 5 10-5"/>
                 </svg>
-                Olimpíadas
+                Oportunidades
               </button>
               
               <button class="w-full text-left px-4 py-2.5 text-[0.83rem] text-gray-700 hover:bg-[#f7f5f0] hover:text-[#079272] transition-colors cursor-pointer bg-transparent border-none flex items-center gap-2" @click="go('calendario')">
