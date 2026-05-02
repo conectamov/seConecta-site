@@ -24,7 +24,7 @@ const CATEGORY_META: Record<string, {
   VOLUNTEERING:    { label: 'Voluntariado',      icon: '🤝', color: '#14b8a6', bg: 'bg-teal-50',    ring: 'ring-teal-200',    text: 'text-teal-700',    dot: 'bg-teal-400' },
   EXTRACURRICULAR: { label: 'Extracurricular',   icon: '⚡', color: '#f97316', bg: 'bg-orange-50',  ring: 'ring-orange-200',  text: 'text-orange-700',  dot: 'bg-orange-400' },
   INITIATIVE:      { label: 'Iniciativa',        icon: '💡', color: '#84cc16', bg: 'bg-lime-50',    ring: 'ring-lime-200',    text: 'text-lime-700',    dot: 'bg-lime-400' },
-  POST:            { label: 'Post',              icon: '📌', color: '#6b7280', bg: 'bg-zinc-50',    ring: 'ring-zinc-200',    text: 'text-zinc-600',    dot: 'bg-zinc-400' },
+ // POST:            { label: 'Post',              icon: '📌', color: '#6b7280', bg: 'bg-zinc-50',    ring: 'ring-zinc-200',    text: 'text-zinc-600',    dot: 'bg-zinc-400' },
 }
 
 const PRIORITY_LABEL: Record<number, { label: string; color: string; glow: string }> = {
@@ -1120,6 +1120,133 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
         </div>
 
         <template v-if="showCategorySections">
+          <div class="opp-desktop-grid-mode">
+        <div v-if="gridItems.length > 0 && hasPrioritySections" class="opp-section-header" style="margin-bottom: 16px;">
+          <div class="opp-section-header__bar"></div>
+          <h2 class="opp-section-header__title">Todas as oportunidades</h2>
+          <span class="opp-section-header__count">{{ gridItems.length }}</span>
+        </div>
+
+        <div v-if="gridItems.length > 0" class="opp-grid">
+          <article
+            v-for="item in gridItems"
+            :key="item.id"
+            class="opp-card"
+            :class="{
+              'opp-card--urgent': item.deadline.urgent,
+              'opp-card--overdue': item.deadline.overdue,
+              'opp-card--priority': item.priority >= 2 && item.priority <= 3
+            }"
+            @click="selectedItem = item"
+            role="button"
+            tabindex="0"
+            @keydown.enter="selectedItem = item"
+          >
+            <div class="opp-card__cover">
+              <img
+                v-if="item.cover_url"
+                :src="item.cover_url"
+                :alt="item.title"
+                class="opp-card__img"
+                loading="lazy"
+              />
+              <div
+                v-else
+                class="opp-card__cover-fallback"
+                :style="{ background: `linear-gradient(135deg, ${item.categoryMeta.color}22, ${item.categoryMeta.color}08)` }"
+              >
+                <span class="opp-card__cover-emoji">{{ item.categoryMeta.icon }}</span>
+              </div>
+
+              <div class="opp-card__badges">
+                <span
+                  class="opp-badge"
+                  :style="{ background: item.categoryMeta.color + '22', color: item.categoryMeta.color, border: `1px solid ${item.categoryMeta.color}44` }"
+                >
+                  {{ item.categoryMeta.icon }} {{ item.categoryMeta.label }}
+                </span>
+
+                <span v-if="item.human_verified" class="opp-badge opp-badge--verified" title="Verificado pela equipe seConecta">
+                  ✓ Verificado
+                </span>
+
+                <span v-else-if="isAdmin" class="opp-badge opp-badge--pending" title="Ainda não verificado">
+                  Pendente
+                </span>
+
+                <button
+                  v-if="isAdmin"
+                  @click.stop="handleEditOpportunity(item)"
+                  class="opp-edit-btn"
+                >
+                  Editar
+                </button>
+              </div>
+
+              <div
+                v-if="item.priority >= 2 && item.priority <= 3"
+                class="opp-card__priority-strip"
+                :style="{
+                  background: item.priorityMeta.color + '15',
+                  color: item.priorityMeta.color,
+                  borderColor: item.priorityMeta.color + '35'
+                }"
+              >
+                ★ {{ item.priorityMeta.label }}
+              </div>
+
+              <div
+                v-if="item.next_deadline"
+                class="opp-card__deadline"
+                :class="{
+                  'opp-card__deadline--urgent': item.deadline.urgent,
+                  'opp-card__deadline--overdue': item.deadline.overdue
+                }"
+              >
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
+                </svg>
+                {{ item.deadlineActionLabel }}
+              </div>
+            </div>
+
+            <div class="opp-card__body">
+              <h3 class="opp-card__title">{{ item.title }}</h3>
+              <p class="opp-card__excerpt">{{ item.excerpt }}</p>
+
+              <div v-if="getCardHighlights(item).length > 0" class="opp-card__facts">
+                <div v-for="fact in getCardHighlights(item)" :key="fact.title" class="opp-card__fact">
+                  <span>{{ fact.title }}</span>
+                  <strong>{{ fact.label }}</strong>
+                </div>
+              </div>
+
+              <div class="opp-card__meta">
+                <span class="opp-meta-chip">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {{ item.location }}
+                </span>
+
+                <span v-if="item.is_free" class="opp-meta-chip opp-meta-chip--free">
+                  Gratuito
+                </span>
+              </div>
+
+              <div v-if="item.tags.length > 0" class="opp-card__tags">
+                <span v-for="tag in item.tags.slice(0, 3)" :key="tag" class="opp-tag">{{ tag }}</span>
+                <span v-if="item.tags.length > 3" class="opp-tag opp-tag--more">+{{ item.tags.length - 3 }}</span>
+              </div>
+
+              <div class="opp-card__action">Ver detalhes →</div>
+            </div>
+          </article>
+        </div>
+          </div>
+
+          <div class="opp-mobile-category-mode">
           <section
             v-for="section in categorySections"
             :key="section.category"
@@ -1252,6 +1379,7 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
           </article>
             </div>
           </section>
+          </div>
         </template>
 
         <template v-else>
@@ -1378,8 +1506,6 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
             </div>
           </article>
         </div>
-
-
         </template>
 
         <div v-if="hasMore" class="opp-load-more">
@@ -1852,7 +1978,7 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 .opp-spinner__track { opacity: .2; }
 .opp-spinner__fill { opacity: .8; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.opp-main { max-width: 1512px; margin: 0 auto; padding: 32px 24px 80px; }
+.opp-main { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
 .opp-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 24px; text-align: center; gap: 12px; }
 .opp-state__icon { width: 52px; height: 52px; background: #f5f5f4; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #d6d3d1; margin-bottom: 4px; }
 .opp-state__icon svg { width: 22px; height: 22px; }
@@ -1861,7 +1987,15 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 .opp-state__sub { font-size: 13px; color: #a8a29e; max-width: 280px; line-height: 1.5; }
 .opp-skeleton { height: 340px; border-radius: 16px; background: linear-gradient(90deg, #f5f5f4 25%, #ece8e4 50%, #f5f5f4 75%); background-size: 200% 100%; animation: shimmer 1.6s ease-in-out infinite; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-.opp-grid { display: grid; grid-template-columns: repeat(auto-fill, 360px); gap: 18px; justify-content: start; }
+.opp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+
+.opp-desktop-grid-mode {
+  display: block;
+}
+
+.opp-mobile-category-mode {
+  display: none;
+}
 
 .opp-category-section {
   margin-bottom: 34px;
@@ -1869,18 +2003,23 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 
 .opp-category-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 360px);
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(280px, 360px);
   gap: 18px;
-  justify-content: start;
-  overflow: visible;
-  padding: 2px 2px 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 12px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
-.opp-card { width: 360px; height: 382px; background: white; border-radius: 16px; border: 1px solid #f0ece8; overflow: hidden; cursor: pointer; transition: transform .2s, box-shadow .2s, border-color .2s; display: flex; flex-direction: column; }
+.opp-card { background: white; border-radius: 16px; border: 1px solid #f0ece8; overflow: hidden; cursor: pointer; transition: transform .2s, box-shadow .2s, border-color .2s; display: flex; flex-direction: column; }
 .opp-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.09); border-color: #e7e5e4; }
 .opp-card:focus-visible { outline: 2px solid #10b981; outline-offset: 2px; }
 .opp-card--urgent { border-color: #fed7aa; }
 .opp-card--urgent:hover { border-color: #fdba74; }
-.opp-card__cover { position: relative; height: 176px; overflow: hidden; background: #f5f5f4; flex-shrink: 0; }
+.opp-card__cover { position: relative; height: 160px; overflow: hidden; background: #f5f5f4; flex-shrink: 0; }
 .opp-card__img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s; }
 .opp-card:hover .opp-card__img { transform: scale(1.04); }
 .opp-card__cover-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
@@ -1897,9 +2036,7 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 .opp-card__deadline svg { width: 12px; height: 12px; }
 .opp-card__deadline--urgent { background: rgba(234,88,12,.85); color: white; }
 .opp-card__deadline--overdue { background: rgba(107,114,128,.7); color: #e7e5e4; }
-.opp-card__body { padding: 16px; display: flex; flex-direction: column; gap: 9px; flex: 1; overflow: hidden; }
-.opp-card__facts, .opp-card__tags { display: none; }
-.opp-card__meta { margin-top: auto; }
+.opp-card__body { padding: 18px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .opp-card__title { font-family: 'Sora', sans-serif; font-size: 14px; font-weight: 700; line-height: 1.35; color: #1c1917; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .opp-card__excerpt { font-size: 12.5px; line-height: 1.55; color: #78716c; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
 .opp-card__facts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -1949,11 +2086,11 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 .opp-editorial-card__meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .opp-editorial-card__title { font-family: 'Sora', sans-serif; font-size: 15px; line-height: 1.32; font-weight: 800; color: #1c1917; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .opp-editorial-card__excerpt { font-size: 12.5px; line-height: 1.55; color: #78716c; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.opp-featured-row { display: grid; grid-auto-flow: column; grid-auto-columns: 360px; gap: 18px; overflow-x: auto; padding: 2px 2px 12px; scrollbar-width: none; }
+.opp-featured-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 330px); gap: 18px; overflow-x: auto; padding: 2px 2px 12px; scrollbar-width: none; }
 .opp-featured-row::-webkit-scrollbar { display: none; }
-.opp-featured-card { width: 360px; height: 382px; background: white; border: 1px solid #e7e5e4; border-radius: 16px; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; transition: transform .18s, box-shadow .18s, border-color .18s; }
+.opp-featured-card { background: white; border: 1px solid #e7e5e4; border-radius: 16px; overflow: hidden; cursor: pointer; transition: transform .18s, box-shadow .18s, border-color .18s; }
 .opp-featured-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0,0,0,.09); border-color: #a7f3d0; }
-.opp-featured-card__cover { position: relative; height: 176px; overflow: hidden; background: #f5f5f4; flex-shrink: 0; }
+.opp-featured-card__cover { position: relative; height: 154px; overflow: hidden; background: #f5f5f4; }
 .opp-featured-card__glow-ring { position: absolute; inset: 0; box-shadow: inset 0 0 0 1px var(--glow); pointer-events: none; }
 .opp-featured-card__priority-chip { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; color: white; padding: 4px 10px; border-radius: 999px; font-family: 'Sora', sans-serif; font-size: 10.5px; font-weight: 800; box-shadow: 0 6px 16px rgba(0,0,0,.18); }
 .opp-modal-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(15,17,23,.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: flex-end; justify-content: center; padding: 0; }
@@ -2057,6 +2194,14 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 
 
 @media (max-width: 640px) {
+  .opp-desktop-grid-mode {
+    display: none;
+  }
+
+  .opp-mobile-category-mode {
+    display: block;
+  }
+
   .opp-hero {
     padding: 46px 18px 38px;
   }
