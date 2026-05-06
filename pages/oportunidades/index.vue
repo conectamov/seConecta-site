@@ -440,7 +440,68 @@ const pendingOpenSlug = ref<string | null>(null)
 const openingFromSlug = ref(false)
 
 const currentUser = ref<any | null>(null)
+const authChecked = ref(false)
+
 const isAdmin = computed(() => !!(currentUser.value?.is_superuser || currentUser.value?.is_manager))
+const isLoggedIn = computed(() => !!currentUser.value)
+
+const MEMBER_NUDGE_DISMISS_KEY = 'seconecta:opportunities-member-nudge-dismissed-at'
+const MEMBER_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000
+
+const openedOpportunityCount = ref(0)
+const hasScrolledEnoughForMemberNudge = ref(false)
+const memberNudgeDismissed = ref(false)
+
+const showMemberNudge = computed(() => {
+  return (
+    authChecked.value &&
+    !isLoggedIn.value &&
+    !memberNudgeDismissed.value &&
+    !selectedItem.value &&
+    !loading.value &&
+    !error.value &&
+    filtered.value.length >= 4 &&
+    (
+      openedOpportunityCount.value >= 2 ||
+      hasScrolledEnoughForMemberNudge.value
+    )
+  )
+})
+
+function checkMemberNudgeDismissed() {
+  if (typeof window === 'undefined') return
+
+  const raw = window.localStorage.getItem(MEMBER_NUDGE_DISMISS_KEY)
+  const dismissedAt = raw ? Number(raw) : 0
+
+  if (dismissedAt && Date.now() - dismissedAt < MEMBER_NUDGE_COOLDOWN_MS) {
+    memberNudgeDismissed.value = true
+  }
+}
+
+function dismissMemberNudge() {
+  memberNudgeDismissed.value = true
+
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(MEMBER_NUDGE_DISMISS_KEY, String(Date.now()))
+  }
+}
+
+function handleMemberNudgeLogin() {
+  navigateTo({
+    path: '/login',
+    query: {
+      redirect: route.fullPath,
+    },
+  })
+}
+
+function handleMemberNudgeScroll() {
+  if (typeof window === 'undefined') return
+  if (window.scrollY > 900) {
+    hasScrolledEnoughForMemberNudge.value = true
+  }
+}
 
 async function fetchCurrentUser() {
   try {
@@ -448,6 +509,8 @@ async function fetchCurrentUser() {
     currentUser.value = res.data
   } catch {
     currentUser.value = null
+  } finally {
+    authChecked.value = true
   }
 }
 
@@ -638,11 +701,18 @@ watch(activeCategories, () => fetchOpportunities(true), { deep: true })
 watch(freeOnly, () => fetchOpportunities(true))
 watch(onlineOnly, () => fetchOpportunities(true))
 
-watch(selectedItem, (val) => {
+watch(selectedItem, (val, oldVal) => {
   document.body.style.overflow = val ? 'hidden' : ''
+
+  if (val && !oldVal && !isLoggedIn.value) {
+    openedOpportunityCount.value++
+  }
 })
 
 onMounted(async () => {
+  checkMemberNudgeDismissed()
+  window.addEventListener('scroll', handleMemberNudgeScroll, { passive: true })
+  
   document.addEventListener('click', closeSideFiltersOnOutside)
 
   const queryCategory = typeof route.query.category === 'string'
@@ -667,6 +737,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.body.style.overflow = ''
+  window.removeEventListener('scroll', handleMemberNudgeScroll)
   document.removeEventListener('click', closeSideFiltersOnOutside)
 })
 
@@ -1718,6 +1789,50 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
         </div>
       </Transition>
     </Teleport>
+    <Transition name="member-nudge">
+      <aside
+        v-if="showMemberNudge"
+        class="opp-member-nudge"
+        aria-label="Entrar no seConecta"
+      >
+        <button
+          type="button"
+          class="opp-member-nudge__close"
+          aria-label="Fechar"
+          @click="dismissMemberNudge"
+        >
+          ×
+        </button>
+
+        <span class="opp-member-nudge__eyebrow">Sua jornada</span>
+
+        <h3 class="opp-member-nudge__title">
+          Quer encontrar oportunidades mais alinhadas com você?
+        </h3>
+
+        <p class="opp-member-nudge__text">
+          Entre no seConecta para montar seu perfil e continuar explorando com mais direção.
+        </p>
+
+        <div class="opp-member-nudge__actions">
+          <button
+            type="button"
+            class="opp-member-nudge__primary"
+            @click="handleMemberNudgeLogin"
+          >
+            Entrar
+          </button>
+
+          <button
+            type="button"
+            class="opp-member-nudge__secondary"
+            @click="dismissMemberNudge"
+          >
+            Agora não
+          </button>
+        </div>
+      </aside>
+    </Transition>
   </div>
 </template>
 
@@ -2345,4 +2460,137 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
     padding: 20px;
   }
 }
+
+.opp-member-nudge {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 45;
+  width: min(360px, calc(100vw - 32px));
+  padding: 18px;
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.96), rgba(240,253,250,.96));
+  border: 1px solid rgba(15, 23, 42, .08);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .18);
+  backdrop-filter: blur(16px);
+}
+
+.opp-member-nudge__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .06);
+  color: #475569;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.opp-member-nudge__close:hover {
+  background: rgba(15, 23, 42, .1);
+}
+
+.opp-member-nudge__eyebrow {
+  display: inline-flex;
+  margin-bottom: 8px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, .12);
+  color: #047857;
+  font-family: 'Sora', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.opp-member-nudge__title {
+  margin: 0;
+  max-width: 300px;
+  font-family: 'Sora', sans-serif;
+  font-size: 17px;
+  line-height: 1.25;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.opp-member-nudge__text {
+  margin: 8px 0 14px;
+  max-width: 310px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.opp-member-nudge__actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.opp-member-nudge__primary,
+.opp-member-nudge__secondary {
+  border: 0;
+  border-radius: 999px;
+  font-family: 'Sora', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.opp-member-nudge__primary {
+  padding: 10px 16px;
+  background: #10b981;
+  color: white;
+  box-shadow: 0 10px 24px rgba(16, 185, 129, .28);
+}
+
+.opp-member-nudge__primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(16, 185, 129, .34);
+}
+
+.opp-member-nudge__secondary {
+  padding: 10px 12px;
+  background: transparent;
+  color: #64748b;
+}
+
+.opp-member-nudge__secondary:hover {
+  color: #0f172a;
+}
+
+.member-nudge-enter-active,
+.member-nudge-leave-active {
+  transition: opacity .22s ease, transform .22s ease;
+}
+
+.member-nudge-enter-from,
+.member-nudge-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(.98);
+}
+
+@media (max-width: 640px) {
+  .opp-member-nudge {
+    right: 16px;
+    bottom: 16px;
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .opp-member-nudge__title {
+    font-size: 16px;
+  }
+
+  .opp-member-nudge__text {
+    font-size: 13px;
+  }
+}
+
 </style>

@@ -19,6 +19,7 @@
           <div class="text-[0.7rem] font-semibold text-[#888] uppercase tracking-wide">
             Filtrar por categoria:
           </div>
+
           <div class="flex flex-wrap gap-2">
             <button
               v-for="item in CATEGORY_ORDER"
@@ -34,6 +35,7 @@
               {{ CATEGORY_MAP[item.key].label }}
             </button>
           </div>
+
           <button
             v-if="hasInactiveCategories"
             @click="resetCategories"
@@ -63,7 +65,9 @@
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
             </div>
+
             <p class="text-[0.85rem] text-[#666]">{{ error }}</p>
+
             <button
               class="text-sm font-semibold px-5 py-2 bg-[#0d0d0d] text-white rounded-xl hover:bg-[#079272] transition-colors border-none cursor-pointer"
               @click="fetchAllData"
@@ -75,18 +79,31 @@
           <ClientOnly v-else>
             <VCalendar
               :attributes="calendarAttributes"
+              :initial-page="currentCalendarPage"
               expanded
               :first-day-of-week="1"
               locale="pt-BR"
               class="seconecta-calendar"
               @dayclick="handleDayClick"
+              @did-move="handleCalendarMove"
             />
           </ClientOnly>
+
+          <div
+            v-if="calendarLoadingMore && !loading"
+            class="border-t border-[#f0ece5] px-6 py-2 text-[0.7rem] text-[#aaa] flex items-center gap-2"
+          >
+            <svg class="animate-spin w-3.5 h-3.5 text-[#079272]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+            Carregando datas deste mês...
+          </div>
 
           <div class="border-t border-[#f0ece5] px-6 py-4">
             <p class="text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-[#bbb] mb-3">
               Legenda (clique para filtrar)
             </p>
+
             <div class="flex flex-wrap gap-x-4 gap-y-2">
               <div
                 v-for="item in CATEGORY_ORDER"
@@ -110,9 +127,10 @@
         <div class="bg-white border border-[#e8e4dc] rounded-2xl shadow-sm overflow-hidden">
           <div class="px-5 py-4 border-b border-[#f0ece5] flex items-center justify-between">
             <div>
-              <h2 class="text-[0.88rem] font-bold text-[#111]">Próximos 30 dias</h2>
-              <p class="text-[0.7rem] text-[#aaa] mt-0.5">Datas importantes se aproximando</p>
+              <h2 class="text-[0.88rem] font-bold text-[#111]">Próximas datas</h2>
+              <p class="text-[0.7rem] text-[#aaa] mt-0.5">Eventos carregados no calendário</p>
             </div>
+
             <div class="flex gap-1.5" v-if="allUpcomingEvents.length > SIDEBAR_PAGE_SIZE">
               <button
                 @click="sidebarPage--"
@@ -123,6 +141,7 @@
                   <polyline points="15 18 9 12 15 6" />
                 </svg>
               </button>
+
               <button
                 @click="sidebarPage++"
                 :disabled="sidebarPage >= sidebarMaxPage"
@@ -145,7 +164,7 @@
             v-else-if="allUpcomingEvents.length === 0"
             class="px-5 py-10 text-center text-[0.8rem] text-[#bbb]"
           >
-            Nenhuma data importante nos próximos 30 dias
+            Nenhuma data importante carregada ainda
           </div>
 
           <div v-else class="divide-y divide-[#f7f5f0]">
@@ -157,10 +176,10 @@
             >
               <div class="flex-shrink-0 w-11 text-center">
                 <div class="text-[0.62rem] font-semibold uppercase text-[#bbb]">
-                  {{ MONTHS_PT[new Date(event.deadline).getMonth()].slice(0, 3) }}
+                  {{ monthAbbr(event.deadline) }}
                 </div>
                 <div class="text-[1.15rem] font-bold text-[#111] leading-none">
-                  {{ new Date(event.deadline).getDate() }}
+                  {{ dayNumber(event.deadline) }}
                 </div>
               </div>
 
@@ -172,12 +191,11 @@
                   >
                     {{ event.categoryLabel }}
                   </span>
-                  <span v-if="event.eventType === 'start'" class="text-[0.6rem] text-[#079272] font-medium">
-                    Início
+
+                  <span v-if="event.eventLabel" class="text-[0.6rem] text-[#079272] font-medium line-clamp-1">
+                    {{ event.eventLabel }}
                   </span>
-                  <span v-else-if="event.eventType === 'end'" class="text-[0.6rem] text-[#dc2626] font-medium">
-                    Término
-                  </span>
+
                   <span class="text-[0.68rem]" :class="daysLeft(event.deadline).cls">
                     {{ daysLeft(event.deadline).text }}
                   </span>
@@ -203,135 +221,14 @@
             class="border-t border-[#f7f5f0] px-5 py-3 text-center"
           >
             <p class="text-[0.65rem] text-[#ccc]">
-              {{ allUpcomingEvents.length }} evento{{ allUpcomingEvents.length !== 1 ? 's' : '' }} importantes
+              {{ allUpcomingEvents.length }} evento{{ allUpcomingEvents.length !== 1 ? 's' : '' }} importante{{ allUpcomingEvents.length !== 1 ? 's' : '' }} carregado{{ allUpcomingEvents.length !== 1 ? 's' : '' }}
             </p>
           </div>
-        </div>
-      </div>
-
-      <!-- Recommendations (unchanged) -->
-      <div class="mt-12">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <h2 class="text-[1.2rem] font-bold text-[#111] tracking-[-0.02em]">
-              Recomendado para você
-            </h2>
-            <p class="text-[0.75rem] text-[#aaa] mt-1">
-              Personalizado para o seu perfil.
-            </p>
-          </div>
-
-          <div class="flex gap-2">
-            <button
-              @click="scrollCarousel(-1)"
-              class="w-8 h-8 rounded-full border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="carouselIndex === 0 || recommendedLoading"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </button>
-
-            <button
-              @click="scrollCarousel(1)"
-              class="w-8 h-8 rounded-full border border-[#e8e4dc] bg-white flex items-center justify-center hover:border-[#079272] hover:text-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              :disabled="recommendedLoading || carouselIndex >= Math.max(0, recommendedDisplayPosts.length - carouselItemsPerView)"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <div v-if="recommendedLoading" class="text-center py-8 text-[#aaa]">
-          <svg class="animate-spin w-5 h-5 inline-block mr-2 text-[#079272]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-          </svg>
-          Carregando recomendações...
-        </div>
-
-        <div v-else-if="!authReady" class="text-center py-8 text-[#aaa]">
-          Carregando conta...
-        </div>
-
-        <div v-else-if="isAuthenticated && !isLinked" class="text-center py-8 text-[#aaa]">
-          Conecte seu WhatsApp na
-          <NuxtLink to="/perfil" class="text-[#079272] font-semibold hover:underline">página de perfil</NuxtLink>
-          para receber recomendações personalizadas.
-        </div>
-
-        <div v-else-if="recommendedDisplayPosts.length > 0" class="relative overflow-hidden">
-          <div
-            class="flex gap-4 transition-transform duration-300 ease-out"
-            :style="{ transform: `translateX(-${carouselIndex * (carouselItemWidth + 16)}px)` }"
-          >
-            <div
-              v-for="post in recommendedDisplayPosts"
-              :key="post.id ?? post.slug"
-              class="flex-shrink-0 w-full sm:w-[280px] md:w-[320px] bg-white border border-[#e8e4dc] rounded-2xl overflow-hidden hover:shadow-lg transition-shadow group cursor-pointer"
-              @click="openPost(post)"
-            >
-              <div v-if="post.cover_url" class="h-40 overflow-hidden">
-                <img
-                  :src="post.cover_url"
-                  :alt="post.title"
-                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-
-              <div class="p-4">
-                <div class="flex items-center justify-between mb-2">
-                  <span
-                    v-if="post.similarity"
-                    class="text-[0.6rem] font-semibold px-2 py-0.5 rounded-full bg-[#f0faf7] text-[#079272] border border-[#c5e8df]"
-                  >
-                    {{ Math.round(post.similarity * 100) }}% match
-                  </span>
-
-                  <div class="flex gap-1">
-                    <span
-                      v-for="tag in (post.tags || []).slice(0, 2)"
-                      :key="tag"
-                      class="text-[0.55rem] px-1.5 py-0.5 bg-[#f7f5f0] text-[#888] rounded-full"
-                    >
-                      #{{ tag }}
-                    </span>
-                  </div>
-                </div>
-
-                <h3 class="text-[0.9rem] font-bold text-[#111] line-clamp-2 mb-1">
-                  {{ post.title }}
-                </h3>
-
-                <p v-if="post.excerpt" class="text-[0.7rem] text-[#666] line-clamp-3 mb-2">
-                  {{ post.excerpt }}
-                </p>
-
-                <div class="flex items-center justify-between text-[0.65rem] text-[#aaa]">
-                  <span>Clique para ler</span>
-                  <svg class="w-3 h-3 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="isAuthenticated" class="text-center py-8 text-[#aaa]">
-          Nenhuma recomendação disponível agora.
-        </div>
-
-        <div v-else class="text-center py-8 text-[#aaa]">
-          Faça
-          <NuxtLink to="/login" class="text-[#079272] font-semibold hover:underline">login</NuxtLink>
-          para ver recomendações personalizadas.
         </div>
       </div>
     </div>
 
-    <!-- Day Modal (shows events on selected day) -->
+    <!-- Day Modal -->
     <Transition name="modal-fade">
       <div
         v-if="showModal"
@@ -391,16 +288,16 @@
                   >
                     {{ event.categoryLabel }}
                   </span>
-                  <span v-if="event.eventType === 'start'" class="text-[0.6rem] text-[#079272] font-medium">
-                    Início
+
+                  <span v-if="event.eventLabel" class="text-[0.6rem] text-[#079272] font-medium">
+                    {{ event.eventLabel }}
                   </span>
-                  <span v-else-if="event.eventType === 'end'" class="text-[0.6rem] text-[#dc2626] font-medium">
-                    Término
-                  </span>
+
                   <span v-if="event.modality" class="text-[0.65rem] text-[#999]">
                     <i :class="`fas ${MODALITY_ICON[event.modality] || ''}`" class="mr-1"></i>
                     {{ event.modality }}
                   </span>
+
                   <span v-if="event.country" class="text-[0.65rem] text-[#bbb] ml-auto">
                     {{ event.country }}
                   </span>
@@ -416,14 +313,7 @@
 
                 <div class="flex items-center justify-between pt-2 border-t border-[#f5f3f0]">
                   <div v-if="event.author_name" class="flex items-center gap-1.5">
-                    <img
-                      v-if="event.author_profile_picture_url"
-                      :src="event.author_profile_picture_url"
-                      :alt="event.author_name"
-                      class="w-5 h-5 rounded-full object-cover"
-                    />
                     <div
-                      v-else
                       class="w-5 h-5 rounded-full bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center text-white text-[0.5rem] font-bold flex-shrink-0"
                     >
                       {{ event.author_name.charAt(0).toUpperCase() }}
@@ -460,51 +350,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useAxios } from '~/composables/useAxios'
-import { useAuth } from '~/composables/useAuth'
 import { useRouter } from 'nuxt/app'
 
 useSeoMeta({ title: 'Calendário de Oportunidades — seConecta' })
 
-const { get, post: apiPost } = useAxios()
-const { currentUser, isAuthenticated } = useAuth()
+const { get } = useAxios()
 const router = useRouter()
 
-// Data sources
-const posts = ref<any[]>([])
-const olympiads = ref<any[]>([])
+const today = new Date()
+const currentCalendarPage = {
+  month: today.getMonth() + 1,
+  year: today.getFullYear(),
+}
+
+const opportunities = ref<any[]>([])
+const loadedWindowKeys = ref<string[]>([])
+const loadingWindowKeys = ref<string[]>([])
+const loadedWindows = ref<Array<{ key: string; start: Date; end: Date }>>([])
+
 const loading = ref(true)
+const calendarLoadingMore = ref(false)
 const error = ref<string | null>(null)
 
-// Category filter state
 const activeCategories = ref<Record<string, boolean>>({})
-
-// UI state
 const selectedDay = ref<Date | null>(null)
 const showModal = ref(false)
 
-const mounted = ref(false)
-const authReady = ref(false)
-
-// Sidebar pagination
 const SIDEBAR_PAGE_SIZE = 3
 const sidebarPage = ref(0)
 
-// Recommendation related
-const recommendedPosts = ref<any[]>([])
-const recommendedLoading = ref(false)
-const recommendedError = ref<string | null>(null)
-const carouselIndex = ref(0)
-const carouselItemsPerView = ref(3)
-const carouselItemWidth = ref(320)
-
-const isLinked = computed(() => currentUser.value?.linked ?? false)
+const OPPORTUNITY_PAGE_SIZE = 50
+const MAX_PAGES_PER_WINDOW = 5
 
 const MODALITY_ICON: Record<string, string> = {
   online: 'fa-globe',
   presencial: 'fa-location-dot',
   híbrido: 'fa-arrows-spin',
+  hibrido: 'fa-arrows-spin',
 }
 
 const MONTHS_PT = [
@@ -513,66 +397,61 @@ const MONTHS_PT = [
 ]
 
 const CATEGORY_ORDER = [
-  { key: 'olimpiadas' },
-  { key: 'bolsas' },
-  { key: 'estagios' },
-  { key: 'acampamentos' },
-  { key: 'eventos' },
-  { key: 'pesquisa' },
-  { key: 'workshops' },
-  { key: 'oportunidades' },
-  { key: 'outros' },
+  { key: 'COMPETITION' },
+  { key: 'OLYMPIAD' },
+  { key: 'MUN' },
+  { key: 'SCHOLARSHIP' },
+  { key: 'SUMMER_PROGRAM' },
+  { key: 'WORKSHOP' },
+  { key: 'VOLUNTEERING' },
+  { key: 'EXTRACURRICULAR' },
+  { key: 'INITIATIVE' },
+  { key: 'OTHER' },
 ] as const
 
-const CATEGORY_MAP: Record<string, { label: string; color: string; hints: string[] }> = {
-  olimpiadas: {
-    label: 'Olimpíadas',
-    color: '#FA3F0B',
-    hints: ['olimpiada', 'olimpíada', 'obmep', 'obf', 'obo', 'obq', 'competição', 'competicao', 'olympiad'],
-  },
-  bolsas: {
-    label: 'Bolsas',
-    color: '#2464E8',
-    hints: ['bolsa', 'scholarship', 'grant', 'auxilio', 'auxílio', 'financiamento'],
-  },
-  estagios: {
-    label: 'Estágios',
-    color: '#8B5CF6',
-    hints: ['estagio', 'estágio', 'internship', 'trainee'],
-  },
-  acampamentos: {
-    label: 'Summer Camps',
+const CATEGORY_MAP: Record<string, { label: string; color: string }> = {
+  COMPETITION: {
+    label: 'Competições',
     color: '#F59E0B',
-    hints: ['camp', 'summer camp', 'acampamento', 'verao', 'verão', 'ferias', 'férias'],
   },
-  eventos: {
-    label: 'Eventos',
-    color: '#EC4899',
-    hints: ['evento', 'conference', 'conferencia', 'conferência', 'seminario', 'seminário', 'palestra', 'summit', 'meetup', 'feira'],
+  OLYMPIAD: {
+    label: 'Olimpíadas',
+    color: '#10B981',
   },
-  pesquisa: {
-    label: 'Pesquisa',
-    color: '#059669',
-    hints: ['pesquisa', 'research', 'laboratorio', 'laboratório', 'iniciacao cientifica', 'iniciação científica', 'ic'],
+  MUN: {
+    label: 'MUN',
+    color: '#6366F1',
   },
-  workshops: {
-    label: 'Workshops',
+  SCHOLARSHIP: {
+    label: 'Bolsas',
+    color: '#8B5CF6',
+  },
+  SUMMER_PROGRAM: {
+    label: 'Programas de verão',
     color: '#0EA5E9',
-    hints: ['workshop', 'oficina', 'curso', 'bootcamp', 'treinamento', 'training'],
   },
-  oportunidades: {
-    label: 'Oportunidades',
-    color: '#111827',
-    hints: ['oportunidade', 'opportunity', 'vaga', 'edital', 'open call'],
+  WORKSHOP: {
+    label: 'Workshops',
+    color: '#EC4899',
   },
-  outros: {
+  VOLUNTEERING: {
+    label: 'Voluntariado',
+    color: '#14B8A6',
+  },
+  EXTRACURRICULAR: {
+    label: 'Extracurricular',
+    color: '#F97316',
+  },
+  INITIATIVE: {
+    label: 'Iniciativas',
+    color: '#84CC16',
+  },
+  OTHER: {
     label: 'Outros',
     color: '#6B7280',
-    hints: [],
   },
 }
 
-// Initialize active categories (all true)
 CATEGORY_ORDER.forEach(cat => {
   activeCategories.value[cat.key] = true
 })
@@ -593,158 +472,224 @@ function resetCategories() {
   sidebarPage.value = 0
 }
 
-// Helper functions
 function safeArray<T>(value: any): T[] {
-  return Array.isArray(value) ? value : []
-}
+  if (Array.isArray(value)) return value
 
-function normalizeText(input: any) {
-  return String(input ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-}
-
-function getPostSearchBlob(post: any) {
-  return normalizeText([
-    ...(safeArray<string>(post?.tags) || []),
-    post?.post_type,
-    post?.title,
-    post?.excerpt,
-  ].join(' '))
-}
-
-function classifyPost(post: any) {
-  const blob = getPostSearchBlob(post)
-
-  for (const key of CATEGORY_ORDER.map(c => c.key)) {
-    const cat = CATEGORY_MAP[key]
-    if (cat.hints.some(h => blob.includes(normalizeText(h)))) {
-      return key
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
     }
   }
 
-  return 'outros'
+  return []
 }
 
-function colorFor(post: any) {
-  return CATEGORY_MAP[classifyPost(post)]?.color ?? CATEGORY_MAP.outros.color
+function normalizeJsonObject(value: any) {
+  if (!value) return {}
+  if (typeof value === 'object' && !Array.isArray(value)) return value
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+    } catch {
+      return {}
+    }
+  }
+
+  return {}
 }
 
-function labelFor(post: any) {
-  return CATEGORY_MAP[classifyPost(post)]?.label ?? 'Outros'
+function parseLocalDate(raw: string | null | undefined): Date | null {
+  if (!raw) return null
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [year, month, day] = raw.split('-').map(Number)
+    return new Date(year, month - 1, day, 23, 59, 59)
+  }
+
+  const parsed = new Date(raw)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-function normalizeOlympiad(olympiad: any): any[] {
-  const events: any[] = []
-  const category = 'olimpiadas'
-  const categoryLabel = CATEGORY_MAP.olimpiadas.label
-  const categoryColor = CATEGORY_MAP.olimpiadas.color
+function formatApiDate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
-  if (olympiad.start_date) {
-    events.push({
-      id: `olympiad-start-${olympiad.id}`,
-      originalId: olympiad.id,
-      title: olympiad.title,
-      slug: olympiad.slug,
-      excerpt: olympiad.description ? olympiad.description.substring(0, 120) : '',
-      deadline: olympiad.start_date,
-      category,
-      categoryLabel,
-      categoryColor,
-      type: 'olympiad',
-      eventType: 'start',
-      author_name: olympiad.organizer || 'Organização',
-      author_profile_picture_url: null,
-      modality: olympiad.modalities?.[0] || 'online',
-      country: olympiad.location?.includes('Internacional') ? '🌍 Internacional' : '🇧🇷 Brasil',
-      cover_url: olympiad.cover_url,
-      raw: olympiad,
+function getMonthWindow(year: number, month: number) {
+  const start = new Date(year, month - 1, 1, 0, 0, 0, 0)
+  const end = new Date(year, month, 0, 23, 59, 59, 999)
+
+  return { start, end }
+}
+
+function getWindowKey(start: Date, end: Date) {
+  return `${formatApiDate(start)}:${formatApiDate(end)}`
+}
+
+function isDateInsideWindow(date: Date, start: Date, end: Date) {
+  return date.getTime() >= start.getTime() && date.getTime() <= end.getTime()
+}
+
+function isDateInsideLoadedWindow(date: Date) {
+  return loadedWindows.value.some(window => isDateInsideWindow(date, window.start, window.end))
+}
+
+function shouldShowTimelineEventOnCalendar(event: any) {
+  if (!event || typeof event !== 'object') return false
+
+  return event.show_on_calendar === true || event.show_on_calendar === 'true'
+}
+
+function normalizeTimeline(value: any) {
+  const timeline = safeArray<any>(value)
+
+  return timeline
+    .filter(event => event && typeof event === 'object')
+    .map(event => ({
+      ...event,
+      label: event.label ?? event.details ?? event.title ?? event.name ?? 'Evento',
+      details: event.details ?? event.description ?? null,
+      show_on_calendar: shouldShowTimelineEventOnCalendar(event),
+    }))
+}
+
+function getTimelineLabel(event: any) {
+  return (
+    event?.details ??
+    event?.description ??
+    event?.label ??
+    event?.title ??
+    event?.name ??
+    event?.event ??
+    'Evento'
+  )
+}
+
+function getCategoryKey(opportunity: any) {
+  const category = String(opportunity?.category ?? '').trim()
+  return CATEGORY_MAP[category] ? category : 'OTHER'
+}
+
+function getOpportunityExcerpt(opportunity: any) {
+  return (
+    opportunity?.excerpt ??
+    opportunity?.description?.slice?.(0, 130) ??
+    ''
+  )
+}
+
+function getOpportunityAuthor(opportunity: any) {
+  const categoryData = normalizeJsonObject(opportunity?.category_data)
+
+  return (
+    categoryData?.organizer ??
+    opportunity?.organizer ??
+    null
+  )
+}
+
+function getOpportunityModality(opportunity: any) {
+  const categoryData = normalizeJsonObject(opportunity?.category_data)
+
+  return (
+    opportunity?.modality ??
+    categoryData?.format ??
+    null
+  )
+}
+
+function opportunityHasCalendarEventInWindow(opportunity: any, start: Date, end: Date) {
+  const timeline = normalizeTimeline(opportunity?.timeline)
+
+  return timeline.some(event => {
+    const date = parseLocalDate(event?.date)
+    return event.show_on_calendar === true && !!date && isDateInsideWindow(date, start, end)
+  })
+}
+
+function normalizeOpportunityToEvents(opportunity: any): any[] {
+  const timeline = normalizeTimeline(opportunity?.timeline)
+  const category = getCategoryKey(opportunity)
+  const categoryMeta = CATEGORY_MAP[category] ?? CATEGORY_MAP.OTHER
+
+  return timeline
+    .filter(event => event.show_on_calendar === true)
+    .map(event => {
+      const date = parseLocalDate(event?.date)
+
+      if (!date) return null
+      if (!isDateInsideLoadedWindow(date)) return null
+
+      return {
+        id: `opportunity-${opportunity.id}-${formatApiDate(date)}-${getTimelineLabel(event)}`,
+        originalId: opportunity.id,
+        title: opportunity.title,
+        slug: opportunity.slug,
+        excerpt: getOpportunityExcerpt(opportunity),
+        deadline: event.date,
+        deadlineDate: date,
+        category,
+        categoryLabel: categoryMeta.label,
+        categoryColor: categoryMeta.color,
+        type: 'opportunity',
+        eventType: 'timeline',
+        eventLabel: getTimelineLabel(event),
+        author_name: getOpportunityAuthor(opportunity),
+        modality: getOpportunityModality(opportunity),
+        country: opportunity?.country ?? null,
+        location: opportunity?.location ?? 'Online',
+        cover_url: opportunity?.cover_url ?? null,
+        is_free: !!opportunity?.is_free,
+        raw: opportunity,
+        timelineEvent: event,
+      }
     })
-  }
-
-  if (olympiad.end_date && olympiad.end_date !== olympiad.start_date) {
-    events.push({
-      id: `olympiad-end-${olympiad.id}`,
-      originalId: olympiad.id,
-      title: olympiad.title,
-      slug: olympiad.slug,
-      excerpt: olympiad.description ? olympiad.description.substring(0, 120) : '',
-      deadline: olympiad.end_date,
-      category,
-      categoryLabel,
-      categoryColor,
-      type: 'olympiad',
-      eventType: 'end',
-      author_name: olympiad.organizer || 'Organização',
-      author_profile_picture_url: null,
-      modality: olympiad.modalities?.[0] || 'online',
-      country: olympiad.location?.includes('Internacional') ? '🌍 Internacional' : '🇧🇷 Brasil',
-      cover_url: olympiad.cover_url,
-      raw: olympiad,
-    })
-  }
-
-  return events
-}
-
-function normalizePostToEvent(post: any): any {
-  const category = classifyPost(post)
-  return {
-    id: `post-${post.id}`,
-    originalId: post.id,
-    title: post.title,
-    slug: post.slug,
-    excerpt: post.excerpt,
-    deadline: post.deadline,
-    category,
-    categoryLabel: labelFor(post),
-    categoryColor: colorFor(post),
-    type: 'post',
-    eventType: 'deadline',
-    author_name: post.author_name,
-    author_profile_picture_url: post.author_profile_picture_url,
-    modality: post.modality,
-    country: post.country,
-    cover_url: post.cover_url,
-    raw: post,
-  }
+    .filter(Boolean)
 }
 
 const allEvents = computed<any[]>(() => {
-  const postEvents = posts.value.map(p => normalizePostToEvent(p))
-  const olympiadEvents = olympiads.value.flatMap(o => normalizeOlympiad(o))
-  const combined = [...postEvents, ...olympiadEvents]
-  return combined.filter(event => activeCategories.value[event.category] === true)
+  return opportunities.value
+    .flatMap(opportunity => normalizeOpportunityToEvents(opportunity))
+    .filter(event => activeCategories.value[event.category] === true)
 })
 
 const calendarAttributes = computed(() => {
   return allEvents.value.map((event, idx) => ({
     key: `${event.id}-${idx}`,
-    dates: new Date(event.deadline),
+    dates: event.deadlineDate,
     dot: {
       color: event.categoryColor,
       style: { backgroundColor: event.categoryColor },
     },
     popover: {
-      label: `${event.categoryLabel}${event.eventType === 'start' ? ' (Início)' : event.eventType === 'end' ? ' (Término)' : ''} · ${event.title}`,
+      label: `${event.categoryLabel} · ${event.eventLabel} · ${event.title}`,
     },
     customData: event,
   }))
 })
 
-// All upcoming events (no slice limit — pagination handles display)
 const allUpcomingEvents = computed<any[]>(() => {
-  const now = Date.now()
-  const limit = now + 30 * 86_400_000
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
 
   return allEvents.value
     .filter(event => {
-      const t = new Date(event.deadline).getTime()
-      return t >= now && t <= limit
+      const date = parseLocalDate(event.deadline)
+      if (!date) return false
+      return date >= now
     })
-    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+    .sort((a, b) => {
+      const aTime = parseLocalDate(a.deadline)?.getTime() ?? 0
+      const bTime = parseLocalDate(b.deadline)?.getTime() ?? 0
+      return aTime - bTime
+    })
 })
 
 const sidebarMaxPage = computed(() =>
@@ -756,7 +701,6 @@ const sidebarDisplayEvents = computed(() => {
   return allUpcomingEvents.value.slice(start, start + SIDEBAR_PAGE_SIZE)
 })
 
-// Reset sidebar page when events change
 watch(allUpcomingEvents, () => {
   if (sidebarPage.value > sidebarMaxPage.value) {
     sidebarPage.value = sidebarMaxPage.value
@@ -765,21 +709,55 @@ watch(allUpcomingEvents, () => {
 
 const selectedEvents = computed(() => {
   if (!selectedDay.value) return []
+
   const key = toKey(selectedDay.value)
-  return allEvents.value.filter(event => toKey(new Date(event.deadline)) === key)
+
+  return allEvents.value
+    .filter(event => {
+      const date = parseLocalDate(event.deadline)
+      return date && toKey(date) === key
+    })
+    .sort((a, b) => {
+      const aTime = parseLocalDate(a.deadline)?.getTime() ?? 0
+      const bTime = parseLocalDate(b.deadline)?.getTime() ?? 0
+      return aTime - bTime
+    })
 })
 
 function toKey(date: Date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
 }
 
-function daysLeft(iso: string): { text: string; cls: string } {
-  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000)
+function monthAbbr(raw: string) {
+  const date = parseLocalDate(raw)
+  if (!date) return ''
+  return MONTHS_PT[date.getMonth()].slice(0, 3)
+}
+
+function dayNumber(raw: string) {
+  const date = parseLocalDate(raw)
+  if (!date) return ''
+  return date.getDate()
+}
+
+function daysLeft(raw: string): { text: string; cls: string } {
+  const date = parseLocalDate(raw)
+
+  if (!date) return { text: 'Sem data', cls: 'text-[#bbb]' }
+
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+
+  const target = new Date(date)
+  target.setHours(23, 59, 59, 999)
+
+  const diff = Math.ceil((target.getTime() - now.getTime()) / 86_400_000)
 
   if (diff < 0) return { text: 'Encerrado', cls: 'text-[#bbb]' }
   if (diff === 0) return { text: 'Hoje!', cls: 'text-red-500 font-bold' }
   if (diff === 1) return { text: 'Amanhã', cls: 'text-orange-500 font-semibold' }
   if (diff <= 7) return { text: `${diff} dias`, cls: 'text-orange-400 font-medium' }
+
   return { text: `${diff} dias`, cls: 'text-[#888]' }
 }
 
@@ -788,17 +766,36 @@ function handleDayClick(day: any) {
   showModal.value = !!selectedDay.value
 }
 
-function openEvent(event: any) {
-  showModal.value = false
-  if (event.type === 'olympiad') {
-    router.push('/olimpiadas')
-  } else {
-    router.push(`/feed/${event.slug}`)
-  }
+async function handleCalendarMove(pages: any[]) {
+  const visiblePages = Array.isArray(pages) ? pages : [pages]
+
+  await Promise.all(
+    visiblePages
+      .filter(page => page?.month && page?.year)
+      .map(page => ensureMonthLoaded(page.year, page.month))
+  )
 }
 
-function openPost(post: any) {
-  router.push(`/feed/${post.slug || post.id}`)
+function openEvent(event: any) {
+  showModal.value = false
+
+  if (event.slug) {
+    router.push({
+      path: '/oportunidades',
+      query: {
+        category: event.category,
+        open: event.slug,
+      },
+    })
+    return
+  }
+
+  router.push({
+    path: '/oportunidades',
+    query: {
+      category: event.category,
+    },
+  })
 }
 
 const selectedDayLabel = computed(() =>
@@ -811,137 +808,109 @@ const selectedDayLabel = computed(() =>
     : ''
 )
 
-async function fetchPosts() {
+function mergeOpportunities(items: any[]) {
+  const byId = new Map<string, any>()
+
+  for (const opportunity of opportunities.value) {
+    const key = String(opportunity?.id ?? opportunity?.slug)
+    if (key) byId.set(key, opportunity)
+  }
+
+  for (const opportunity of items) {
+    const key = String(opportunity?.id ?? opportunity?.slug)
+    if (key) byId.set(key, opportunity)
+  }
+
+  opportunities.value = Array.from(byId.values())
+}
+
+async function ensureMonthLoaded(year: number, month: number) {
+  const { start, end } = getMonthWindow(year, month)
+  const key = getWindowKey(start, end)
+
+  if (loadedWindowKeys.value.includes(key)) return
+  if (loadingWindowKeys.value.includes(key)) return
+
+  loadingWindowKeys.value = [...loadingWindowKeys.value, key]
+  calendarLoadingMore.value = true
+
   try {
-    const res = await get('/posts/', { params: { limit: 300, approved: true } })
-    const all = safeArray<any>(res.data?.data ?? res.data ?? [])
-    posts.value = all.filter((p: any) => !!p?.deadline)
-  } catch (err) {
-    console.error('Error fetching posts:', err)
-    throw err
+    await fetchOpportunityWindow(start, end)
+
+    loadedWindowKeys.value = [...loadedWindowKeys.value, key]
+    loadedWindows.value = [
+      ...loadedWindows.value.filter(window => window.key !== key),
+      {
+        key,
+        start: new Date(start),
+        end: new Date(end),
+      },
+    ]
+  } finally {
+    loadingWindowKeys.value = loadingWindowKeys.value.filter(existing => existing !== key)
+    calendarLoadingMore.value = loadingWindowKeys.value.length > 0
   }
 }
 
-async function fetchOlympiads() {
-  try {
-    const res = await get('/olympiads/', { params: { limit: 200, approved: true } })
+async function fetchOpportunityWindow(start: Date, end: Date) {
+  const all: any[] = []
+  let page = 1
+  let expectedCount: number | null = null
+
+  while (page <= MAX_PAGES_PER_WINDOW) {
+    const res = await get('/opportunity/', {
+      params: {
+        page,
+        limit: OPPORTUNITY_PAGE_SIZE,
+        human_verified: true,
+        show_on_calendar: true,
+        start_date: formatApiDate(start),
+        end_date: formatApiDate(end),
+      },
+    })
+
     const data = safeArray<any>(res.data?.data ?? res.data ?? [])
-    olympiads.value = data
-  } catch (err) {
-    console.error('Error fetching olympiads:', err)
-    throw err
+    expectedCount = Number(res.data?.count ?? data.length)
+
+    const relevant = data.filter((opportunity: any) => {
+      return opportunity?.human_verified !== false && opportunityHasCalendarEventInWindow(opportunity, start, end)
+    })
+
+    all.push(...relevant)
+
+    if (data.length === 0) break
+    if (expectedCount && page * OPPORTUNITY_PAGE_SIZE >= expectedCount) break
+    if (data.length < OPPORTUNITY_PAGE_SIZE) break
+
+    page++
   }
+
+  mergeOpportunities(all)
 }
 
 async function fetchAllData() {
   loading.value = true
   error.value = null
+
+  opportunities.value = []
+  loadedWindowKeys.value = []
+  loadingWindowKeys.value = []
+  loadedWindows.value = []
+  sidebarPage.value = 0
+
   try {
-    await Promise.all([fetchPosts(), fetchOlympiads()])
+    await ensureMonthLoaded(today.getFullYear(), today.getMonth() + 1)
   } catch (err: any) {
+    console.error('Error fetching opportunities:', err)
     error.value = 'Não foi possível carregar as oportunidades.'
   } finally {
     loading.value = false
+    calendarLoadingMore.value = false
   }
 }
-
-async function fetchRecommended() {
-  if (!authReady.value || !isAuthenticated.value || !isLinked.value) {
-    recommendedPosts.value = []
-    recommendedError.value = null
-    recommendedLoading.value = false
-    return
-  }
-
-  recommendedLoading.value = true
-  recommendedError.value = null
-
-  try {
-    let data: any[] = []
-
-    try {
-      const res = await apiPost('/posts/get-feed-posts', {})
-      data = safeArray<any>(res.data?.data ?? res.data ?? [])
-    } catch (err: any) {
-      if (err?.response?.status === 405) {
-        const res = await get('/posts/get-feed-posts')
-        data = safeArray<any>(res.data?.data ?? res.data ?? [])
-      } else {
-        throw err
-      }
-    }
-
-    recommendedPosts.value = data
-    carouselIndex.value = 0
-  } catch (err: any) {
-    console.error('Error fetching recommendations:', err)
-    recommendedPosts.value = []
-
-    const status = err?.response?.status
-    if (status === 401 || status === 429) {
-      recommendedError.value = null
-    } else {
-      recommendedError.value = 'Não foi possível carregar recomendações.'
-    }
-  } finally {
-    recommendedLoading.value = false
-  }
-}
-
-const recommendedDisplayPosts = computed<any[]>(() => {
-  return safeArray<any>(recommendedPosts.value)
-})
-
-function scrollCarousel(direction: number) {
-  const maxIndex = Math.max(0, recommendedDisplayPosts.value.length - carouselItemsPerView.value)
-  const newIndex = carouselIndex.value + direction
-
-  if (newIndex >= 0 && newIndex <= maxIndex) {
-    carouselIndex.value = newIndex
-  }
-}
-
-function updateCarouselSettings() {
-  if (!import.meta.client) return
-
-  const width = window.innerWidth
-  if (width < 640) {
-    carouselItemsPerView.value = 1
-    carouselItemWidth.value = width - 32
-  } else if (width < 1024) {
-    carouselItemsPerView.value = 2
-    carouselItemWidth.value = 280
-  } else {
-    carouselItemsPerView.value = 3
-    carouselItemWidth.value = 320
-  }
-}
-
-watch(recommendedPosts, () => {
-  const maxIndex = Math.max(0, recommendedDisplayPosts.value.length - carouselItemsPerView.value)
-  if (carouselIndex.value > maxIndex) {
-    carouselIndex.value = maxIndex
-  }
-})
 
 onMounted(() => {
-  mounted.value = true
-  authReady.value = true
-
   fetchAllData()
-  updateCarouselSettings()
-  window.addEventListener('resize', updateCarouselSettings)
-})
-
-watch([isAuthenticated, isLinked, authReady], () => {
-  if (!mounted.value || !authReady.value) return
-  void fetchRecommended()
-}, { immediate: true })
-
-onBeforeUnmount(() => {
-  if (import.meta.client) {
-    window.removeEventListener('resize', updateCarouselSettings)
-  }
 })
 </script>
 
@@ -953,18 +922,35 @@ onBeforeUnmount(() => {
   width: 100% !important;
 }
 
-.seconecta-calendar .vc-header { padding: 16px 20px 8px; }
-.seconecta-calendar .vc-title { font-weight: 700; font-size: 0.95rem; color: #111; }
-.seconecta-calendar .vc-arrow { border-radius: 8px; color: #666; }
-.seconecta-calendar .vc-arrow:hover { background: #f0ece5; color: #111; }
-.seconecta-calendar .vc-weekday {
+.seconecta-calendar :deep(.vc-header) {
+  padding: 16px 20px 8px;
+}
+
+.seconecta-calendar :deep(.vc-title) {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #111;
+}
+
+.seconecta-calendar :deep(.vc-arrow) {
+  border-radius: 8px;
+  color: #666;
+}
+
+.seconecta-calendar :deep(.vc-arrow:hover) {
+  background: #f0ece5;
+  color: #111;
+}
+
+.seconecta-calendar :deep(.vc-weekday) {
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.1em;
   color: #bbb;
   text-transform: uppercase;
 }
-.seconecta-calendar .vc-day-content {
+
+.seconecta-calendar :deep(.vc-day-content) {
   font-size: 0.82rem;
   font-weight: 500;
   color: #555;
@@ -973,25 +959,44 @@ onBeforeUnmount(() => {
   border-radius: 9px;
   transition: background 0.15s, color 0.15s;
 }
-.seconecta-calendar .vc-day-content:hover {
+
+.seconecta-calendar :deep(.vc-day-content:hover) {
   background: #f0faf7 !important;
   color: #079272 !important;
 }
-.seconecta-calendar .vc-day-content.is-today {
+
+.seconecta-calendar :deep(.vc-day-content.is-today) {
   background: #079272 !important;
   color: #fff !important;
   font-weight: 700;
 }
-.seconecta-calendar .vc-highlights .vc-highlight { border-radius: 9px; }
-.seconecta-calendar .vc-day { padding: 4px 2px; }
-.seconecta-calendar .vc-dots { gap: 2px; margin-top: 2px; }
-.seconecta-calendar .vc-dot { width: 5px; height: 5px; border-radius: 50%; }
-.seconecta-calendar .vc-nav-item.is-active {
+
+.seconecta-calendar :deep(.vc-highlights .vc-highlight) {
+  border-radius: 9px;
+}
+
+.seconecta-calendar :deep(.vc-day) {
+  padding: 4px 2px;
+}
+
+.seconecta-calendar :deep(.vc-dots) {
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.seconecta-calendar :deep(.vc-dot) {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.seconecta-calendar :deep(.vc-nav-item.is-active) {
   background: #079272 !important;
   color: #fff !important;
   border-radius: 8px;
 }
-.seconecta-calendar .vc-nav-item:hover {
+
+.seconecta-calendar :deep(.vc-nav-item:hover) {
   background: #f0faf7;
   color: #079272;
 }
@@ -1000,16 +1005,24 @@ onBeforeUnmount(() => {
 .modal-fade-leave-active {
   transition: opacity 0.2s ease;
 }
+
 .modal-fade-enter-active .relative,
 .modal-fade-leave-active .relative {
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
 }
-.modal-fade-enter-from { opacity: 0; }
+
+.modal-fade-enter-from {
+  opacity: 0;
+}
+
 .modal-fade-enter-from .relative {
   transform: translateY(16px) scale(0.98);
   opacity: 0;
 }
-.modal-fade-leave-to { opacity: 0; }
+
+.modal-fade-leave-to {
+  opacity: 0;
+}
 
 .transition-transform {
   transition-property: transform;
