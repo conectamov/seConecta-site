@@ -434,6 +434,7 @@ const activeCategories = ref<string[]>([])
 const freeOnly = ref(false)
 const onlineOnly = ref(false)
 const quickFilter = ref<'open' | 'urgent' | 'noDeadline' | ''>('')
+const verificationFilter = ref<'all' | 'verified' | 'pending'>('all')
 const sideFiltersOpen = ref(false)
 const sideFiltersRef = ref<HTMLElement | null>(null)
 const pendingOpenSlug = ref<string | null>(null)
@@ -525,11 +526,12 @@ async function fetchOpportunities(reset = true) {
   error.value = null
 
   try {
+    const hasAdminVerificationFilter = isAdmin.value && verificationFilter.value !== 'all'
     const clientCategoryFilter = activeCategories.value.length !== 1
 
     const params: Record<string, any> = {
       page: currentPage.value,
-      limit: clientCategoryFilter ? 100 : PAGE_SIZE,
+      limit: clientCategoryFilter || hasAdminVerificationFilter ? 100 : PAGE_SIZE,
     }
 
     if (search.value.trim()) params.search = search.value.trim()
@@ -542,6 +544,12 @@ async function fetchOpportunities(reset = true) {
 
     if (freeOnly.value) params.is_free = true
     if (onlineOnly.value) params.location = 'Online'
+
+    // Se o backend já aceitar esse filtro, ele reduz o payload;
+    // se ainda não aceitar, o client continua filtrando abaixo.
+    if (hasAdminVerificationFilter) {
+      params.human_verified = verificationFilter.value === 'verified'
+    }
 
     const res = await get('/opportunity/', { params })
     const data = res.data?.data ?? []
@@ -613,6 +621,7 @@ function clearFilters() {
   freeOnly.value = false
   onlineOnly.value = false
   quickFilter.value = ''
+  verificationFilter.value = 'all'
   sideFiltersOpen.value = false
   fetchOpportunities(true)
 }
@@ -655,6 +664,10 @@ function setDeadlineFilter(value: 'open' | 'urgent' | 'noDeadline' | '') {
   quickFilter.value = value
 }
 
+function setVerificationFilter(value: 'all' | 'verified' | 'pending') {
+  verificationFilter.value = value
+}
+
 function closeSideFiltersOnOutside(event: MouseEvent) {
   if (!sideFiltersOpen.value) return
 
@@ -675,7 +688,10 @@ const activeDeadlineLabel = computed(() => {
 })
 
 const sideFiltersCount = computed(() => {
-  return (quickFilter.value ? 1 : 0) + (onlineOnly.value ? 1 : 0) + (freeOnly.value ? 1 : 0)
+  return (quickFilter.value ? 1 : 0)
+    + (onlineOnly.value ? 1 : 0)
+    + (freeOnly.value ? 1 : 0)
+    + (isAdmin.value && verificationFilter.value !== 'all' ? 1 : 0)
 })
 
 function itemMatchesQuickFilter(item: any) {
@@ -700,6 +716,10 @@ watch(search, debounce(() => fetchOpportunities(true), 400))
 watch(activeCategories, () => fetchOpportunities(true), { deep: true })
 watch(freeOnly, () => fetchOpportunities(true))
 watch(onlineOnly, () => fetchOpportunities(true))
+watch(verificationFilter, () => fetchOpportunities(true))
+watch(isAdmin, (value) => {
+  if (!value) verificationFilter.value = 'all'
+})
 
 watch(selectedItem, (val, oldVal) => {
   document.body.style.overflow = val ? 'hidden' : ''
@@ -743,7 +763,11 @@ onUnmounted(() => {
 
 const filtered = computed(() => {
   const visible = isAdmin.value
-    ? opportunities.value
+    ? opportunities.value.filter(item => {
+        if (verificationFilter.value === 'pending') return item.human_verified !== true
+        if (verificationFilter.value === 'verified') return item.human_verified === true
+        return true
+      })
     : opportunities.value.filter(item => item.human_verified === true)
 
   return visible
@@ -757,17 +781,28 @@ const filtered = computed(() => {
 })
 
 const displayCount = computed(() => {
-  const clientFiltered = quickFilter.value || activeCategories.value.length !== 1
+  const clientFiltered = quickFilter.value
+    || activeCategories.value.length !== 1
+    || (isAdmin.value && verificationFilter.value !== 'all')
+
   return clientFiltered ? filtered.value.length : totalCount.value
 })
 
 const hasMore = computed(() => {
-  const clientFiltered = quickFilter.value || activeCategories.value.length !== 1
+  const clientFiltered = quickFilter.value
+    || activeCategories.value.length !== 1
+    || (isAdmin.value && verificationFilter.value !== 'all')
+
   return !clientFiltered && opportunities.value.length < totalCount.value
 })
 
 const activeFilters = computed(
-  () => (search.value ? 1 : 0) + (activeCategories.value.length ? 1 : 0) + (freeOnly.value ? 1 : 0) + (onlineOnly.value ? 1 : 0) + (quickFilter.value ? 1 : 0)
+  () => (search.value ? 1 : 0)
+    + (activeCategories.value.length ? 1 : 0)
+    + (freeOnly.value ? 1 : 0)
+    + (onlineOnly.value ? 1 : 0)
+    + (quickFilter.value ? 1 : 0)
+    + (isAdmin.value && verificationFilter.value !== 'all' ? 1 : 0)
 )
 const filtersActive = computed(() => activeFilters.value > 0)
 
@@ -827,6 +862,7 @@ const shouldSplitByCategory = computed(() => {
     activeCategories.value.length === 0 &&
     !search.value.trim() &&
     !quickFilter.value &&
+    !(isAdmin.value && verificationFilter.value !== 'all') &&
     !freeOnly.value &&
     !onlineOnly.value
   )
@@ -924,18 +960,18 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
             </button>
           </div>
 
-          <div class="opp-filters__right" ref="sideFiltersRef">
+          <div class="opp-filters__right" ref="sideFiltersRef" @click.stop>
             <button
               type="button"
               class="opp-side-filter-btn"
               :class="{ 'opp-side-filter-btn--active': sideFiltersOpen || sideFiltersCount > 0 }"
-              @click="sideFiltersOpen = !sideFiltersOpen"
+              @click.stop="sideFiltersOpen = !sideFiltersOpen"
             >
               Filtros
               <span v-if="sideFiltersCount > 0">{{ sideFiltersCount }}</span>
             </button>
 
-            <div v-if="sideFiltersOpen" class="opp-side-filter-panel">
+            <div v-if="sideFiltersOpen" class="opp-side-filter-panel" @click.stop>
               <div class="opp-side-filter-section">
                 <span class="opp-side-filter-title">Prazo</span>
 
@@ -976,6 +1012,37 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
                 </button>
               </div>
 
+              <div v-if="isAdmin" class="opp-side-filter-section">
+                <span class="opp-side-filter-title">Revisão</span>
+
+                <button
+                  type="button"
+                  class="opp-side-option"
+                  :class="{ 'opp-side-option--active': verificationFilter === 'all' }"
+                  @click="setVerificationFilter('all')"
+                >
+                  Todas
+                </button>
+
+                <button
+                  type="button"
+                  class="opp-side-option"
+                  :class="{ 'opp-side-option--active': verificationFilter === 'pending' }"
+                  @click="setVerificationFilter('pending')"
+                >
+                  Pendentes
+                </button>
+
+                <button
+                  type="button"
+                  class="opp-side-option"
+                  :class="{ 'opp-side-option--active': verificationFilter === 'verified' }"
+                  @click="setVerificationFilter('verified')"
+                >
+                  Verificadas
+                </button>
+              </div>
+
               <div class="opp-side-filter-section">
                 <span class="opp-side-filter-title">Preferências</span>
 
@@ -994,7 +1061,7 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
                 v-if="sideFiltersCount > 0"
                 type="button"
                 class="opp-side-clear"
-                @click="onlineOnly = false; freeOnly = false; quickFilter = ''"
+                @click="onlineOnly = false; freeOnly = false; quickFilter = ''; verificationFilter = 'all'"
               >
                 Limpar filtros laterais
               </button>
@@ -1042,6 +1109,53 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
         <div v-else-if="loading && filtered.length === 0" class="opp-grid">
           <div v-for="i in 9" :key="i" class="opp-skeleton"></div>
         </div>
+
+        <Transition name="member-nudge">
+          <aside
+            v-if="showMemberNudge"
+            class="opp-member-nudge"
+            aria-label="Entrar no seConecta"
+          >
+            <button
+              type="button"
+              class="opp-member-nudge__close"
+              aria-label="Fechar"
+              @click="dismissMemberNudge"
+            >
+              ×
+            </button>
+
+            <div class="opp-member-nudge__content">
+              <span class="opp-member-nudge__eyebrow">Sua jornada</span>
+
+              <h3 class="opp-member-nudge__title">
+                Quer encontrar oportunidades mais alinhadas com você?
+              </h3>
+
+              <p class="opp-member-nudge__text">
+                Entre no seConecta para montar seu perfil e continuar explorando com mais direção.
+              </p>
+            </div>
+
+            <div class="opp-member-nudge__actions">
+              <button
+                type="button"
+                class="opp-member-nudge__primary"
+                @click="handleMemberNudgeLogin"
+              >
+                Entrar
+              </button>
+
+              <button
+                type="button"
+                class="opp-member-nudge__secondary"
+                @click="dismissMemberNudge"
+              >
+                Agora não
+              </button>
+            </div>
+          </aside>
+        </Transition>
 
         <div v-if="editorialItems.length > 0" class="opp-priority-section">
           <div class="opp-section-header">
@@ -1789,50 +1903,6 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
         </div>
       </Transition>
     </Teleport>
-    <Transition name="member-nudge">
-      <aside
-        v-if="showMemberNudge"
-        class="opp-member-nudge"
-        aria-label="Entrar no seConecta"
-      >
-        <button
-          type="button"
-          class="opp-member-nudge__close"
-          aria-label="Fechar"
-          @click="dismissMemberNudge"
-        >
-          ×
-        </button>
-
-        <span class="opp-member-nudge__eyebrow">Sua jornada</span>
-
-        <h3 class="opp-member-nudge__title">
-          Quer encontrar oportunidades mais alinhadas com você?
-        </h3>
-
-        <p class="opp-member-nudge__text">
-          Entre no seConecta para montar seu perfil e continuar explorando com mais direção.
-        </p>
-
-        <div class="opp-member-nudge__actions">
-          <button
-            type="button"
-            class="opp-member-nudge__primary"
-            @click="handleMemberNudgeLogin"
-          >
-            Entrar
-          </button>
-
-          <button
-            type="button"
-            class="opp-member-nudge__secondary"
-            @click="dismissMemberNudge"
-          >
-            Agora não
-          </button>
-        </div>
-      </aside>
-    </Transition>
   </div>
 </template>
 
@@ -1867,15 +1937,17 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 .opp-filters {
   position: sticky;
   top: 0;
-  z-index: 30;
+  z-index: 120;
   background: rgba(250,250,249,.94);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid #e7e5e4;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .opp-filters__inner {
+  position: relative;
+  z-index: 2;
   max-width: 1200px;
   margin: 0 auto;
   padding: 10px 24px;
@@ -1883,6 +1955,7 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 14px;
+  overflow: visible;
 }
 
 .opp-type-pills {
@@ -1941,6 +2014,7 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 
 .opp-filters__right {
   position: relative;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1989,7 +2063,7 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
   position: absolute;
   top: calc(100% + 9px);
   right: 0;
-  z-index: 60;
+  z-index: 999;
   width: 270px;
   padding: 12px;
   border-radius: 16px;
@@ -2331,7 +2405,7 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
     align-items: start;
     gap: 8px;
     max-width: 100%;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .opp-type-pills {
@@ -2462,18 +2536,25 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 }
 
 .opp-member-nudge {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 45;
-  width: min(360px, calc(100vw - 32px));
-  padding: 18px;
-  border-radius: 22px;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0 0 24px;
+  padding: 18px 20px;
+  border-radius: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
   background:
-    linear-gradient(135deg, rgba(255,255,255,.96), rgba(240,253,250,.96));
+    radial-gradient(circle at top left, rgba(16,185,129,.16), transparent 34%),
+    linear-gradient(135deg, rgba(255,255,255,.98), rgba(240,253,250,.96));
   border: 1px solid rgba(15, 23, 42, .08);
-  box-shadow: 0 24px 70px rgba(15, 23, 42, .18);
-  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, .10);
+}
+
+.opp-member-nudge__content {
+  min-width: 0;
 }
 
 .opp-member-nudge__close {
@@ -2511,17 +2592,17 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 
 .opp-member-nudge__title {
   margin: 0;
-  max-width: 300px;
+  max-width: 560px;
   font-family: 'Sora', sans-serif;
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1.25;
   font-weight: 800;
   color: #0f172a;
 }
 
 .opp-member-nudge__text {
-  margin: 8px 0 14px;
-  max-width: 310px;
+  margin: 8px 0 0;
+  max-width: 620px;
   font-size: 14px;
   line-height: 1.45;
   color: #475569;
@@ -2531,6 +2612,8 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
   display: flex;
   gap: 10px;
   align-items: center;
+  padding-right: 28px;
+  white-space: nowrap;
 }
 
 .opp-member-nudge__primary,
@@ -2578,10 +2661,16 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 
 @media (max-width: 640px) {
   .opp-member-nudge {
-    right: 16px;
-    bottom: 16px;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 14px;
     padding: 16px;
     border-radius: 20px;
+  }
+
+  .opp-member-nudge__actions {
+    padding-right: 0;
+    flex-wrap: wrap;
   }
 
   .opp-member-nudge__title {
