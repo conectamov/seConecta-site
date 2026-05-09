@@ -2385,9 +2385,9 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 .opp-featured-card__cover { position: relative; height: 154px; overflow: hidden; background: #f5f5f4; }
 .opp-featured-card__glow-ring { position: absolute; inset: 0; box-shadow: inset 0 0 0 1px var(--glow); pointer-events: none; }
 .opp-featured-card__priority-chip { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; color: white; padding: 4px 10px; border-radius: 999px; font-family: 'Sora', sans-serif; font-size: 10.5px; font-weight: 800; box-shadow: 0 6px 16px rgba(0,0,0,.18); }
-.opp-modal-backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(15,17,23,.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: flex-end; justify-content: center; padding: 0; }
+.opp-modal-backdrop { position: fixed; inset: 0; z-index: 9999; background: rgba(15,17,23,.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; align-items: flex-end; justify-content: center; padding: 0; }
 @media (min-width: 640px) { .opp-modal-backdrop { align-items: center; padding: 24px; } }
-.opp-modal { background: white; border-radius: 24px 24px 0 0; width: 100%; max-width: 680px; max-height: 92dvh; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; box-shadow: 0 -8px 48px rgba(0,0,0,.2); }
+.opp-modal { position: relative; z-index: 1; background: white; border-radius: 24px 24px 0 0; width: 100%; max-width: 680px; max-height: 92dvh; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; box-shadow: 0 -8px 48px rgba(0,0,0,.2); }
 .opp-modal::-webkit-scrollbar { display: none; }
 @media (min-width: 640px) { .opp-modal { border-radius: 24px; box-shadow: 0 24px 80px rgba(0,0,0,.28); } }
 .opp-modal__cover { position: relative; height: 220px; background: #f5f5f4; overflow: hidden; flex-shrink: 0; border-radius: 24px 24px 0 0; }
