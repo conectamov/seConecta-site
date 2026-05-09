@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 useSeoMeta({ title: 'Oportunidades — seConecta' })
 
@@ -384,7 +384,14 @@ function getCardLines(card: any) {
 }
 
 function normalize(o: any) {
-  const meta = CATEGORY_META[o.category] ?? CATEGORY_META.POST
+  const meta = CATEGORY_META[o.category] ?? { label: 'Oportunidade', icon: '✨', color: '#10b981', bg: 'bg-emerald-50', ring: 'ring-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-400' }
+  const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(o ?? {}, key)
+  const detailLoaded = Boolean(
+    hasOwn('description') ||
+    hasOwn('timeline') ||
+    hasOwn('category_data') ||
+    hasOwn('official_site_url')
+  )
   const timeline = normalizeTimeline(o.timeline)
   const categoryData = normalizeJsonObject(o.category_data)
   const nextTimelineEvent = getFirstCalendarRelevantTimelineEvent(timeline)
@@ -413,10 +420,12 @@ function normalize(o: any) {
     tags: normalizeTags(o.tags),
     category_data: categoryData,
     human_verified: !!o.human_verified,
+    approved: !!o.approved,
     priority,
     priorityMeta: PRIORITY_LABEL[priority],
     created_at: o.created_at,
     updated_at: o.updated_at,
+    detail_loaded: detailLoaded,
   }
 }
 
@@ -429,6 +438,7 @@ const currentPage = ref(1)
 const PAGE_SIZE = 24
 
 const selectedItem = ref<any | null>(null)
+const detailLoadingSlug = ref<string | null>(null)
 const search = ref('')
 const activeCategories = ref<string[]>([])
 const freeOnly = ref(false)
@@ -439,12 +449,19 @@ const sideFiltersOpen = ref(false)
 const sideFiltersRef = ref<HTMLElement | null>(null)
 const pendingOpenSlug = ref<string | null>(null)
 const openingFromSlug = ref(false)
+const filterWatchPaused = ref(false)
 
 const currentUser = ref<any | null>(null)
 const authChecked = ref(false)
 
+let opportunitiesRequestSeq = 0
+
 const isAdmin = computed(() => !!(currentUser.value?.is_superuser || currentUser.value?.is_manager))
 const isLoggedIn = computed(() => !!currentUser.value)
+const isSelectedItemLoadingDetail = computed(() => {
+  const slug = selectedItem.value?.slug
+  return !!slug && detailLoadingSlug.value === slug
+})
 
 const MEMBER_NUDGE_DISMISS_KEY = 'seconecta:opportunities-member-nudge-dismissed-at'
 const MEMBER_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000
@@ -515,7 +532,36 @@ async function fetchCurrentUser() {
   }
 }
 
+function buildOpportunityParams() {
+  const params: Record<string, any> = {
+    page: currentPage.value,
+    limit: PAGE_SIZE,
+  }
+
+  const cleanSearch = search.value.trim()
+  if (cleanSearch) params.search = cleanSearch
+
+  if (activeCategories.value.length === 0) {
+    params.exclude_category = 'OLYMPIAD'
+  } else if (activeCategories.value.length === 1) {
+    params.category = activeCategories.value[0]
+  } else {
+    params.categories = activeCategories.value.join(',')
+  }
+
+  if (freeOnly.value) params.is_free = true
+  if (onlineOnly.value) params.location = 'Online'
+
+  if (isAdmin.value && verificationFilter.value !== 'all') {
+    params.human_verified = verificationFilter.value === 'verified'
+  }
+
+  return params
+}
+
 async function fetchOpportunities(reset = true) {
+  const requestSeq = ++opportunitiesRequestSeq
+
   if (reset) {
     currentPage.value = 1
     loading.value = true
@@ -526,32 +572,14 @@ async function fetchOpportunities(reset = true) {
   error.value = null
 
   try {
-    const hasAdminVerificationFilter = isAdmin.value && verificationFilter.value !== 'all'
-    const clientCategoryFilter = activeCategories.value.length !== 1
+    const endpoint = isAdmin.value
+      ? '/opportunity/admin/cards'
+      : '/opportunity/cards'
 
-    const params: Record<string, any> = {
-      page: currentPage.value,
-      limit: clientCategoryFilter || hasAdminVerificationFilter ? 100 : PAGE_SIZE,
-    }
+    const res = await get(endpoint, { params: buildOpportunityParams() })
 
-    if (search.value.trim()) params.search = search.value.trim()
+    if (requestSeq !== opportunitiesRequestSeq) return
 
-    // Backend aceita uma categoria por vez. Com múltiplas categorias — ou Todos,
-    // que aqui exclui OLYMPIAD — buscamos um lote maior e filtramos no client.
-    if (activeCategories.value.length === 1) {
-      params.category = activeCategories.value[0]
-    }
-
-    if (freeOnly.value) params.is_free = true
-    if (onlineOnly.value) params.location = 'Online'
-
-    // Se o backend já aceitar esse filtro, ele reduz o payload;
-    // se ainda não aceitar, o client continua filtrando abaixo.
-    if (hasAdminVerificationFilter) {
-      params.human_verified = verificationFilter.value === 'verified'
-    }
-
-    const res = await get('/opportunity/', { params })
     const data = res.data?.data ?? []
     const count = res.data?.count ?? 0
     const normalized = data.map(normalize)
@@ -560,17 +588,21 @@ async function fetchOpportunities(reset = true) {
       opportunities.value = normalized
       totalCount.value = count
     } else {
-      opportunities.value.push(...normalized)
+      const seen = new Set(opportunities.value.map(item => item.id))
+      opportunities.value.push(...normalized.filter(item => !seen.has(item.id)))
     }
 
     if (pendingOpenSlug.value) {
       await openOpportunityBySlug(pendingOpenSlug.value)
     }
   } catch (e: any) {
+    if (requestSeq !== opportunitiesRequestSeq) return
     error.value = e?.response?.data?.detail || e?.message || 'Erro ao carregar oportunidades.'
   } finally {
-    loading.value = false
-    loadingMore.value = false
+    if (requestSeq === opportunitiesRequestSeq) {
+      loading.value = false
+      loadingMore.value = false
+    }
   }
 }
 
@@ -580,6 +612,43 @@ async function loadMore() {
   await fetchOpportunities(false)
 }
 
+function upsertOpportunity(item: any) {
+  const idx = opportunities.value.findIndex(existing => existing.id === item.id)
+
+  if (idx >= 0) {
+    opportunities.value.splice(idx, 1, item)
+  } else {
+    opportunities.value = [item, ...opportunities.value]
+  }
+}
+
+async function selectOpportunity(item: any) {
+  if (!item) return
+
+  selectedItem.value = item
+
+  if (!item.slug || item.detail_loaded) return
+
+  try {
+    detailLoadingSlug.value = item.slug
+
+    const res = await get(`/opportunity/slug/${encodeURIComponent(item.slug)}`)
+    const full = normalize(res.data)
+
+    upsertOpportunity(full)
+
+    if (selectedItem.value?.id === full.id) {
+      selectedItem.value = full
+    }
+  } catch (e) {
+    console.warn('Could not fetch full opportunity:', item.slug, e)
+  } finally {
+    if (detailLoadingSlug.value === item.slug) {
+      detailLoadingSlug.value = null
+    }
+  }
+}
+
 async function openOpportunityBySlug(slug: string | null) {
   const cleanSlug = String(slug || '').trim()
   if (!cleanSlug) return
@@ -587,8 +656,8 @@ async function openOpportunityBySlug(slug: string | null) {
   const local = opportunities.value.find(item => item.slug === cleanSlug)
 
   if (local) {
-    selectedItem.value = local
     pendingOpenSlug.value = null
+    await selectOpportunity(local)
     return
   }
 
@@ -602,10 +671,7 @@ async function openOpportunityBySlug(slug: string | null) {
       activeCategories.value = [item.category]
     }
 
-    if (!opportunities.value.some(existing => existing.id === item.id)) {
-      opportunities.value = [item, ...opportunities.value]
-    }
-
+    upsertOpportunity(item)
     selectedItem.value = item
     pendingOpenSlug.value = null
   } catch (e) {
@@ -615,15 +681,33 @@ async function openOpportunityBySlug(slug: string | null) {
   }
 }
 
-function clearFilters() {
-  search.value = ''
-  activeCategories.value = []
-  freeOnly.value = false
-  onlineOnly.value = false
-  quickFilter.value = ''
-  verificationFilter.value = 'all'
-  sideFiltersOpen.value = false
-  fetchOpportunities(true)
+async function runWithPausedFilterWatch(fn: () => void) {
+  filterWatchPaused.value = true
+  fn()
+  await nextTick()
+  filterWatchPaused.value = false
+  await fetchOpportunities(true)
+}
+
+async function clearFilters() {
+  await runWithPausedFilterWatch(() => {
+    search.value = ''
+    activeCategories.value = []
+    freeOnly.value = false
+    onlineOnly.value = false
+    quickFilter.value = ''
+    verificationFilter.value = 'all'
+    sideFiltersOpen.value = false
+  })
+}
+
+async function clearSideFilters() {
+  await runWithPausedFilterWatch(() => {
+    onlineOnly.value = false
+    freeOnly.value = false
+    quickFilter.value = ''
+    verificationFilter.value = 'all'
+  })
 }
 
 function handleAddOpportunity() {
@@ -640,7 +724,6 @@ function handleEditOpportunity(item: any) {
 
   navigateTo(`/oportunidades/edit/${id}`)
 }
-
 
 function toggleTypeFilter(value: string) {
   if (!value) {
@@ -712,17 +795,32 @@ function itemMatchesQuickFilter(item: any) {
   return true
 }
 
-watch(search, debounce(() => fetchOpportunities(true), 400))
-watch(activeCategories, () => fetchOpportunities(true), { deep: true })
-watch(freeOnly, () => fetchOpportunities(true))
-watch(onlineOnly, () => fetchOpportunities(true))
-watch(verificationFilter, () => fetchOpportunities(true))
+const debouncedFetchOpportunities = debounce(() => {
+  if (!filterWatchPaused.value) fetchOpportunities(true)
+}, 350)
+
+watch(search, () => {
+  if (!filterWatchPaused.value) debouncedFetchOpportunities()
+})
+
+watch(
+  [activeCategories, freeOnly, onlineOnly, verificationFilter],
+  () => {
+    if (!filterWatchPaused.value) fetchOpportunities(true)
+  },
+  { deep: true }
+)
+
 watch(isAdmin, (value) => {
-  if (!value) verificationFilter.value = 'all'
+  if (!value && verificationFilter.value !== 'all') {
+    verificationFilter.value = 'all'
+  }
 })
 
 watch(selectedItem, (val, oldVal) => {
-  document.body.style.overflow = val ? 'hidden' : ''
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = val ? 'hidden' : ''
+  }
 
   if (val && !oldVal && !isLoggedIn.value) {
     openedOpportunityCount.value++
@@ -732,7 +830,6 @@ watch(selectedItem, (val, oldVal) => {
 onMounted(async () => {
   checkMemberNudgeDismissed()
   window.addEventListener('scroll', handleMemberNudgeScroll, { passive: true })
-  
   document.addEventListener('click', closeSideFiltersOnOutside)
 
   const queryCategory = typeof route.query.category === 'string'
@@ -751,12 +848,22 @@ onMounted(async () => {
     pendingOpenSlug.value = queryOpen
   }
 
-  await fetchCurrentUser()
-  await fetchOpportunities(true)
+  await Promise.allSettled([
+    fetchCurrentUser(),
+    fetchOpportunities(true),
+  ])
+
+  // Usuários comuns carregam rápido pelo endpoint público.
+  // Admins recebem um segundo refresh para incluir pendentes via /admin/cards.
+  if (isAdmin.value) {
+    await fetchOpportunities(true)
+  }
 })
 
 onUnmounted(() => {
-  document.body.style.overflow = ''
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = ''
+  }
   window.removeEventListener('scroll', handleMemberNudgeScroll)
   document.removeEventListener('click', closeSideFiltersOnOutside)
 })
@@ -772,28 +879,21 @@ const filtered = computed(() => {
 
   return visible
     .filter(item => {
-      // A página geral não mostra olimpíadas no primeiro "Todos".
-      // Olimpíadas vivem na página /olimpiadas e só aparecem aqui se o usuário filtrar explicitamente.
+      // Segurança no client. O backend já recebe exclude_category/categorias.
       if (activeCategories.value.length === 0) return item.category !== 'OLYMPIAD'
       return activeCategories.value.includes(item.category)
     })
     .filter(itemMatchesQuickFilter)
 })
 
-const displayCount = computed(() => {
-  const clientFiltered = quickFilter.value
-    || activeCategories.value.length !== 1
-    || (isAdmin.value && verificationFilter.value !== 'all')
+const hasClientOnlyFilter = computed(() => !!quickFilter.value)
 
-  return clientFiltered ? filtered.value.length : totalCount.value
+const displayCount = computed(() => {
+  return hasClientOnlyFilter.value ? filtered.value.length : totalCount.value
 })
 
 const hasMore = computed(() => {
-  const clientFiltered = quickFilter.value
-    || activeCategories.value.length !== 1
-    || (isAdmin.value && verificationFilter.value !== 'all')
-
-  return !clientFiltered && opportunities.value.length < totalCount.value
+  return !hasClientOnlyFilter.value && opportunities.value.length < totalCount.value
 })
 
 const activeFilters = computed(
@@ -1061,7 +1161,7 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
                 v-if="sideFiltersCount > 0"
                 type="button"
                 class="opp-side-clear"
-                @click="onlineOnly = false; freeOnly = false; quickFilter = ''; verificationFilter = 'all'"
+                @click="clearSideFilters"
               >
                 Limpar filtros laterais
               </button>
@@ -1169,10 +1269,10 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
               v-for="item in editorialItems"
               :key="item.id"
               class="opp-editorial-card"
-              @click="selectedItem = item"
+              @click="selectOpportunity(item)"
               role="button"
               tabindex="0"
-              @keydown.enter="selectedItem = item"
+              @keydown.enter="selectOpportunity(item)"
             >
               <div class="opp-editorial-card__cover">
                 <img
@@ -1181,6 +1281,7 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
                   :alt="item.title"
                   class="opp-editorial-card__img"
                   loading="lazy"
+                  decoding="async"
                 />
                 <div
                   v-else
@@ -1242,13 +1343,13 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
               v-for="item in highPriorityItems"
               :key="item.id"
               class="opp-featured-card"
-              @click="selectedItem = item"
+              @click="selectOpportunity(item)"
               role="button"
               tabindex="0"
-              @keydown.enter="selectedItem = item"
+              @keydown.enter="selectOpportunity(item)"
             >
               <div class="opp-featured-card__cover">
-                <img v-if="item.cover_url" :src="item.cover_url" :alt="item.title" class="opp-card__img" loading="lazy" />
+                <img v-if="item.cover_url" :src="item.cover_url" :alt="item.title" class="opp-card__img" loading="lazy" decoding="async" />
                 <div
                   v-else
                   class="opp-card__cover-fallback"
@@ -1322,10 +1423,10 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
               'opp-card--overdue': item.deadline.overdue,
               'opp-card--priority': item.priority >= 2 && item.priority <= 3
             }"
-            @click="selectedItem = item"
+            @click="selectOpportunity(item)"
             role="button"
             tabindex="0"
-            @keydown.enter="selectedItem = item"
+            @keydown.enter="selectOpportunity(item)"
           >
             <div class="opp-card__cover">
               <img
@@ -1456,10 +1557,10 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
               'opp-card--overdue': item.deadline.overdue,
               'opp-card--priority': item.priority >= 2 && item.priority <= 3
             }"
-            @click="selectedItem = item"
+            @click="selectOpportunity(item)"
             role="button"
             tabindex="0"
-            @keydown.enter="selectedItem = item"
+            @keydown.enter="selectOpportunity(item)"
           >
             <div class="opp-card__cover">
               <img
@@ -1584,10 +1685,10 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
               'opp-card--overdue': item.deadline.overdue,
               'opp-card--priority': item.priority >= 2 && item.priority <= 3
             }"
-            @click="selectedItem = item"
+            @click="selectOpportunity(item)"
             role="button"
             tabindex="0"
-            @keydown.enter="selectedItem = item"
+            @keydown.enter="selectOpportunity(item)"
           >
             <div class="opp-card__cover">
               <img
@@ -1794,7 +1895,9 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 
               <div class="opp-modal__section">
                 <h3 class="opp-modal__section-title">Sobre a oportunidade</h3>
-                <p class="opp-modal__text">{{ selectedItem.description }}</p>
+                <p class="opp-modal__text">
+                  {{ isSelectedItemLoadingDetail ? 'Carregando detalhes…' : selectedItem.description }}
+                </p>
               </div>
 
               <div v-if="selectedItem.timeline.length > 0" class="opp-modal__section">
