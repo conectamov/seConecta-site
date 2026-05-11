@@ -569,14 +569,10 @@ onMounted(fetchOpportunity)
             <span>Gratuita</span>
           </label>
 
-          <label v-if="isSuperuser" class="status-pill status-pill--green">
+          <label class="status-pill status-pill--green">
             <input v-model="form.human_verified" type="checkbox" />
             <span>Verificada/publicada</span>
           </label>
-
-          <span v-else class="status-note">
-            Apenas superusers podem marcar como verificada.
-          </span>
 
           <span class="word-count">{{ wordCount }} palavras na descrição</span>
         </section>
