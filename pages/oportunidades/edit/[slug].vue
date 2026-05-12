@@ -361,7 +361,6 @@ function buildPayload() {
   }
 
   if (form.slug.trim()) payload.slug = form.slug.trim()
-  if (isSuperuser.value) payload.human_verified = !!form.human_verified
 
   return payload
 }
