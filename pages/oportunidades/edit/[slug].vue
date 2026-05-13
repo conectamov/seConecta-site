@@ -22,6 +22,8 @@ const CATEGORIES = [
   { value: 'POST', label: 'Post' },
 ]
 
+const STATUS_OPTIONS = ['OPEN', 'SOON', 'ONGOING', 'CLOSED']
+
 const PRIORITY_OPTIONS = [
   { value: 0, label: '0 — Normal' },
   { value: 1, label: '1 — Relevante' },
@@ -52,6 +54,38 @@ const categoryDataTemplate = {
     selection_criteria: [],
   },
   references: [],
+}
+
+const fullJsonSchemaTemplate = {
+  title: '',
+  slug: null,
+  category: 'INITIATIVE',
+  status: null,
+  description: '',
+  excerpt: null,
+  cover_url: null,
+  official_site_url: null,
+  location: 'Online',
+  is_free: false,
+  human_verified: false,
+  approved: null,
+  priority: 0,
+  next_deadline: null,
+  timeline: [
+    {
+      label: '',
+      date: null,
+      details: null,
+      show_on_calendar: false,
+    },
+  ],
+  category_data: categoryDataTemplate,
+  keywords: null,
+  tags: [],
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value))
 }
 
 function getRouteIdValue() {
@@ -91,6 +125,9 @@ const activeGuide = ref<number | null>(0)
 const loadedOpportunity = ref<any | null>(null)
 const tagInput = ref('')
 
+const fullJsonMode = ref(false)
+const fullJsonText = ref('')
+
 const errors = ref<Record<string, string>>({})
 
 const form = reactive({
@@ -120,10 +157,46 @@ const parsedCategoryData = computed(() => {
   }
 })
 
+const parsedFullJson = computed<Record<string, any> | null>(() => {
+  try {
+    const parsed = JSON.parse(fullJsonText.value || '{}')
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+})
+
+const fullJsonRequiredOk = computed(() => {
+  const parsed = parsedFullJson.value
+  if (!parsed) return false
+
+  const categoryIsValid = CATEGORIES.some(cat => cat.value === parsed.category)
+  const categoryDataIsValid =
+    parsed.category_data &&
+    typeof parsed.category_data === 'object' &&
+    !Array.isArray(parsed.category_data)
+
+  return Boolean(
+    String(parsed.title || '').trim() &&
+    String(parsed.description || '').trim() &&
+    categoryIsValid &&
+    categoryDataIsValid,
+  )
+})
+
 const wordCount = computed(() => form.description.trim().split(/\s+/).filter(Boolean).length)
 const hasValidId = computed(() => opportunityId.value !== null)
 
 const canSave = computed(() => {
+  if (fullJsonMode.value) {
+    return Boolean(
+      hasValidId.value &&
+      parsedFullJson.value !== null &&
+      fullJsonRequiredOk.value &&
+      !errors.value.full_json,
+    )
+  }
+
   return Boolean(
     hasValidId.value &&
     form.title.trim() &&
@@ -211,6 +284,20 @@ function cleanTimeline() {
     }))
 }
 
+function cleanFullTimeline(value: any) {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .filter(item => item && typeof item === 'object')
+    .filter(item => item.label || item.date || item.details)
+    .map(item => ({
+      label: String(item.label || item.details || 'Evento').trim(),
+      date: item.date || null,
+      details: item.details ? String(item.details).trim() : null,
+      show_on_calendar: item.show_on_calendar === true,
+    }))
+}
+
 function addTimelineItem() {
   form.timeline.push({ label: '', date: '', details: '', show_on_calendar: false })
 }
@@ -229,8 +316,29 @@ function formatJson() {
   error.value = null
 }
 
+function formatFullJson() {
+  if (!parsedFullJson.value) {
+    error.value = 'O JSON completo está inválido.'
+    errors.value.full_json = 'O JSON completo está inválido.'
+    return
+  }
+
+  fullJsonText.value = JSON.stringify(parsedFullJson.value, null, 2)
+  error.value = null
+  delete errors.value.full_json
+}
+
 function resetJsonTemplate() {
   form.categoryDataJson = JSON.stringify(categoryDataTemplate, null, 2)
+}
+
+function resetFullJsonFromLoaded() {
+  if (loadedOpportunity.value) {
+    fullJsonText.value = JSON.stringify(buildFullJsonFromOpportunity(loadedOpportunity.value), null, 2)
+    return
+  }
+
+  fullJsonText.value = JSON.stringify(cloneJson(fullJsonSchemaTemplate), null, 2)
 }
 
 function mergeJsonTemplate() {
@@ -246,8 +354,228 @@ function mergeJsonTemplate() {
   }, null, 2)
 }
 
+function mergeFullJsonSchema() {
+  const current = parsedFullJson.value || {}
+
+  fullJsonText.value = JSON.stringify({
+    ...cloneJson(fullJsonSchemaTemplate),
+    ...current,
+    category_data: {
+      ...cloneJson(categoryDataTemplate),
+      ...(current.category_data || {}),
+      specifics: {
+        ...cloneJson(categoryDataTemplate.specifics),
+        ...(current.category_data?.specifics || {}),
+      },
+      references: Array.isArray(current.category_data?.references)
+        ? current.category_data.references
+        : [],
+    },
+    timeline: Array.isArray(current.timeline)
+      ? current.timeline
+      : cloneJson(fullJsonSchemaTemplate.timeline),
+    tags: normalizeTags(current.tags),
+  }, null, 2)
+}
+
+function buildVisualPayload() {
+  const payload: Record<string, any> = {
+    title: form.title.trim(),
+    category: form.category,
+    description: form.description.trim(),
+    excerpt: form.excerpt.trim() || null,
+    cover_url: form.cover_url.trim() || null,
+    official_site_url: form.official_site_url.trim() || null,
+    location: form.location.trim() || 'Online',
+    is_free: !!form.is_free,
+    human_verified: !!form.human_verified,
+    priority: Math.min(5, Math.max(0, Number(form.priority || 0))),
+    timeline: cleanTimeline(),
+    category_data: parsedCategoryData.value || {},
+    keywords: form.keywords.trim() || null,
+    tags: form.tags,
+  }
+
+  if (form.slug.trim()) payload.slug = form.slug.trim()
+
+  return payload
+}
+
+function buildFullJsonFromOpportunity(data: any) {
+  const payload: Record<string, any> = {
+    title: data.title || '',
+    slug: data.slug || null,
+    category: data.category || 'INITIATIVE',
+    status: data.status || null,
+    description: data.description || '',
+    excerpt: data.excerpt || null,
+    cover_url: data.cover_url || null,
+    official_site_url: data.official_site_url || null,
+    location: data.location || 'Online',
+    is_free: !!data.is_free,
+    human_verified: !!data.human_verified,
+    approved: typeof data.approved === 'boolean' ? data.approved : null,
+    priority: typeof data.priority === 'number' ? data.priority : 0,
+    next_deadline: data.next_deadline || null,
+    timeline: normalizeTimeline(data.timeline).map(item => ({
+      label: item.label || 'Evento',
+      date: item.date || null,
+      details: item.details || null,
+      show_on_calendar: item.show_on_calendar === true,
+    })),
+    category_data:
+      data.category_data && typeof data.category_data === 'object'
+        ? data.category_data
+        : cloneJson(categoryDataTemplate),
+    keywords: data.keywords || null,
+    tags: normalizeTags(data.tags),
+  }
+
+  return payload
+}
+
+function buildFullJsonFromForm() {
+  return {
+    ...cloneJson(fullJsonSchemaTemplate),
+    ...buildVisualPayload(),
+    slug: form.slug.trim() || null,
+    status: loadedOpportunity.value?.status || null,
+    approved: typeof loadedOpportunity.value?.approved === 'boolean'
+      ? loadedOpportunity.value.approved
+      : null,
+    next_deadline: loadedOpportunity.value?.next_deadline || null,
+  }
+}
+
+function syncFullJsonFromForm() {
+  fullJsonText.value = JSON.stringify(buildFullJsonFromForm(), null, 2)
+}
+
+function applyFullJsonToForm() {
+  const data = parsedFullJson.value
+  if (!data) return false
+
+  form.title = data.title || ''
+  form.slug = data.slug || ''
+  form.category = data.category || 'INITIATIVE'
+  form.description = data.description || ''
+  form.excerpt = data.excerpt || ''
+  form.cover_url = data.cover_url || ''
+  form.official_site_url = data.official_site_url || ''
+  form.location = data.location || 'Online'
+  form.is_free = !!data.is_free
+  form.human_verified = !!data.human_verified
+  form.priority = typeof data.priority === 'number' ? data.priority : 0
+  form.keywords = data.keywords || ''
+  form.tags = normalizeTags(data.tags)
+  form.timeline = normalizeTimeline(data.timeline)
+
+  const categoryData = data.category_data && typeof data.category_data === 'object'
+    ? data.category_data
+    : {}
+
+  form.categoryDataJson = JSON.stringify(categoryData, null, 2)
+
+  if (!form.timeline.length) addTimelineItem()
+
+  return true
+}
+
+function toggleFullJsonMode() {
+  error.value = null
+  success.value = null
+  errors.value = {}
+
+  if (fullJsonMode.value) {
+    if (!parsedFullJson.value) {
+      error.value = 'O JSON completo está inválido. Corrija antes de voltar para os campos.'
+      errors.value.full_json = 'O JSON completo está inválido.'
+      return
+    }
+
+    applyFullJsonToForm()
+    fullJsonMode.value = false
+    return
+  }
+
+  syncFullJsonFromForm()
+  fullJsonMode.value = true
+}
+
+function validateFullJson() {
+  if (!opportunityId.value) {
+    errors.value.id = 'ID da oportunidade inválido. Abra a edição a partir do botão Editar do card.'
+  }
+
+  const payload = parsedFullJson.value
+
+  if (!payload) {
+    errors.value.full_json = 'O JSON completo está inválido.'
+    return false
+  }
+
+  if (!String(payload.title || '').trim()) {
+    errors.value.full_json = 'O campo title é obrigatório.'
+  }
+
+  if (!String(payload.description || '').trim()) {
+    errors.value.full_json = 'O campo description é obrigatório.'
+  }
+
+  if (!CATEGORIES.some(cat => cat.value === payload.category)) {
+    errors.value.full_json = 'Categoria inválida.'
+  }
+
+  if (
+    payload.status !== null &&
+    payload.status !== undefined &&
+    payload.status !== '' &&
+    !STATUS_OPTIONS.includes(String(payload.status))
+  ) {
+    errors.value.full_json = 'Status inválido. Use OPEN, SOON, ONGOING ou CLOSED.'
+  }
+
+  if (
+    !payload.category_data ||
+    typeof payload.category_data !== 'object' ||
+    Array.isArray(payload.category_data)
+  ) {
+    errors.value.full_json = 'category_data precisa ser um objeto JSON.'
+  }
+
+  if (payload.cover_url && !/^https?:\/\/.+/.test(String(payload.cover_url))) {
+    errors.value.full_json = 'cover_url precisa começar com http:// ou https://.'
+  }
+
+  if (payload.official_site_url && !/^https?:\/\/.+/.test(String(payload.official_site_url))) {
+    errors.value.full_json = 'official_site_url precisa começar com http:// ou https://.'
+  }
+
+  if (payload.next_deadline && Number.isNaN(new Date(payload.next_deadline).getTime())) {
+    errors.value.full_json = 'next_deadline está inválido.'
+  }
+
+  if (payload.timeline && !Array.isArray(payload.timeline)) {
+    errors.value.full_json = 'timeline precisa ser uma lista.'
+  }
+
+  if (Array.isArray(payload.timeline)) {
+    payload.timeline.forEach((item: any, idx: number) => {
+      if (item?.date && Number.isNaN(new Date(`${String(item.date).slice(0, 10)}T12:00:00`).getTime())) {
+        errors.value.full_json = `A data ${idx + 1} do cronograma está inválida.`
+      }
+    })
+  }
+
+  return !Object.keys(errors.value).length
+}
+
 function validate() {
   errors.value = {}
+
+  if (fullJsonMode.value) {
+    return validateFullJson()
+  }
 
   if (!opportunityId.value) {
     errors.value.id = 'ID da oportunidade inválido. Abra a edição a partir do botão Editar do card.'
@@ -289,6 +617,7 @@ watch(() => form.description, () => delete errors.value.description)
 watch(() => form.cover_url, () => delete errors.value.cover_url)
 watch(() => form.official_site_url, () => delete errors.value.official_site_url)
 watch(() => form.categoryDataJson, () => delete errors.value.category_data)
+watch(fullJsonText, () => delete errors.value.full_json)
 watch(() => form.timeline, () => {
   Object.keys(errors.value)
     .filter(key => key.startsWith('timeline_'))
@@ -318,6 +647,7 @@ function hydrateForm(data: any) {
     : {}
 
   form.categoryDataJson = JSON.stringify(categoryData, null, 2)
+  fullJsonText.value = JSON.stringify(buildFullJsonFromOpportunity(data), null, 2)
 
   if (!form.timeline.length) addTimelineItem()
 }
@@ -343,26 +673,52 @@ async function fetchOpportunity() {
   }
 }
 
-function buildPayload() {
+function cleanFullJsonPayload(raw: Record<string, any>) {
   const payload: Record<string, any> = {
-    title: form.title.trim(),
-    category: form.category,
-    description: form.description.trim(),
-    excerpt: form.excerpt.trim() || null,
-    cover_url: form.cover_url.trim() || null,
-    official_site_url: form.official_site_url.trim() || null,
-    location: form.location.trim() || 'Online',
-    is_free: !!form.is_free,
-    priority: Math.min(5, Math.max(0, Number(form.priority || 0))),
-    timeline: cleanTimeline(),
-    category_data: parsedCategoryData.value || {},
-    keywords: form.keywords.trim() || null,
-    tags: form.tags,
+    title: String(raw.title || '').trim(),
+    category: raw.category || 'INITIATIVE',
+    description: String(raw.description || '').trim(),
+    excerpt: raw.excerpt ? String(raw.excerpt).trim() : null,
+    cover_url: raw.cover_url ? String(raw.cover_url).trim() : null,
+    official_site_url: raw.official_site_url ? String(raw.official_site_url).trim() : null,
+    location: raw.location ? String(raw.location).trim() : 'Online',
+    is_free: raw.is_free === true,
+    human_verified: raw.human_verified === true,
+    priority: Math.min(5, Math.max(0, Number(raw.priority || 0))),
+    timeline: cleanFullTimeline(raw.timeline),
+    category_data:
+      raw.category_data && typeof raw.category_data === 'object' && !Array.isArray(raw.category_data)
+        ? raw.category_data
+        : {},
+    keywords: raw.keywords ? String(raw.keywords).trim() : null,
+    tags: normalizeTags(raw.tags),
   }
 
-  if (form.slug.trim()) payload.slug = form.slug.trim()
+  if (Object.prototype.hasOwnProperty.call(raw, 'slug')) {
+    payload.slug = raw.slug ? String(raw.slug).trim() : null
+  }
+
+  if (raw.status) {
+    payload.status = String(raw.status).trim()
+  }
+
+  if (Object.prototype.hasOwnProperty.call(raw, 'next_deadline')) {
+    payload.next_deadline = raw.next_deadline || null
+  }
+
+  if (typeof raw.approved === 'boolean') {
+    payload.approved = raw.approved
+  }
 
   return payload
+}
+
+function buildPayload() {
+  if (fullJsonMode.value && parsedFullJson.value) {
+    return cleanFullJsonPayload(parsedFullJson.value)
+  }
+
+  return buildVisualPayload()
 }
 
 async function save() {
@@ -483,7 +839,8 @@ onMounted(fetchOpportunity)
           :class="{ 'guide-topic--active': activeGuide === 2 }"
           @click="activeGuide = activeGuide === 2 ? null : 2"
         >
-          Informações extras</button>
+          Informações extras
+        </button>
         <div v-if="activeGuide === 2" class="guide-content">
           <code>organizer</code>
           <code>requirements</code>
@@ -491,6 +848,22 @@ onMounted(fetchOpportunity)
           <code>application_process</code>
           <code>specifics.prizes</code>
           <code>references</code>
+        </div>
+
+        <button
+          class="guide-topic"
+          :class="{ 'guide-topic--active': activeGuide === 3 }"
+          @click="activeGuide = activeGuide === 3 ? null : 3"
+        >
+          JSON completo
+        </button>
+        <div v-if="activeGuide === 3" class="guide-content">
+          <p>Use o modo JSON completo para editar todos os campos enviados para a API de uma vez.</p>
+          <code>title</code>
+          <code>category</code>
+          <code>status</code>
+          <code>timeline</code>
+          <code>category_data</code>
         </div>
       </div>
     </aside>
@@ -525,6 +898,14 @@ onMounted(fetchOpportunity)
           </div>
 
           <div class="header-actions">
+            <button
+              type="button"
+              class="json-toggle-btn"
+              @click="toggleFullJsonMode"
+            >
+              {{ fullJsonMode ? 'Voltar para campos' : 'Editar JSON completo' }}
+            </button>
+
             <button
               v-if="canUseAdminActions"
               type="button"
@@ -562,7 +943,7 @@ onMounted(fetchOpportunity)
           <strong>Erro.</strong> {{ error }}
         </div>
 
-        <section class="status-row">
+        <section v-if="!fullJsonMode" class="status-row">
           <label class="status-pill">
             <input v-model="form.is_free" type="checkbox" />
             <span>Gratuita</span>
@@ -576,193 +957,240 @@ onMounted(fetchOpportunity)
           <span class="word-count">{{ wordCount }} palavras na descrição</span>
         </section>
 
-        <section class="form-section form-section--main">
-          <div class="title-field">
-            <input
-              v-model="form.title"
-              type="text"
-              placeholder="Título da oportunidade…"
-            />
-            <p v-if="errors.title" class="field-error">{{ errors.title }}</p>
-          </div>
-
-          <div class="grid-two">
-            <label class="field">
-              <span>Categoria</span>
-              <select v-model="form.category">
-                <option v-for="cat in CATEGORIES" :key="cat.value" :value="cat.value">
-                  {{ cat.label }}
-                </option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>Prioridade</span>
-              <select v-model.number="form.priority">
-                <option v-for="item in PRIORITY_OPTIONS" :key="item.value" :value="item.value">
-                  {{ item.label }}
-                </option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>Slug</span>
-              <input v-model="form.slug" placeholder="deixe vazio para manter" />
-            </label>
-
-            <label class="field">
-              <span>Local</span>
-              <input v-model="form.location" placeholder="Online, Brasil, Fortaleza…" />
-            </label>
-          </div>
-        </section>
-
-        <section class="form-section">
-          <div class="section-title-row">
-            <div>
-              <h2>Conteúdo</h2>
-              <p>O resumo aparece no card. A descrição aparece no modal.</p>
-            </div>
-          </div>
-
-          <label class="field">
-            <span>Resumo</span>
-            <textarea v-model="form.excerpt" rows="2" placeholder="Descrição curta e chamativa…" />
-          </label>
-
-          <label class="field">
-            <span>Descrição *</span>
-            <textarea
-              v-model="form.description"
-              rows="10"
-              placeholder="Explique o que é, para quem é, por que vale a pena e como participar…"
-            />
-            <p v-if="errors.description" class="field-error">{{ errors.description }}</p>
-          </label>
-        </section>
-
-        <section class="form-section">
-          <div class="section-title-row">
-            <div>
-              <h2>Links e mídia</h2>
-              <p>Use URLs completas começando com https://.</p>
-            </div>
-          </div>
-
-          <div class="grid-two">
-            <label class="field">
-              <span>Imagem de capa</span>
-              <input v-model="form.cover_url" placeholder="https://…" />
-              <p v-if="errors.cover_url" class="field-error">{{ errors.cover_url }}</p>
-            </label>
-
-            <label class="field">
-              <span>Site oficial</span>
-              <input v-model="form.official_site_url" placeholder="https://…" />
-              <p v-if="errors.official_site_url" class="field-error">{{ errors.official_site_url }}</p>
-            </label>
-          </div>
-        </section>
-
-        <section class="form-section">
-          <div class="section-title-row">
-            <div>
-              <h2>Tags e busca</h2>
-              <p>Tags ajudam filtros visuais. Keywords ajudam busca e embedding.</p>
-            </div>
-          </div>
-
-          <label class="field">
-            <span>Keywords</span>
-            <input v-model="form.keywords" placeholder="redação, competição internacional, ensino médio…" />
-          </label>
-
-          <label class="field">
-            <span>Tags</span>
-            <div class="tag-box">
-              <span v-for="tag in form.tags" :key="tag" class="tag-chip">
-                #{{ tag }}
-                <button type="button" @click="removeTag(tag)">×</button>
-              </span>
+        <template v-if="!fullJsonMode">
+          <section class="form-section form-section--main">
+            <div class="title-field">
               <input
-                v-model="tagInput"
-                placeholder="Adicionar tag…"
-                @keydown="onTagKeydown"
-                @blur="addTag"
+                v-model="form.title"
+                type="text"
+                placeholder="Título da oportunidade…"
               />
+              <p v-if="errors.title" class="field-error">{{ errors.title }}</p>
             </div>
-          </label>
-        </section>
 
-        <section class="form-section">
-          <div class="section-title-row">
-            <div>
-              <h2>Cronograma</h2>
-              <p>Marque “Calendário” apenas para datas acionáveis: inscrições, prazos, provas ou resultados importantes.</p>
-            </div>
-            <button type="button" class="small-btn" @click="addTimelineItem">+ Data</button>
-          </div>
-
-          <div class="timeline-editor">
-            <div v-for="(item, idx) in form.timeline" :key="idx" class="timeline-row">
-              <input v-model="item.label" placeholder="Nome da etapa" />
-              <input v-model="item.date" type="date" />
-              <input v-model="item.details" placeholder="Detalhes" />
-
-              <label class="calendar-check" title="Mostrar esta data no calendário e nos cards como prazo acionável">
-                <input v-model="item.show_on_calendar" type="checkbox" />
-                <span>Calendário</span>
+            <div class="grid-two">
+              <label class="field">
+                <span>Categoria</span>
+                <select v-model="form.category">
+                  <option v-for="cat in CATEGORIES" :key="cat.value" :value="cat.value">
+                    {{ cat.label }}
+                  </option>
+                </select>
               </label>
 
-              <button type="button" @click="removeTimelineItem(idx)">×</button>
-            </div>
-          </div>
-        </section>
+              <label class="field">
+                <span>Prioridade</span>
+                <select v-model.number="form.priority">
+                  <option v-for="item in PRIORITY_OPTIONS" :key="item.value" :value="item.value">
+                    {{ item.label }}
+                  </option>
+                </select>
+              </label>
 
-        <section class="form-section">
+              <label class="field">
+                <span>Slug</span>
+                <input v-model="form.slug" placeholder="deixe vazio para manter" />
+              </label>
+
+              <label class="field">
+                <span>Local</span>
+                <input v-model="form.location" placeholder="Online, Brasil, Fortaleza…" />
+              </label>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="section-title-row">
+              <div>
+                <h2>Conteúdo</h2>
+                <p>O resumo aparece no card. A descrição aparece no modal.</p>
+              </div>
+            </div>
+
+            <label class="field">
+              <span>Resumo</span>
+              <textarea v-model="form.excerpt" rows="2" placeholder="Descrição curta e chamativa…" />
+            </label>
+
+            <label class="field">
+              <span>Descrição *</span>
+              <textarea
+                v-model="form.description"
+                rows="10"
+                placeholder="Explique o que é, para quem é, por que vale a pena e como participar…"
+              />
+              <p v-if="errors.description" class="field-error">{{ errors.description }}</p>
+            </label>
+          </section>
+
+          <section class="form-section">
+            <div class="section-title-row">
+              <div>
+                <h2>Links e mídia</h2>
+                <p>Use URLs completas começando com https://.</p>
+              </div>
+            </div>
+
+            <div class="grid-two">
+              <label class="field">
+                <span>Imagem de capa</span>
+                <input v-model="form.cover_url" placeholder="https://…" />
+                <p v-if="errors.cover_url" class="field-error">{{ errors.cover_url }}</p>
+              </label>
+
+              <label class="field">
+                <span>Site oficial</span>
+                <input v-model="form.official_site_url" placeholder="https://…" />
+                <p v-if="errors.official_site_url" class="field-error">{{ errors.official_site_url }}</p>
+              </label>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="section-title-row">
+              <div>
+                <h2>Tags e busca</h2>
+                <p>Tags ajudam filtros visuais. Keywords ajudam busca e embedding.</p>
+              </div>
+            </div>
+
+            <label class="field">
+              <span>Keywords</span>
+              <input v-model="form.keywords" placeholder="redação, competição internacional, ensino médio…" />
+            </label>
+
+            <label class="field">
+              <span>Tags</span>
+              <div class="tag-box">
+                <span v-for="tag in form.tags" :key="tag" class="tag-chip">
+                  #{{ tag }}
+                  <button type="button" @click="removeTag(tag)">×</button>
+                </span>
+                <input
+                  v-model="tagInput"
+                  placeholder="Adicionar tag…"
+                  @keydown="onTagKeydown"
+                  @blur="addTag"
+                />
+              </div>
+            </label>
+          </section>
+
+          <section class="form-section">
+            <div class="section-title-row">
+              <div>
+                <h2>Cronograma</h2>
+                <p>Marque “Calendário” apenas para datas acionáveis: inscrições, prazos, provas ou resultados importantes.</p>
+              </div>
+              <button type="button" class="small-btn" @click="addTimelineItem">+ Data</button>
+            </div>
+
+            <div class="timeline-editor">
+              <div v-for="(item, idx) in form.timeline" :key="idx" class="timeline-row">
+                <input v-model="item.label" placeholder="Nome da etapa" />
+                <input v-model="item.date" type="date" />
+                <input v-model="item.details" placeholder="Detalhes" />
+
+                <label class="calendar-check" title="Mostrar esta data no calendário e nos cards como prazo acionável">
+                  <input v-model="item.show_on_calendar" type="checkbox" />
+                  <span>Calendário</span>
+                </label>
+
+                <button type="button" @click="removeTimelineItem(idx)">×</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="section-title-row">
+              <div>
+                <h2>Informações extras</h2>
+                <p>Esse JSON alimenta os cards verticais de detalhes no modal.</p>
+              </div>
+              <div class="section-actions">
+                <button type="button" class="small-btn" @click="mergeJsonTemplate">Completar estrutura</button>
+                <button type="button" class="small-btn" @click="formatJson">Formatar</button>
+                <button type="button" class="small-btn small-btn--danger" @click="resetJsonTemplate">Resetar</button>
+              </div>
+            </div>
+
+            <div class="tabs">
+              <button type="button" :class="{ active: activeTab === 'write' }" @click="activeTab = 'write'">Campos</button>
+              <button type="button" :class="{ active: activeTab === 'json' }" @click="activeTab = 'json'">JSON</button>
+              <button type="button" :class="{ active: activeTab === 'preview' }" @click="activeTab = 'preview'">Prévia</button>
+            </div>
+
+            <div v-if="activeTab === 'write'" class="extra-fields-note">
+              <p>
+                Edite em JSON quando precisar de dados complexos. Convenções aceitas:
+                <strong>requirements</strong>, <strong>benefits</strong>, <strong>application_process</strong>,
+                <strong>specifics.prizes</strong>, <strong>specifics.stages</strong> e <strong>references</strong>.
+              </p>
+            </div>
+
+            <textarea
+              v-if="activeTab === 'json' || activeTab === 'write'"
+              v-model="form.categoryDataJson"
+              class="json-area"
+              rows="24"
+              spellcheck="false"
+            />
+            <p v-if="errors.category_data" class="field-error">{{ errors.category_data }}</p>
+
+            <div v-if="activeTab === 'preview'" class="preview-box">
+              <div v-if="previewFacts.length" class="preview-grid">
+                <div v-for="fact in previewFacts" :key="fact.label" class="preview-card">
+                  <span>{{ fact.label }}</span>
+                  <strong>{{ fact.value }}</strong>
+                </div>
+              </div>
+              <p v-else class="preview-empty">Nenhuma informação estruturada encontrada.</p>
+            </div>
+          </section>
+        </template>
+
+        <section v-else class="form-section form-section--full-json">
           <div class="section-title-row">
             <div>
-              <h2>Informações extras</h2>
-              <p>Esse JSON alimenta os cards verticais de detalhes no modal.</p>
+              <h2>JSON completo da oportunidade</h2>
+              <p>
+                Edite diretamente o payload enviado para a API. Campos com <code>null</code> são opcionais.
+              </p>
             </div>
+
             <div class="section-actions">
-              <button type="button" class="small-btn" @click="mergeJsonTemplate">Completar estrutura</button>
-              <button type="button" class="small-btn" @click="formatJson">Formatar</button>
-              <button type="button" class="small-btn small-btn--danger" @click="resetJsonTemplate">Resetar</button>
+              <button type="button" class="small-btn" @click="syncFullJsonFromForm">Sincronizar campos</button>
+              <button type="button" class="small-btn" @click="mergeFullJsonSchema">Completar schema</button>
+              <button type="button" class="small-btn" @click="formatFullJson">Formatar</button>
+              <button type="button" class="small-btn small-btn--danger" @click="resetFullJsonFromLoaded">Resetar original</button>
             </div>
           </div>
 
-          <div class="tabs">
-            <button type="button" :class="{ active: activeTab === 'write' }" @click="activeTab = 'write'">Campos</button>
-            <button type="button" :class="{ active: activeTab === 'json' }" @click="activeTab = 'json'">JSON</button>
-            <button type="button" :class="{ active: activeTab === 'preview' }" @click="activeTab = 'preview'">Prévia</button>
-          </div>
-
-          <div v-if="activeTab === 'write'" class="extra-fields-note">
-            <p>
-              Edite em JSON quando precisar de dados complexos. Convenções aceitas:
-              <strong>requirements</strong>, <strong>benefits</strong>, <strong>application_process</strong>,
-              <strong>specifics.prizes</strong>, <strong>specifics.stages</strong> e <strong>references</strong>.
-            </p>
+          <div class="full-json-warning">
+            <strong>Modo avançado.</strong>
+            Aqui você consegue editar tudo: conteúdo, links, cronograma, publicação, prioridade, tags e <code>category_data</code>.
+            Antes de salvar, confira se o JSON continua válido.
           </div>
 
           <textarea
-            v-if="activeTab === 'json' || activeTab === 'write'"
-            v-model="form.categoryDataJson"
-            class="json-area"
-            rows="24"
+            v-model="fullJsonText"
+            class="json-area json-area--full"
+            rows="38"
             spellcheck="false"
           />
-          <p v-if="errors.category_data" class="field-error">{{ errors.category_data }}</p>
 
-          <div v-if="activeTab === 'preview'" class="preview-box">
-            <div v-if="previewFacts.length" class="preview-grid">
-              <div v-for="fact in previewFacts" :key="fact.label" class="preview-card">
-                <span>{{ fact.label }}</span>
-                <strong>{{ fact.value }}</strong>
-              </div>
-            </div>
-            <p v-else class="preview-empty">Nenhuma informação estruturada encontrada.</p>
+          <p v-if="errors.full_json" class="field-error">{{ errors.full_json }}</p>
+
+          <div class="schema-help">
+            <h3>Campos aceitos</h3>
+            <p>
+              <code>title</code>, <code>slug</code>, <code>category</code>, <code>status</code>,
+              <code>description</code>, <code>excerpt</code>, <code>cover_url</code>,
+              <code>official_site_url</code>, <code>location</code>, <code>is_free</code>,
+              <code>human_verified</code>, <code>approved</code>, <code>priority</code>,
+              <code>next_deadline</code>, <code>timeline</code>, <code>category_data</code>,
+              <code>keywords</code> e <code>tags</code>.
+            </p>
           </div>
         </section>
 
@@ -1071,6 +1499,10 @@ onMounted(fetchOpportunity)
   padding-top: 24px;
 }
 
+.form-section--full-json {
+  padding-top: 24px;
+}
+
 .section-title-row {
   display: flex;
   justify-content: space-between;
@@ -1093,6 +1525,15 @@ onMounted(fetchOpportunity)
   color: #999;
   font-size: .78rem;
   line-height: 1.55;
+}
+
+.section-title-row code {
+  background: #f1f5f9;
+  color: #079272;
+  border-radius: 6px;
+  padding: 2px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .72rem;
 }
 
 .title-field input {
@@ -1158,7 +1599,7 @@ textarea:focus {
 }
 
 .field-error {
-  margin: 2px 0 0;
+  margin: 8px 0 0;
   color: #dc2626;
   font-size: .72rem;
   font-weight: 700;
@@ -1306,6 +1747,52 @@ textarea:focus {
   line-height: 1.55;
 }
 
+.json-area--full {
+  min-height: 680px;
+  font-size: .78rem;
+}
+
+.full-json-warning {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  border-radius: 14px;
+  padding: 13px 14px;
+  margin-bottom: 14px;
+  font-size: .82rem;
+  line-height: 1.5;
+}
+
+.full-json-warning code,
+.schema-help code {
+  background: rgba(255,255,255,.65);
+  border-radius: 6px;
+  padding: 2px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.schema-help {
+  margin-top: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.schema-help h3 {
+  margin: 0 0 8px;
+  font-size: .82rem;
+  font-weight: 900;
+  color: #111;
+}
+
+.schema-help p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.65;
+  font-size: .78rem;
+}
+
 .preview-box {
   background: #fafaf9;
   border: 1px solid #e8e4dc;
@@ -1365,7 +1852,8 @@ button:disabled {
 .ai-btn,
 .ghost-btn,
 .danger-btn,
-.small-btn {
+.small-btn,
+.json-toggle-btn {
   border: none;
   border-radius: 12px;
   padding: 10px 14px;
@@ -1381,7 +1869,8 @@ button:disabled {
 }
 
 .submit-btn:hover:not(:disabled),
-.ai-btn:hover:not(:disabled) {
+.ai-btn:hover:not(:disabled),
+.json-toggle-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 8px 22px rgba(7,146,114,.22);
 }
@@ -1389,6 +1878,12 @@ button:disabled {
 .ai-btn {
   background: #1c1917;
   color: white;
+}
+
+.json-toggle-btn {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
 }
 
 .ghost-btn,
@@ -1488,6 +1983,10 @@ button:disabled {
   .notice {
     margin-left: 18px;
     margin-right: 18px;
+  }
+
+  .json-area--full {
+    min-height: 520px;
   }
 }
 </style>
