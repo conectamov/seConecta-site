@@ -387,10 +387,9 @@ function normalize(o: any) {
   const meta = CATEGORY_META[o.category] ?? { label: 'Oportunidade', icon: '✨', color: '#10b981', bg: 'bg-emerald-50', ring: 'ring-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-400' }
   const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(o ?? {}, key)
   const detailLoaded = Boolean(
-    hasOwn('description') ||
-    hasOwn('timeline') ||
-    hasOwn('category_data') ||
-    hasOwn('official_site_url')
+    hasOwn('description') &&
+    typeof o.description === 'string' &&
+    o.description.trim().length > 0
   )
   const timeline = normalizeTimeline(o.timeline)
   const categoryData = normalizeJsonObject(o.category_data)
@@ -438,7 +437,6 @@ const currentPage = ref(1)
 const PAGE_SIZE = 24
 
 const selectedItem = ref<any | null>(null)
-const detailLoadingSlug = ref<string | null>(null)
 const search = ref('')
 const activeCategories = ref<string[]>([])
 const freeOnly = ref(false)
@@ -458,10 +456,6 @@ let opportunitiesRequestSeq = 0
 
 const isAdmin = computed(() => !!(currentUser.value?.is_superuser || currentUser.value?.is_manager))
 const isLoggedIn = computed(() => !!currentUser.value)
-const isSelectedItemLoadingDetail = computed(() => {
-  const slug = selectedItem.value?.slug
-  return !!slug && detailLoadingSlug.value === slug
-})
 
 const MEMBER_NUDGE_DISMISS_KEY = 'seconecta:opportunities-member-nudge-dismissed-at'
 const MEMBER_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000
@@ -622,31 +616,26 @@ function upsertOpportunity(item: any) {
   }
 }
 
-async function selectOpportunity(item: any) {
-  if (!item) return
+function closeOpportunityModal() {
+  selectedItem.value = null
+}
 
-  selectedItem.value = item
+function handleOpportunityLoaded(raw: any) {
+  const full = normalize(raw)
 
-  if (!item.slug || item.detail_loaded) return
+  upsertOpportunity(full)
 
-  try {
-    detailLoadingSlug.value = item.slug
-
-    const res = await get(`/opportunity/slug/${encodeURIComponent(item.slug)}`)
-    const full = normalize(res.data)
-
-    upsertOpportunity(full)
-
-    if (selectedItem.value?.id === full.id) {
-      selectedItem.value = full
-    }
-  } catch (e) {
-    console.warn('Could not fetch full opportunity:', item.slug, e)
-  } finally {
-    if (detailLoadingSlug.value === item.slug) {
-      detailLoadingSlug.value = null
-    }
+  if (
+    selectedItem.value?.id === full.id ||
+    selectedItem.value?.slug === full.slug
+  ) {
+    selectedItem.value = full
   }
+}
+
+function selectOpportunity(item: any) {
+  if (!item) return
+  selectedItem.value = item
 }
 
 async function openOpportunityBySlug(slug: string | null) {
@@ -657,27 +646,22 @@ async function openOpportunityBySlug(slug: string | null) {
 
   if (local) {
     pendingOpenSlug.value = null
-    await selectOpportunity(local)
+    selectedItem.value = local
     return
   }
 
-  try {
-    openingFromSlug.value = true
+  pendingOpenSlug.value = null
 
-    const res = await get(`/opportunity/slug/${encodeURIComponent(cleanSlug)}`)
-    const item = normalize(res.data)
-
-    if (item?.category && !activeCategories.value.includes(item.category)) {
-      activeCategories.value = [item.category]
-    }
-
-    upsertOpportunity(item)
-    selectedItem.value = item
-    pendingOpenSlug.value = null
-  } catch (e) {
-    console.warn('Could not open opportunity from slug:', cleanSlug, e)
-  } finally {
-    openingFromSlug.value = false
+  selectedItem.value = {
+    slug: cleanSlug,
+    title: 'Carregando oportunidade...',
+    category: null,
+    excerpt: '',
+    description: '',
+    cover_url: null,
+    category_data: {},
+    timeline: [],
+    tags: [],
   }
 }
 
@@ -1806,206 +1790,16 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
       </main>
     </div>
 
-    <Teleport to="body">
-      <Transition name="modal">
-        <div v-if="selectedItem" class="opp-modal-backdrop" @click.self="selectedItem = null">
-          <div class="opp-modal" role="dialog" :aria-label="selectedItem.title">
-            <div class="opp-modal__cover">
-              <img
-                v-if="selectedItem.cover_url"
-                :src="selectedItem.cover_url"
-                :alt="selectedItem.title"
-                class="opp-modal__cover-img"
-              />
-              <div
-                v-else
-                class="opp-modal__cover-fallback"
-                :style="{ background: `linear-gradient(135deg, ${selectedItem.categoryMeta.color}33, ${selectedItem.categoryMeta.color}11)` }"
-              >
-                <span style="font-size: 3rem">{{ selectedItem.categoryMeta.icon }}</span>
-              </div>
-              <div class="opp-modal__cover-overlay"></div>
+  <OpportunityDetailsModal
+    v-if="selectedItem"
+    :key="selectedItem.id ?? selectedItem.slug"
+    :opportunity="selectedItem"
+    :is-admin="isAdmin"
+    @close="closeOpportunityModal"
+    @edit="handleEditOpportunity"
+    @loaded="handleOpportunityLoaded"
+  />
 
-              <button @click="selectedItem = null" class="opp-modal__close" aria-label="Fechar">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-
-              <button
-                v-if="isAdmin"
-                @click="handleEditOpportunity(selectedItem)"
-                class="opp-modal__edit"
-              >
-                Editar
-              </button>
-            </div>
-
-            <div class="opp-modal__body">
-              <div class="opp-modal__header">
-                <div class="opp-modal__badges">
-                  <span
-                    class="opp-badge"
-                    :style="{ background: selectedItem.categoryMeta.color + '22', color: selectedItem.categoryMeta.color, border: `1px solid ${selectedItem.categoryMeta.color}44` }"
-                  >
-                    {{ selectedItem.categoryMeta.icon }} {{ selectedItem.categoryMeta.label }}
-                  </span>
-                  <span v-if="selectedItem.human_verified" class="opp-badge opp-badge--verified">✓ Verificado</span>
-                  <span v-else-if="isAdmin" class="opp-badge opp-badge--pending">Pendente</span>
-                  <span v-if="selectedItem.is_free" class="opp-badge opp-badge--free">Gratuito</span>
-                  <span
-                    v-if="selectedItem.priority >= 2"
-                    class="opp-badge"
-                    :style="{ background: selectedItem.priorityMeta.color + '18', color: selectedItem.priorityMeta.color, border: `1px solid ${selectedItem.priorityMeta.color}35` }"
-                  >
-                    ★ {{ selectedItem.priorityMeta.label }}
-                  </span>
-                </div>
-
-                <h2 class="opp-modal__title">{{ selectedItem.title }}</h2>
-
-                <div class="opp-modal__quick">
-                  <div
-                    v-if="selectedItem.next_deadline"
-                    class="opp-modal__info-item"
-                    :class="{ 'opp-modal__info-item--urgent': selectedItem.deadline.urgent, 'opp-modal__info-item--overdue': selectedItem.deadline.overdue }"
-                  >
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z" />
-                    </svg>
-                    <span>{{ selectedItem.deadlineActionLabel }}</span>
-                  </div>
-
-                  <div v-else class="opp-modal__info-item opp-modal__info-item--muted">
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>Sem prazo acionável agora</span>
-                  </div>
-
-                  <div class="opp-modal__info-item">
-                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span>{{ selectedItem.location }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="opp-modal__section">
-                <h3 class="opp-modal__section-title">Sobre a oportunidade</h3>
-                <p class="opp-modal__text">
-                  {{ isSelectedItemLoadingDetail ? 'Carregando detalhes…' : selectedItem.description }}
-                </p>
-              </div>
-
-              <div v-if="selectedItem.timeline.length > 0" class="opp-modal__section">
-                <h3 class="opp-modal__section-title">Cronograma</h3>
-                <div class="opp-timeline">
-                  <div
-                    v-for="(event, idx) in selectedItem.timeline"
-                    :key="idx"
-                    class="opp-timeline__item"
-                    :class="{ 'opp-timeline__item--past': event.date && parseLocalDate(event.date) && parseLocalDate(event.date)! < new Date() }"
-                  >
-                    <div class="opp-timeline__dot"></div>
-                    <div class="opp-timeline__content">
-                      <span class="opp-timeline__label">{{ getTimelineLabel(event) }}</span>
-                      <span v-if="event.date" class="opp-timeline__date">{{ fmtDate(event.date) }}</span>
-                      <span v-if="event.show_on_calendar" class="opp-timeline__calendar-badge">Aparece no calendário</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="getCategoryDataCards(selectedItem).length > 0" class="opp-modal__section">
-                <h3 class="opp-modal__section-title">Informações importantes</h3>
-
-                <div class="opp-info-stack">
-                  <article
-                    v-for="card in getCategoryDataCards(selectedItem)"
-                    :key="card.title"
-                    class="opp-info-card"
-                    :class="`opp-info-card--${getInfoVariant(card.title)}`"
-                  >
-                    <div class="opp-info-card__icon">
-                      {{ getInfoIcon(card.title) }}
-                    </div>
-
-                    <div class="opp-info-card__content">
-                      <span class="opp-info-card__title">
-                        {{ card.title }}
-                      </span>
-
-                      <p
-                        v-if="getCardLines(card).length === 1"
-                        class="opp-info-card__text"
-                      >
-                        {{ getCardLines(card)[0] }}
-                      </p>
-
-                      <ul
-                        v-else
-                        class="opp-info-card__list"
-                      >
-                        <li
-                          v-for="line in getCardLines(card)"
-                          :key="line"
-                        >
-                          {{ line }}
-                        </li>
-                      </ul>
-                    </div>
-                  </article>
-                </div>
-              </div>
-
-
-              
-              <div v-if="getReferenceLinks(selectedItem).length > 0" class="opp-modal__section">
-                <h3 class="opp-modal__section-title">Links de referência</h3>
-                
-                <div class="opp-reference-list">
-                  <a
-                  v-for="ref in getReferenceLinks(selectedItem)"
-                    :key="ref.url"
-                    :href="ref.url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="opp-reference-card"
-                  >
-                  <span class="opp-reference-card__title">{{ ref.title || 'Referência' }}</span>
-                    <span v-if="ref.description" class="opp-reference-card__desc">{{ ref.description }}</span>
-                    <span class="opp-reference-card__url">{{ ref.source_type || 'link' }}</span>
-                  </a>
-                </div>
-              </div>
-              <div v-if="selectedItem.tags.length > 0" class="opp-modal__section">
-                <h3 class="opp-modal__section-title">Tags</h3>
-                <div class="opp-card__tags">
-                  <span v-for="tag in selectedItem.tags" :key="tag" class="opp-tag">{{ tag }}</span>
-                </div>
-              </div>
-              
-              <div v-if="selectedItem.official_site_url" class="opp-modal__cta">
-                <a
-                  :href="selectedItem.official_site_url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="opp-btn opp-btn--cta"
-                >
-                  Acessar site oficial
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
   </div>
 </template>
 
