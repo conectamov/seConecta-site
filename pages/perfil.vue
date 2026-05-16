@@ -1,10 +1,12 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'auth' })
+definePageMeta({ layout:'app', middleware: 'auth' })
 useSeoMeta({ title: 'Meu Perfil — seConecta' })
 
 const router = useRouter()
 const { patch, del, post } = useAxios()
 const { currentUser, fetchMe, logout, isAuthenticated } = useAuth()
+const { uploadImage, validateImageFile } = useImageUpload()
+const runtimeConfig = useRuntimeConfig()
 
 const activeTab = ref('info')
 
@@ -139,6 +141,94 @@ const infoError   = ref<string | null>(null)
 const interestInput = ref('')
 const interests     = ref<string[]>([])
 
+// ── Profile picture upload ───────────────────────────────────────────────────
+const profilePictureFileInput = ref<HTMLInputElement | null>(null)
+const profilePictureUploading = ref(false)
+const profilePictureUploadMessage = ref<string | null>(null)
+const localProfilePicturePreviewUrl = ref<string | null>(null)
+
+const profilePicturePreviewUrl = computed(() => {
+  return localProfilePicturePreviewUrl.value || infoForm.value.profile_picture_url || ''
+})
+
+function isAllowedCloudinaryUrl(url: string | null | undefined) {
+  const value = String(url || '').trim()
+  if (!value) return true
+
+  const cloudName = String(runtimeConfig.public.cloudinaryCloudName || '').trim()
+
+  if (cloudName) {
+    return value.startsWith(`https://res.cloudinary.com/${cloudName}/image/upload/`)
+  }
+
+  return /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//.test(value)
+}
+
+
+function revokeLocalProfilePicturePreview() {
+  if (localProfilePicturePreviewUrl.value) {
+    URL.revokeObjectURL(localProfilePicturePreviewUrl.value)
+    localProfilePicturePreviewUrl.value = null
+  }
+}
+
+onBeforeUnmount(() => {
+  revokeLocalProfilePicturePreview()
+})
+
+async function handleProfilePictureFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+
+  if (!file) return
+
+  infoError.value = null
+  infoSuccess.value = false
+  profilePictureUploadMessage.value = null
+  delete infoErrors.value.profile_picture_url
+
+  try {
+    validateImageFile(file)
+
+    revokeLocalProfilePicturePreview()
+    localProfilePicturePreviewUrl.value = URL.createObjectURL(file)
+
+    profilePictureUploading.value = true
+    profilePictureUploadMessage.value = 'Enviando foto para o Cloudinary…'
+
+    const uploadedUrl = await uploadImage(file)
+
+    if (!isAllowedCloudinaryUrl(uploadedUrl)) {
+      throw new Error('O Cloudinary retornou uma URL fora do domínio permitido.')
+    }
+
+    infoForm.value.profile_picture_url = uploadedUrl
+    profilePictureUploadMessage.value = 'Foto enviada. Agora salve as alterações do perfil.'
+    revokeLocalProfilePicturePreview()
+  } catch (e: any) {
+    revokeLocalProfilePicturePreview()
+    infoErrors.value.profile_picture_url = e?.message || 'Erro ao enviar a foto.'
+    profilePictureUploadMessage.value = null
+  } finally {
+    profilePictureUploading.value = false
+
+    if (input) {
+      input.value = ''
+    }
+  }
+}
+
+function clearProfilePicture() {
+  revokeLocalProfilePicturePreview()
+  infoForm.value.profile_picture_url = ''
+  profilePictureUploadMessage.value = null
+  delete infoErrors.value.profile_picture_url
+
+  if (profilePictureFileInput.value) {
+    profilePictureFileInput.value.value = ''
+  }
+}
+
 // ── Social link normalisation ─────────────────────────────────────────────────
 function normalizeInstagram(input: string): string {
   if (!input) return ''
@@ -230,6 +320,8 @@ function validateInfo() {
     infoErrors.value.instagram = 'URL do Instagram inválida.'
   if (infoForm.value.linkedin && !/^https?:\/\/(www\.)?linkedin\.com\/in\/[^/]+\/?$/.test(normalizeLinkedIn(infoForm.value.linkedin)))
     infoErrors.value.linkedin = 'URL do LinkedIn inválida.'
+  if (infoForm.value.profile_picture_url && !isAllowedCloudinaryUrl(infoForm.value.profile_picture_url))
+    infoErrors.value.profile_picture_url = 'A foto precisa ser enviada pelo upload do seConecta/Cloudinary.'
 
   // Phone: only validate if the user actually typed something
   if (phoneDisplay.value.trim() && phoneError.value)
@@ -291,7 +383,7 @@ async function saveInfo() {
   if (infoForm.value.public_title.trim())        payload.public_title        = infoForm.value.public_title.trim()
   if (infoForm.value.bio.trim())                 payload.bio                 = infoForm.value.bio.trim()
   if (infoForm.value.location.trim())            payload.location            = infoForm.value.location.trim()
-  if (infoForm.value.profile_picture_url.trim()) payload.profile_picture_url = infoForm.value.profile_picture_url.trim()
+  payload.profile_picture_url = infoForm.value.profile_picture_url.trim() || null
   if (infoForm.value.username.trim())            payload.username            = infoForm.value.username.trim()
   if (infoForm.value.organization.trim())        payload.organization        = infoForm.value.organization.trim()
   if (infoForm.value.instagram.trim())           payload.instagram           = normalizeInstagram(infoForm.value.instagram)
@@ -687,10 +779,59 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
               <div class="flex flex-col gap-4">
 
                 <!-- Foto -->
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">URL da foto de perfil</label>
-                  <input v-model="infoForm.profile_picture_url" type="url" placeholder="https://exemplo.com/foto.jpg"
-                    class="w-full h-11 px-4 text-sm text-[#111] bg-[#f7f5f0] border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-[#079272] focus:bg-white transition-all"/>
+                <div class="bg-[#f7f5f0] border border-[#e8e4dc] rounded-2xl p-4">
+                  <div class="flex items-start justify-between gap-4 mb-3">
+                    <div>
+                      <label class="block text-xs font-semibold uppercase tracking-[0.1em] text-[#aaa] mb-1.5">Foto de perfil</label>
+                    </div>
+
+                    <button
+                      v-if="infoForm.profile_picture_url"
+                      type="button"
+                      class="text-[0.75rem] font-semibold px-3 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors border border-red-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                      :disabled="profilePictureUploading"
+                      @click="clearProfilePicture"
+                    >
+                      Remover
+                    </button>
+                  </div>
+
+                  <div class="flex items-center gap-4 flex-wrap sm:flex-nowrap">
+                    <div class="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-[#079272] to-[#2464E8] flex items-center justify-center flex-shrink-0 border-4 border-white shadow-sm">
+                      <img
+                        v-if="profilePicturePreviewUrl"
+                        :src="profilePicturePreviewUrl"
+                        :alt="infoForm.full_name || currentUser?.username || 'Foto de perfil'"
+                        class="w-full h-full object-cover"
+                      />
+                      <span v-else class="text-3xl font-bold text-white">{{ userInitial }}</span>
+                    </div>
+
+                    <div class="flex-1 min-w-[220px]">
+                      <label
+                        class="relative flex items-center justify-center gap-2 w-full min-h-11 px-4 py-3 text-sm font-semibold text-[#079272] bg-white border border-[#c5e8df] rounded-xl hover:bg-[#f0faf7] transition-colors cursor-pointer"
+                        :class="profilePictureUploading ? 'opacity-60 cursor-wait' : ''"
+                      >
+                        <input
+                          ref="profilePictureFileInput"
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
+                          class="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait"
+                          :disabled="profilePictureUploading"
+                          @change="handleProfilePictureFileChange"
+                        />
+
+                        <svg v-if="profilePictureUploading" class="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                        <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+
+                        {{ profilePictureUploading ? 'Enviando foto...' : infoForm.profile_picture_url ? 'Trocar foto' : 'Enviar foto' }}
+                      </label>
+
+                      <p class="text-[0.68rem] text-[#aaa] mt-2">JPG, PNG ou WEBP · máximo 5MB.</p>
+                      <p v-if="profilePictureUploadMessage" class="text-[0.75rem] text-[#079272] font-medium mt-2">{{ profilePictureUploadMessage }}</p>
+                      <p v-if="infoErrors.profile_picture_url" class="text-xs text-red-500 mt-2">{{ infoErrors.profile_picture_url }}</p>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- Nome + Cargo -->
@@ -899,9 +1040,9 @@ onMounted(() => { if (!isAuthenticated.value) router.replace('/login') })
                 <div class="flex justify-end pt-1">
                   <button
                     class="flex items-center gap-2 text-sm font-semibold px-6 py-2.5 bg-[#0d0d0d] text-white rounded-xl hover:bg-[#079272] transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-none cursor-pointer"
-                    :disabled="infoSaving || !infoChanged" @click="saveInfo">
-                    <svg v-if="infoSaving" class="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                    {{ infoSaving ? 'Salvando...' : 'Salvar alterações' }}
+                    :disabled="infoSaving || profilePictureUploading || !infoChanged" @click="saveInfo">
+                    <svg v-if="infoSaving || profilePictureUploading" class="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                    {{ profilePictureUploading ? 'Enviando foto...' : infoSaving ? 'Salvando...' : 'Salvar alterações' }}
                   </button>
                 </div>
               </div>

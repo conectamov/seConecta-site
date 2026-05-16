@@ -15,7 +15,10 @@ type LazyComponent<T> = DefineComponent<HydrationStrategies, {}, {}, {}, {}, {},
 
 interface _GlobalComponents {
   BetaTesterCard: typeof import("../../components/BetaTesterCard.vue")['default']
+  LayoutAppShell: typeof import("../../components/LayoutAppShell.vue")['default']
   TeamMember: typeof import("../../components/TeamMember.vue")['default']
+  UserPreferencesOnboardingModal: typeof import("../../components/UserPreferencesOnboardingModal.vue")['default']
+  UserPreferencesSidebarReminder: typeof import("../../components/UserPreferencesSidebarReminder.vue")['default']
   FeedCommentItem: typeof import("../../components/feed/CommentItem.vue")['default']
   FeedPostCard: typeof import("../../components/feed/PostCard.vue")['default']
   HomeHeroHome: typeof import("../../components/home/HeroHome.vue")['default']
@@ -59,7 +62,10 @@ interface _GlobalComponents {
   Body: typeof import("../../node_modules/nuxt/dist/head/runtime/components")['Body']
   NuxtIsland: typeof import("../../node_modules/nuxt/dist/app/components/nuxt-island")['default']
   LazyBetaTesterCard: LazyComponent<typeof import("../../components/BetaTesterCard.vue")['default']>
+  LazyLayoutAppShell: LazyComponent<typeof import("../../components/LayoutAppShell.vue")['default']>
   LazyTeamMember: LazyComponent<typeof import("../../components/TeamMember.vue")['default']>
+  LazyUserPreferencesOnboardingModal: LazyComponent<typeof import("../../components/UserPreferencesOnboardingModal.vue")['default']>
+  LazyUserPreferencesSidebarReminder: LazyComponent<typeof import("../../components/UserPreferencesSidebarReminder.vue")['default']>
   LazyFeedCommentItem: LazyComponent<typeof import("../../components/feed/CommentItem.vue")['default']>
   LazyFeedPostCard: LazyComponent<typeof import("../../components/feed/PostCard.vue")['default']>
   LazyHomeHeroHome: LazyComponent<typeof import("../../components/home/HeroHome.vue")['default']>

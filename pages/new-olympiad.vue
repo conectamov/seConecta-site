@@ -1,5 +1,6 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'auth' })
+definePageMeta({ layout:'app', middleware: 'auth' })
+
 useSeoMeta({ title: 'Nova Olimpíada — seConecta' })
 
 const router = useRouter()

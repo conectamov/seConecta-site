@@ -17,6 +17,10 @@ import { NuxtModule, ModuleDependencyMeta } from '@nuxt/schema'
   }
   interface SharedPublicRuntimeConfig {
    apiBase: string,
+
+   cloudinaryCloudName: string,
+
+   cloudinaryUploadPreset: string,
   }
 declare module '@nuxt/schema' {
   interface ModuleDependencies {

@@ -15,7 +15,10 @@ type LazyComponent<T> = DefineComponent<HydrationStrategies, {}, {}, {}, {}, {},
 
 
 export const BetaTesterCard: typeof import("../components/BetaTesterCard.vue")['default']
+export const LayoutAppShell: typeof import("../components/LayoutAppShell.vue")['default']
 export const TeamMember: typeof import("../components/TeamMember.vue")['default']
+export const UserPreferencesOnboardingModal: typeof import("../components/UserPreferencesOnboardingModal.vue")['default']
+export const UserPreferencesSidebarReminder: typeof import("../components/UserPreferencesSidebarReminder.vue")['default']
 export const FeedCommentItem: typeof import("../components/feed/CommentItem.vue")['default']
 export const FeedPostCard: typeof import("../components/feed/PostCard.vue")['default']
 export const HomeHeroHome: typeof import("../components/home/HeroHome.vue")['default']
@@ -59,7 +62,10 @@ export const Html: typeof import("../node_modules/nuxt/dist/head/runtime/compone
 export const Body: typeof import("../node_modules/nuxt/dist/head/runtime/components")['Body']
 export const NuxtIsland: typeof import("../node_modules/nuxt/dist/app/components/nuxt-island")['default']
 export const LazyBetaTesterCard: LazyComponent<typeof import("../components/BetaTesterCard.vue")['default']>
+export const LazyLayoutAppShell: LazyComponent<typeof import("../components/LayoutAppShell.vue")['default']>
 export const LazyTeamMember: LazyComponent<typeof import("../components/TeamMember.vue")['default']>
+export const LazyUserPreferencesOnboardingModal: LazyComponent<typeof import("../components/UserPreferencesOnboardingModal.vue")['default']>
+export const LazyUserPreferencesSidebarReminder: LazyComponent<typeof import("../components/UserPreferencesSidebarReminder.vue")['default']>
 export const LazyFeedCommentItem: LazyComponent<typeof import("../components/feed/CommentItem.vue")['default']>
 export const LazyFeedPostCard: LazyComponent<typeof import("../components/feed/PostCard.vue")['default']>
 export const LazyHomeHeroHome: LazyComponent<typeof import("../components/home/HeroHome.vue")['default']>

@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+definePageMeta({ layout:'app', middleware: 'auth' })
 
 useSeoMeta({ title: 'Nova oportunidade — seConecta' })
 
 const { post } = useAxios()
+const { uploadImage, validateImageFile } = useImageUpload()
 
 type CreateMode = 'form' | 'json'
 
@@ -17,7 +19,17 @@ const CATEGORIES = [
   { value: 'VOLUNTEERING', label: 'Voluntariado' },
   { value: 'SUMMER_PROGRAM', label: 'Programa de verão' },
   { value: 'WORKSHOP', label: 'Workshop' },
-  // { value: 'POST', label: 'Post' },
+]
+
+const TIMELINE_KIND_OPTIONS = [
+  { value: '', label: 'Tipo não definido' },
+  { value: 'registration_start', label: 'Início das inscrições' },
+  { value: 'registration_deadline', label: 'Prazo de inscrição' },
+  { value: 'exam', label: 'Prova' },
+  { value: 'phase', label: 'Fase' },
+  { value: 'result', label: 'Resultado' },
+  { value: 'submission_deadline', label: 'Prazo de envio' },
+  { value: 'other', label: 'Outro evento' },
 ]
 
 const defaultCategoryData = {
@@ -60,6 +72,7 @@ const defaultFullOpportunityPayload = {
   next_deadline: null,
   timeline: [
     {
+      kind: 'registration_deadline',
       label: 'Prazo final',
       date: '',
       details: '',
@@ -86,7 +99,7 @@ const form = reactive({
   keywords: '',
   tagsInput: '',
   timeline: [
-    { label: 'Prazo final', date: '', details: '', show_on_calendar: true },
+    { kind: 'registration_deadline', label: 'Prazo final', date: '', details: '', show_on_calendar: true },
   ],
   categoryDataJson: JSON.stringify(defaultCategoryData, null, 2),
 })
@@ -94,8 +107,27 @@ const form = reactive({
 const fullOpportunityJson = ref(JSON.stringify(defaultFullOpportunityPayload, null, 2))
 
 const loading = ref(false)
+const uploadingCover = ref(false)
 const error = ref<string | null>(null)
 const success = ref<string | null>(null)
+const coverUploadStatus = ref<string | null>(null)
+const localCoverPreviewUrl = ref<string | null>(null)
+const coverFileInput = ref<HTMLInputElement | null>(null)
+
+const coverPreviewUrl = computed(() => {
+  return localCoverPreviewUrl.value || form.cover_url || ''
+})
+
+function revokeLocalCoverPreview() {
+  if (localCoverPreviewUrl.value) {
+    URL.revokeObjectURL(localCoverPreviewUrl.value)
+    localCoverPreviewUrl.value = null
+  }
+}
+
+onBeforeUnmount(() => {
+  revokeLocalCoverPreview()
+})
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
@@ -163,6 +195,8 @@ const fullJsonValidationError = computed(() => {
 })
 
 const canSubmit = computed(() => {
+  if (uploadingCover.value) return false
+
   if (createMode.value === 'json') {
     return fullJsonValidationError.value === null
   }
@@ -186,6 +220,7 @@ function cleanTimeline() {
   return form.timeline
     .filter(item => item.label?.trim() || item.date || item.details?.trim())
     .map(item => ({
+      kind: item.kind?.trim() || null,
       label: item.label?.trim() || item.details?.trim() || 'Evento',
       date: item.date || null,
       details: item.details?.trim() || null,
@@ -201,6 +236,7 @@ function cleanFullTimeline(timeline: unknown) {
     .filter(item => item.label?.trim?.() || item.date || item.details?.trim?.())
     .map(item => ({
       ...item,
+      kind: typeof item.kind === 'string' && item.kind.trim() ? item.kind.trim() : null,
       label: item.label?.trim?.() || item.details?.trim?.() || 'Evento',
       date: item.date || null,
       details: item.details?.trim?.() || null,
@@ -209,11 +245,75 @@ function cleanFullTimeline(timeline: unknown) {
 }
 
 function addTimelineItem() {
-  form.timeline.push({ label: '', date: '', details: '', show_on_calendar: false })
+  form.timeline.push({ kind: '', label: '', date: '', details: '', show_on_calendar: false })
 }
 
 function removeTimelineItem(index: number) {
   form.timeline.splice(index, 1)
+}
+
+function updateFullOpportunityCoverUrl(url: string | null) {
+  try {
+    const parsed = JSON.parse(fullOpportunityJson.value || '{}')
+
+    if (!isPlainObject(parsed)) return
+
+    parsed.cover_url = url || ''
+    fullOpportunityJson.value = JSON.stringify(parsed, null, 2)
+  } catch {
+    // Se o JSON completo estiver inválido, não tentamos sincronizar.
+  }
+}
+
+async function handleCoverFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+
+  if (!file) return
+
+  error.value = null
+  success.value = null
+  coverUploadStatus.value = null
+
+  try {
+    validateImageFile(file)
+
+    revokeLocalCoverPreview()
+    localCoverPreviewUrl.value = URL.createObjectURL(file)
+
+    uploadingCover.value = true
+    coverUploadStatus.value = 'Enviando imagem para o Cloudinary…'
+
+    const uploadedUrl = await uploadImage(file)
+
+    form.cover_url = uploadedUrl
+    updateFullOpportunityCoverUrl(uploadedUrl)
+
+    revokeLocalCoverPreview()
+    coverUploadStatus.value = 'Imagem enviada. A URL foi preenchida automaticamente.'
+  } catch (e: any) {
+    revokeLocalCoverPreview()
+    error.value = e?.message || 'Erro ao enviar imagem.'
+    coverUploadStatus.value = null
+  } finally {
+    uploadingCover.value = false
+
+    if (input) {
+      input.value = ''
+    }
+  }
+}
+
+function clearCoverImage() {
+  revokeLocalCoverPreview()
+
+  form.cover_url = ''
+  coverUploadStatus.value = null
+  updateFullOpportunityCoverUrl(null)
+
+  if (coverFileInput.value) {
+    coverFileInput.value.value = ''
+  }
 }
 
 function buildGuidedPayload() {
@@ -392,12 +492,13 @@ function applyJsonToForm() {
     ? payload.timeline
         .filter(item => isPlainObject(item))
         .map(item => ({
+          kind: String(item.kind || ''),
           label: String(item.label || ''),
           date: dateInputValue(item.date),
           details: String(item.details || ''),
           show_on_calendar: item.show_on_calendar === true,
         }))
-    : [{ label: 'Prazo final', date: '', details: '', show_on_calendar: true }]
+    : [{ kind: 'registration_deadline', label: 'Prazo final', date: '', details: '', show_on_calendar: true }]
 
   form.categoryDataJson = JSON.stringify(
     isPlainObject(payload.category_data) ? payload.category_data : defaultCategoryData,
@@ -411,6 +512,11 @@ function applyJsonToForm() {
 async function submit() {
   error.value = null
   success.value = null
+
+  if (uploadingCover.value) {
+    error.value = 'Aguarde o envio da imagem terminar.'
+    return
+  }
 
   if (!canSubmit.value) {
     error.value = createMode.value === 'json'
@@ -526,10 +632,55 @@ async function submit() {
               />
             </label>
 
-            <label class="field">
-              <span>Imagem de capa</span>
-              <input v-model="form.cover_url" placeholder="https://..." />
-            </label>
+            <section class="upload-card field--full">
+              <div class="upload-card-header">
+                <div>
+                  <span>Imagem de capa</span>
+                  <p>
+                    Envie uma imagem JPG, PNG ou WEBP. O upload é opcional; se enviado, a URL será preenchida automaticamente.
+                  </p>
+                </div>
+
+                <button
+                  v-if="form.cover_url || coverPreviewUrl"
+                  type="button"
+                  class="small-btn danger-btn"
+                  :disabled="uploadingCover"
+                  @click="clearCoverImage"
+                >
+                  Remover imagem
+                </button>
+              </div>
+
+              <label
+                class="cover-dropzone"
+                :class="{ 'is-uploading': uploadingCover, 'has-preview': Boolean(coverPreviewUrl) }"
+              >
+                <input
+                  ref="coverFileInput"
+                  class="file-input"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  :disabled="uploadingCover"
+                  @change="handleCoverFileChange"
+                />
+
+                <div v-if="coverPreviewUrl" class="cover-preview">
+                  <img :src="coverPreviewUrl" alt="Prévia da imagem de capa" />
+                </div>
+
+                <div class="cover-dropzone-text">
+                  <strong>
+                    {{ uploadingCover ? 'Enviando imagem…' : coverPreviewUrl ? 'Trocar imagem' : 'Clique para escolher uma imagem' }}
+                  </strong>
+                  <small>Máximo 5MB · JPG, PNG ou WEBP · opcional</small>
+                </div>
+              </label>
+
+              <p v-if="coverUploadStatus" class="upload-status">
+                {{ coverUploadStatus }}
+              </p>
+            </section>
 
             <label class="field">
               <span>Site oficial</span>
@@ -568,6 +719,11 @@ async function submit() {
 
             <div class="timeline-editor">
               <div v-for="(item, idx) in form.timeline" :key="idx" class="timeline-row">
+                <select v-model="item.kind" class="timeline-kind-select">
+                  <option v-for="option in TIMELINE_KIND_OPTIONS" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
                 <input v-model="item.label" placeholder="Nome da etapa" />
                 <input v-model="item.date" type="date" />
                 <input v-model="item.details" placeholder="Detalhes" />
@@ -658,8 +814,16 @@ async function submit() {
             Cancelar
           </button>
 
-          <button type="submit" class="submit-btn" :disabled="loading || !canSubmit">
-            {{ loading ? 'Criando…' : createMode === 'json' ? 'Criar via JSON' : 'Criar oportunidade' }}
+          <button type="submit" class="submit-btn" :disabled="loading || uploadingCover || !canSubmit">
+            {{
+              uploadingCover
+                ? 'Enviando imagem…'
+                : loading
+                  ? 'Criando…'
+                  : createMode === 'json'
+                    ? 'Criar via JSON'
+                    : 'Criar oportunidade'
+            }}
           </button>
         </div>
       </form>
@@ -799,7 +963,8 @@ async function submit() {
 }
 
 .field span,
-.form-section h2 {
+.form-section h2,
+.upload-card-header span {
   font-weight: 800;
   color: #292524;
   font-size: 13px;
@@ -839,6 +1004,115 @@ textarea:focus {
 
 .checkbox-field input {
   width: auto;
+}
+
+.upload-card {
+  border: 1px solid #e7e5e4;
+  border-radius: 18px;
+  background: #fafaf9;
+  padding: 16px;
+}
+
+.upload-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.upload-card-header p {
+  margin: 4px 0 0;
+  color: #78716c;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.cover-dropzone {
+  position: relative;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 14px;
+  align-items: center;
+  min-height: 140px;
+  padding: 12px;
+  border: 1.5px dashed #a7f3d0;
+  border-radius: 16px;
+  background: #ecfdf5;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, opacity .15s;
+}
+
+.cover-dropzone:hover {
+  border-color: #10b981;
+  background: #d1fae5;
+}
+
+.cover-dropzone.is-uploading {
+  cursor: wait;
+  opacity: .75;
+}
+
+.cover-dropzone:not(.has-preview) {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+}
+
+.file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-input:disabled {
+  cursor: wait;
+}
+
+.cover-preview {
+  height: 120px;
+  border-radius: 13px;
+  overflow: hidden;
+  background: #e7e5e4;
+  border: 1px solid #d6d3d1;
+}
+
+.cover-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-dropzone-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #065f46;
+}
+
+.cover-dropzone-text strong {
+  font-size: 14px;
+}
+
+.cover-dropzone-text small {
+  color: #047857;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.upload-status {
+  margin: 10px 0 0;
+  color: #047857;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.danger-btn {
+  color: #991b1b;
+  border-color: #fecaca;
+  background: #fef2f2;
 }
 
 .form-section {
@@ -897,9 +1171,13 @@ textarea:focus {
 
 .timeline-row {
   display: grid;
-  grid-template-columns: 1fr 160px 1fr 125px 38px;
+  grid-template-columns: 190px 1fr 160px 1fr 125px 38px;
   gap: 8px;
   align-items: center;
+}
+
+.timeline-kind-select {
+  min-width: 0;
 }
 
 .timeline-row button {
@@ -1051,7 +1329,8 @@ textarea:focus {
   .mode-panel,
   .section-title-row,
   .actions,
-  .json-shortcut {
+  .json-shortcut,
+  .upload-card-header {
     flex-direction: column;
     align-items: stretch;
   }
@@ -1065,7 +1344,8 @@ textarea:focus {
   }
 
   .section-grid,
-  .timeline-row {
+  .timeline-row,
+  .cover-dropzone {
     grid-template-columns: 1fr;
   }
 
@@ -1083,6 +1363,10 @@ textarea:focus {
 
   .json-actions .small-btn {
     width: 100%;
+  }
+
+  .cover-preview {
+    height: 180px;
   }
 }
 </style>

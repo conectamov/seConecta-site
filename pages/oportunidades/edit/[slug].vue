@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Editar oportunidade — seConecta' })
@@ -7,6 +7,7 @@ useSeoMeta({ title: 'Editar oportunidade — seConecta' })
 const route = useRoute()
 const router = useRouter()
 const { get, patch, post, del } = useAxios()
+const { uploadImage, validateImageFile } = useImageUpload()
 const { currentUser } = useAuth()
 
 const CATEGORIES = [
@@ -20,6 +21,17 @@ const CATEGORIES = [
   { value: 'SUMMER_PROGRAM', label: 'Programa de verão' },
   { value: 'WORKSHOP', label: 'Workshop' },
   { value: 'POST', label: 'Post' },
+]
+
+const TIMELINE_KIND_OPTIONS = [
+  { value: '', label: 'Tipo não definido' },
+  { value: 'registration_start', label: 'Início das inscrições' },
+  { value: 'registration_deadline', label: 'Prazo de inscrição' },
+  { value: 'exam', label: 'Prova' },
+  { value: 'phase', label: 'Fase' },
+  { value: 'result', label: 'Resultado' },
+  { value: 'submission_deadline', label: 'Prazo de envio' },
+  { value: 'other', label: 'Outro evento' },
 ]
 
 const STATUS_OPTIONS = ['OPEN', 'SOON', 'ONGOING', 'CLOSED']
@@ -73,6 +85,7 @@ const fullJsonSchemaTemplate = {
   next_deadline: null,
   timeline: [
     {
+      kind: null,
       label: '',
       date: null,
       details: null,
@@ -115,6 +128,7 @@ const canUseAdminActions = computed(() => isSuperuser.value || isManager.value)
 
 const loading = ref(true)
 const saving = ref(false)
+const uploadingCover = ref(false)
 const enhancing = ref(false)
 const deleting = ref(false)
 const showDeleteModal = ref(false)
@@ -124,6 +138,9 @@ const activeTab = ref<'write' | 'json' | 'preview'>('write')
 const activeGuide = ref<number | null>(0)
 const loadedOpportunity = ref<any | null>(null)
 const tagInput = ref('')
+const coverUploadStatus = ref<string | null>(null)
+const localCoverPreviewUrl = ref<string | null>(null)
+const coverFileInput = ref<HTMLInputElement | null>(null)
 
 const fullJsonMode = ref(false)
 const fullJsonText = ref('')
@@ -144,8 +161,23 @@ const form = reactive({
   priority: 0,
   keywords: '',
   tags: [] as string[],
-  timeline: [] as Array<{ label: string; date: string; details: string; show_on_calendar: boolean }>,
+  timeline: [] as Array<{ kind: string; label: string; date: string; details: string; show_on_calendar: boolean }>,
   categoryDataJson: JSON.stringify(categoryDataTemplate, null, 2),
+})
+
+const coverPreviewUrl = computed(() => {
+  return localCoverPreviewUrl.value || form.cover_url || ''
+})
+
+function revokeLocalCoverPreview() {
+  if (localCoverPreviewUrl.value) {
+    URL.revokeObjectURL(localCoverPreviewUrl.value)
+    localCoverPreviewUrl.value = null
+  }
+}
+
+onBeforeUnmount(() => {
+  revokeLocalCoverPreview()
 })
 
 const parsedCategoryData = computed(() => {
@@ -188,12 +220,13 @@ const wordCount = computed(() => form.description.trim().split(/\s+/).filter(Boo
 const hasValidId = computed(() => opportunityId.value !== null)
 
 const canSave = computed(() => {
+  if (saving.value || uploadingCover.value) return false
+
   if (fullJsonMode.value) {
     return Boolean(
       hasValidId.value &&
       parsedFullJson.value !== null &&
-      fullJsonRequiredOk.value &&
-      !errors.value.full_json,
+      fullJsonRequiredOk.value,
     )
   }
 
@@ -201,8 +234,7 @@ const canSave = computed(() => {
     hasValidId.value &&
     form.title.trim() &&
     form.description.trim() &&
-    parsedCategoryData.value !== null &&
-    !Object.keys(errors.value).length,
+    parsedCategoryData.value !== null,
   )
 })
 
@@ -231,6 +263,7 @@ function normalizeTimeline(value: any) {
   if (!Array.isArray(value)) return []
 
   return value.map(item => ({
+    kind: typeof item?.kind === 'string' ? item.kind : '',
     label: item?.label || item?.details || item?.title || item?.name || 'Evento',
     date: normalizeDate(item?.date),
     details: item?.details || item?.description || '',
@@ -262,6 +295,71 @@ function removeTag(tag: string) {
   form.tags = form.tags.filter(t => t !== tag)
 }
 
+function syncCoverUrlToFullJson(url: string | null) {
+  try {
+    const parsed = JSON.parse(fullJsonText.value || '{}')
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return
+
+    parsed.cover_url = url || null
+    fullJsonText.value = JSON.stringify(parsed, null, 2)
+  } catch {
+    // Se o JSON completo estiver inválido, não sincroniza para não apagar o trabalho manual.
+  }
+}
+
+async function handleCoverFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+
+  if (!file) return
+
+  error.value = null
+  success.value = null
+  coverUploadStatus.value = null
+  delete errors.value.cover_url
+  delete errors.value.full_json
+
+  try {
+    validateImageFile(file)
+
+    revokeLocalCoverPreview()
+    localCoverPreviewUrl.value = URL.createObjectURL(file)
+
+    uploadingCover.value = true
+    coverUploadStatus.value = 'Enviando imagem para o Cloudinary…'
+
+    const uploadedUrl = await uploadImage(file)
+
+    form.cover_url = uploadedUrl
+    syncCoverUrlToFullJson(uploadedUrl)
+
+    revokeLocalCoverPreview()
+    coverUploadStatus.value = 'Imagem enviada. A capa foi atualizada com uma URL do Cloudinary.'
+  } catch (e: any) {
+    revokeLocalCoverPreview()
+    errors.value.cover_url = e?.message || 'Erro ao enviar imagem.'
+    error.value = errors.value.cover_url
+    coverUploadStatus.value = null
+  } finally {
+    uploadingCover.value = false
+
+    if (input) input.value = ''
+  }
+}
+
+function clearCoverImage() {
+  revokeLocalCoverPreview()
+  form.cover_url = ''
+  coverUploadStatus.value = null
+  delete errors.value.cover_url
+  syncCoverUrlToFullJson(null)
+
+  if (coverFileInput.value) {
+    coverFileInput.value.value = ''
+  }
+}
+
 function onTagKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' || e.key === ',') {
     e.preventDefault()
@@ -277,6 +375,7 @@ function cleanTimeline() {
   return form.timeline
     .filter(item => item.label?.trim() || item.date || item.details?.trim())
     .map(item => ({
+      kind: item.kind?.trim() || null,
       label: item.label?.trim() || item.details?.trim() || 'Evento',
       date: item.date || null,
       details: item.details?.trim() || null,
@@ -291,6 +390,7 @@ function cleanFullTimeline(value: any) {
     .filter(item => item && typeof item === 'object')
     .filter(item => item.label || item.date || item.details)
     .map(item => ({
+      kind: typeof item.kind === 'string' && item.kind.trim() ? item.kind.trim() : null,
       label: String(item.label || item.details || 'Evento').trim(),
       date: item.date || null,
       details: item.details ? String(item.details).trim() : null,
@@ -299,7 +399,7 @@ function cleanFullTimeline(value: any) {
 }
 
 function addTimelineItem() {
-  form.timeline.push({ label: '', date: '', details: '', show_on_calendar: false })
+  form.timeline.push({ kind: '', label: '', date: '', details: '', show_on_calendar: false })
 }
 
 function removeTimelineItem(index: number) {
@@ -418,6 +518,7 @@ function buildFullJsonFromOpportunity(data: any) {
     priority: typeof data.priority === 'number' ? data.priority : 0,
     next_deadline: data.next_deadline || null,
     timeline: normalizeTimeline(data.timeline).map(item => ({
+      kind: item.kind || null,
       label: item.label || 'Evento',
       date: item.date || null,
       details: item.details || null,
@@ -543,10 +644,6 @@ function validateFullJson() {
     errors.value.full_json = 'category_data precisa ser um objeto JSON.'
   }
 
-  if (payload.cover_url && !/^https?:\/\/.+/.test(String(payload.cover_url))) {
-    errors.value.full_json = 'cover_url precisa começar com http:// ou https://.'
-  }
-
   if (payload.official_site_url && !/^https?:\/\/.+/.test(String(payload.official_site_url))) {
     errors.value.full_json = 'official_site_url precisa começar com http:// ou https://.'
   }
@@ -591,9 +688,6 @@ function validate() {
     errors.value.description = 'A descrição é obrigatória.'
   }
 
-  if (form.cover_url.trim() && !/^https?:\/\/.+/.test(form.cover_url.trim())) {
-    errors.value.cover_url = 'URL de capa inválida.'
-  }
 
   if (form.official_site_url.trim() && !/^https?:\/\/.+/.test(form.official_site_url.trim())) {
     errors.value.official_site_url = 'URL do site oficial inválida.'
@@ -724,6 +818,11 @@ function buildPayload() {
 async function save() {
   error.value = null
   success.value = null
+
+  if (uploadingCover.value) {
+    error.value = 'Aguarde o envio da imagem terminar.'
+    return
+  }
 
   if (!validate()) {
     error.value = Object.values(errors.value)[0] || 'Revise os campos antes de salvar.'
@@ -926,9 +1025,9 @@ onMounted(fetchOpportunity)
             <button
               type="submit"
               class="submit-btn"
-              :disabled="saving || !canSave"
+              :disabled="saving || uploadingCover || !canSave"
             >
-              {{ saving ? 'Salvando…' : 'Salvar' }}
+              {{ uploadingCover ? 'Enviando imagem…' : saving ? 'Salvando…' : 'Salvar' }}
             </button>
           </div>
         </header>
@@ -1027,23 +1126,66 @@ onMounted(fetchOpportunity)
             <div class="section-title-row">
               <div>
                 <h2>Links e mídia</h2>
-                <p>Use URLs completas começando com https://.</p>
               </div>
             </div>
 
-            <div class="grid-two">
-              <label class="field">
-                <span>Imagem de capa</span>
-                <input v-model="form.cover_url" placeholder="https://…" />
-                <p v-if="errors.cover_url" class="field-error">{{ errors.cover_url }}</p>
+            <section class="upload-card">
+              <div class="upload-card-header">
+                <div>
+                  <span>Imagem de capa</span>
+                  <p>Upload opcional por Cloudinary. No formulário visual não há campo para colar link manualmente.</p>
+                </div>
+
+                <button
+                  v-if="form.cover_url || coverPreviewUrl"
+                  type="button"
+                  class="small-btn small-btn--danger"
+                  :disabled="uploadingCover"
+                  @click="clearCoverImage"
+                >
+                  Remover capa
+                </button>
+              </div>
+
+              <label
+                class="cover-dropzone"
+                :class="{ 'is-uploading': uploadingCover, 'has-preview': Boolean(coverPreviewUrl) }"
+              >
+                <input
+                  ref="coverFileInput"
+                  class="file-input"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  :disabled="uploadingCover"
+                  @change="handleCoverFileChange"
+                />
+
+                <div v-if="coverPreviewUrl" class="cover-preview">
+                  <img :src="coverPreviewUrl" alt="Prévia da capa da oportunidade" />
+                </div>
+
+                <div class="cover-dropzone-text">
+                  <strong>
+                    {{ uploadingCover ? 'Enviando imagem…' : coverPreviewUrl ? 'Trocar imagem' : 'Clique para escolher uma imagem' }}
+                  </strong>
+                  <small>Máximo 5MB · JPG, PNG ou WEBP · opcional</small>
+                </div>
               </label>
 
-              <label class="field">
-                <span>Site oficial</span>
-                <input v-model="form.official_site_url" placeholder="https://…" />
-                <p v-if="errors.official_site_url" class="field-error">{{ errors.official_site_url }}</p>
-              </label>
-            </div>
+              <div v-if="form.cover_url" class="cloudinary-url-preview">
+                <span>URL da capa salva</span>
+                <code>{{ form.cover_url }}</code>
+              </div>
+
+              <p v-if="coverUploadStatus" class="upload-status">{{ coverUploadStatus }}</p>
+              <p v-if="errors.cover_url" class="field-error">{{ errors.cover_url }}</p>
+            </section>
+
+            <label class="field official-url-field">
+              <span>Site oficial</span>
+              <input v-model="form.official_site_url" placeholder="https://…" />
+              <p v-if="errors.official_site_url" class="field-error">{{ errors.official_site_url }}</p>
+            </label>
           </section>
 
           <section class="form-section">
@@ -1087,6 +1229,11 @@ onMounted(fetchOpportunity)
 
             <div class="timeline-editor">
               <div v-for="(item, idx) in form.timeline" :key="idx" class="timeline-row">
+                <select v-model="item.kind" class="timeline-kind-select">
+                  <option v-for="option in TIMELINE_KIND_OPTIONS" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
                 <input v-model="item.label" placeholder="Nome da etapa" />
                 <input v-model="item.date" type="date" />
                 <input v-model="item.details" placeholder="Detalhes" />
@@ -1169,7 +1316,6 @@ onMounted(fetchOpportunity)
           <div class="full-json-warning">
             <strong>Modo avançado.</strong>
             Aqui você consegue editar tudo: conteúdo, links, cronograma, publicação, prioridade, tags e <code>category_data</code>.
-            Antes de salvar, confira se o JSON continua válido.
           </div>
 
           <textarea
@@ -1491,6 +1637,148 @@ onMounted(fetchOpportunity)
   padding-left: 0;
 }
 
+.upload-card {
+  border: 1px solid #e8e4dc;
+  border-radius: 16px;
+  background: #fafaf9;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.upload-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.upload-card-header span {
+  color: #555;
+  font-size: .78rem;
+  font-weight: 850;
+}
+
+.upload-card-header p {
+  margin: 4px 0 0;
+  color: #999;
+  font-size: .78rem;
+  line-height: 1.5;
+}
+
+.cover-dropzone {
+  position: relative;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 14px;
+  align-items: center;
+  min-height: 148px;
+  padding: 12px;
+  border: 1.5px dashed #a7f3d0;
+  border-radius: 15px;
+  background: #ecfdf5;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, opacity .15s;
+}
+
+.cover-dropzone:hover {
+  border-color: #079272;
+  background: #d1fae5;
+}
+
+.cover-dropzone.is-uploading {
+  cursor: wait;
+  opacity: .75;
+}
+
+.cover-dropzone:not(.has-preview) {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+}
+
+.file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-input:disabled {
+  cursor: wait;
+}
+
+.cover-preview {
+  height: 124px;
+  border-radius: 13px;
+  overflow: hidden;
+  background: #e8e4dc;
+  border: 1px solid #d6d3d1;
+}
+
+.cover-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-dropzone-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #065f46;
+}
+
+.cover-dropzone-text strong {
+  font-size: .88rem;
+}
+
+.cover-dropzone-text small {
+  color: #047857;
+  font-size: .74rem;
+  font-weight: 800;
+}
+
+.cloudinary-url-preview {
+  margin-top: 12px;
+  padding: 10px 11px;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cloudinary-url-preview span {
+  color: #999;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.cloudinary-url-preview code {
+  color: #047857;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-status {
+  margin: 10px 0 0;
+  color: #047857;
+  font-size: .76rem;
+  font-weight: 850;
+}
+
+.official-url-field {
+  margin-bottom: 0;
+}
+
 .form-section {
   padding: 24px 26px 0;
 }
@@ -1658,9 +1946,13 @@ textarea:focus {
 
 .timeline-row {
   display: grid;
-  grid-template-columns: 1fr 150px 1fr 126px 38px;
+  grid-template-columns: 190px 1fr 150px 1fr 126px 38px;
   gap: 8px;
   align-items: center;
+}
+
+.timeline-kind-select {
+  min-width: 0;
 }
 
 .timeline-row button {
@@ -1961,14 +2253,16 @@ button:disabled {
   .editor-header,
   .header-actions,
   .section-title-row,
-  .actions {
+  .actions,
+  .upload-card-header {
     flex-direction: column;
     align-items: stretch;
   }
 
   .grid-two,
   .preview-grid,
-  .timeline-row {
+  .timeline-row,
+  .cover-dropzone {
     grid-template-columns: 1fr;
   }
 
@@ -1987,6 +2281,10 @@ button:disabled {
 
   .json-area--full {
     min-height: 520px;
+  }
+
+  .cover-preview {
+    height: 180px;
   }
 }
 </style>

@@ -649,7 +649,9 @@ const _inlineRuntimeConfig = {
     }
   },
   "public": {
-    "apiBase": "https://api.seconecta.org/api/v1"
+    "apiBase": "https://api.seconecta.org/api/v1",
+    "cloudinaryCloudName": "dq3q6xj5a",
+    "cloudinaryUploadPreset": "seconecta_site"
   }
 };
 const envOptions = {

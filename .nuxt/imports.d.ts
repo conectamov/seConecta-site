@@ -32,6 +32,7 @@ export { definePageMeta } from '../node_modules/nuxt/dist/pages/runtime/composab
 export { defineLazyHydrationComponent } from '#app/composables/lazy-hydration';
 export { useAuth } from '../composables/useAuth';
 export { useAxios } from '../composables/useAxios';
+export { useImageUpload } from '../composables/useImageUpload';
 export { useNotifications } from '../composables/useNotifications';
 export { useUserCache } from '../composables/useUserCache';
 export { defineStore, acceptHMRUpdate, usePinia, storeToRefs } from '../node_modules/@pinia/nuxt/dist/runtime/composables';
