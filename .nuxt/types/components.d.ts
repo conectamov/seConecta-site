@@ -16,7 +16,13 @@ type LazyComponent<T> = DefineComponent<HydrationStrategies, {}, {}, {}, {}, {},
 interface _GlobalComponents {
   BetaTesterCard: typeof import("../../components/BetaTesterCard.vue")['default']
   LayoutAppShell: typeof import("../../components/LayoutAppShell.vue")['default']
+  OpportunityDetailsModal: typeof import("../../components/OpportunityDetailsModal.vue")['default']
+  OpportunityRadarCalendarPanel: typeof import("../../components/OpportunityRadarCalendarPanel.vue")['default']
   TeamMember: typeof import("../../components/TeamMember.vue")['default']
+  UserCalendarEventModal: typeof import("../../components/UserCalendarEventModal.vue")['default']
+  UserCalendarEventViewModal: typeof import("../../components/UserCalendarEventViewModal.vue")['default']
+  UserCalendarOpportunityPickerModal: typeof import("../../components/UserCalendarOpportunityPickerModal.vue")['default']
+  UserCalendarSettingsModal: typeof import("../../components/UserCalendarSettingsModal.vue")['default']
   UserPreferencesOnboardingModal: typeof import("../../components/UserPreferencesOnboardingModal.vue")['default']
   UserPreferencesSidebarReminder: typeof import("../../components/UserPreferencesSidebarReminder.vue")['default']
   FeedCommentItem: typeof import("../../components/feed/CommentItem.vue")['default']
@@ -63,7 +69,13 @@ interface _GlobalComponents {
   NuxtIsland: typeof import("../../node_modules/nuxt/dist/app/components/nuxt-island")['default']
   LazyBetaTesterCard: LazyComponent<typeof import("../../components/BetaTesterCard.vue")['default']>
   LazyLayoutAppShell: LazyComponent<typeof import("../../components/LayoutAppShell.vue")['default']>
+  LazyOpportunityDetailsModal: LazyComponent<typeof import("../../components/OpportunityDetailsModal.vue")['default']>
+  LazyOpportunityRadarCalendarPanel: LazyComponent<typeof import("../../components/OpportunityRadarCalendarPanel.vue")['default']>
   LazyTeamMember: LazyComponent<typeof import("../../components/TeamMember.vue")['default']>
+  LazyUserCalendarEventModal: LazyComponent<typeof import("../../components/UserCalendarEventModal.vue")['default']>
+  LazyUserCalendarEventViewModal: LazyComponent<typeof import("../../components/UserCalendarEventViewModal.vue")['default']>
+  LazyUserCalendarOpportunityPickerModal: LazyComponent<typeof import("../../components/UserCalendarOpportunityPickerModal.vue")['default']>
+  LazyUserCalendarSettingsModal: LazyComponent<typeof import("../../components/UserCalendarSettingsModal.vue")['default']>
   LazyUserPreferencesOnboardingModal: LazyComponent<typeof import("../../components/UserPreferencesOnboardingModal.vue")['default']>
   LazyUserPreferencesSidebarReminder: LazyComponent<typeof import("../../components/UserPreferencesSidebarReminder.vue")['default']>
   LazyFeedCommentItem: LazyComponent<typeof import("../../components/feed/CommentItem.vue")['default']>

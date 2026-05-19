@@ -16,7 +16,13 @@ type LazyComponent<T> = DefineComponent<HydrationStrategies, {}, {}, {}, {}, {},
 
 export const BetaTesterCard: typeof import("../components/BetaTesterCard.vue")['default']
 export const LayoutAppShell: typeof import("../components/LayoutAppShell.vue")['default']
+export const OpportunityDetailsModal: typeof import("../components/OpportunityDetailsModal.vue")['default']
+export const OpportunityRadarCalendarPanel: typeof import("../components/OpportunityRadarCalendarPanel.vue")['default']
 export const TeamMember: typeof import("../components/TeamMember.vue")['default']
+export const UserCalendarEventModal: typeof import("../components/UserCalendarEventModal.vue")['default']
+export const UserCalendarEventViewModal: typeof import("../components/UserCalendarEventViewModal.vue")['default']
+export const UserCalendarOpportunityPickerModal: typeof import("../components/UserCalendarOpportunityPickerModal.vue")['default']
+export const UserCalendarSettingsModal: typeof import("../components/UserCalendarSettingsModal.vue")['default']
 export const UserPreferencesOnboardingModal: typeof import("../components/UserPreferencesOnboardingModal.vue")['default']
 export const UserPreferencesSidebarReminder: typeof import("../components/UserPreferencesSidebarReminder.vue")['default']
 export const FeedCommentItem: typeof import("../components/feed/CommentItem.vue")['default']
@@ -63,7 +69,13 @@ export const Body: typeof import("../node_modules/nuxt/dist/head/runtime/compone
 export const NuxtIsland: typeof import("../node_modules/nuxt/dist/app/components/nuxt-island")['default']
 export const LazyBetaTesterCard: LazyComponent<typeof import("../components/BetaTesterCard.vue")['default']>
 export const LazyLayoutAppShell: LazyComponent<typeof import("../components/LayoutAppShell.vue")['default']>
+export const LazyOpportunityDetailsModal: LazyComponent<typeof import("../components/OpportunityDetailsModal.vue")['default']>
+export const LazyOpportunityRadarCalendarPanel: LazyComponent<typeof import("../components/OpportunityRadarCalendarPanel.vue")['default']>
 export const LazyTeamMember: LazyComponent<typeof import("../components/TeamMember.vue")['default']>
+export const LazyUserCalendarEventModal: LazyComponent<typeof import("../components/UserCalendarEventModal.vue")['default']>
+export const LazyUserCalendarEventViewModal: LazyComponent<typeof import("../components/UserCalendarEventViewModal.vue")['default']>
+export const LazyUserCalendarOpportunityPickerModal: LazyComponent<typeof import("../components/UserCalendarOpportunityPickerModal.vue")['default']>
+export const LazyUserCalendarSettingsModal: LazyComponent<typeof import("../components/UserCalendarSettingsModal.vue")['default']>
 export const LazyUserPreferencesOnboardingModal: LazyComponent<typeof import("../components/UserPreferencesOnboardingModal.vue")['default']>
 export const LazyUserPreferencesSidebarReminder: LazyComponent<typeof import("../components/UserPreferencesSidebarReminder.vue")['default']>
 export const LazyFeedCommentItem: LazyComponent<typeof import("../components/feed/CommentItem.vue")['default']>

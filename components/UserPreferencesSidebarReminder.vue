@@ -1,6 +1,10 @@
 <script setup lang="ts">
 const SNOOZE_KEY = 'seconecta_preferences_onboarding_snoozed_until'
 
+const emit = defineEmits<{
+  'visible-change': [visible: boolean]
+}>()
+
 const { currentUser, authReady } = useAuth()
 
 const mounted = ref(false)
@@ -19,18 +23,18 @@ const shouldShowReminder = computed(() => {
 })
 
 const snoozeText = computed(() => {
-  if (!snoozedUntil.value) return 'Complete quando quiser.'
+  if (!snoozedUntil.value) return 'Configurar'
 
   const diff = snoozedUntil.value - Date.now()
 
-  if (diff <= 0) return 'Complete quando quiser.'
+  if (diff <= 0) return 'Configurar'
 
   const hours = Math.ceil(diff / (60 * 60 * 1000))
 
-  if (hours < 24) return `Lembro de novo em ~${hours}h.`
+  if (hours < 24) return `~${hours}h`
 
   const days = Math.ceil(hours / 24)
-  return `Lembro de novo em ~${days} dias.`
+  return `~${days}d`
 })
 
 function readSnooze() {
@@ -61,6 +65,14 @@ function handleCleared() {
   snoozedUntil.value = null
 }
 
+watch(
+  shouldShowReminder,
+  (visible) => {
+    emit('visible-change', visible)
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
   mounted.value = true
   readSnooze()
@@ -73,6 +85,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (!import.meta.client) return
 
+  emit('visible-change', false)
+
   window.removeEventListener('user-preferences-onboarding-snoozed', handleSnoozed)
   window.removeEventListener('user-preferences-onboarding-cleared', handleCleared)
   window.removeEventListener('user-preferences-onboarding-completed', handleCleared)
@@ -80,80 +94,95 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section v-if="shouldShowReminder" class="preferences-reminder">
-    <div class="reminder-icon">✦</div>
+  <button
+    v-if="shouldShowReminder"
+    type="button"
+    class="preferences-warning"
+    @click="openPreferences"
+  >
+    <span class="warning-icon">!</span>
 
-    <div class="reminder-copy">
-      <p>Radar incompleto</p>
-      <strong>Personalize suas recomendações</strong>
-      <span>{{ snoozeText }}</span>
-    </div>
+    <span class="warning-copy">
+      <strong>Perfil incompleto</strong>
+      <small>Personalize recomendações</small>
+    </span>
 
-    <button type="button" class="reminder-button" @click="openPreferences">
-      Configurar
-    </button>
-  </section>
+  </button>
 </template>
 
 <style scoped>
-.preferences-reminder {
-  border: 1px solid #d9f4e8;
-  background: linear-gradient(135deg, #ecfdf5, #ffffff);
-  border-radius: 18px;
-  padding: 13px;
+.preferences-warning {
+  width: 100%;
+  border: 1px solid #fde68a;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  color: #78350f;
+  border-radius: 14px;
+  padding: 9px 10px;
   display: grid;
-  gap: 10px;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(245, 158, 11, .12);
+  transition:
+    transform .15s ease,
+    border-color .15s ease,
+    box-shadow .15s ease;
 }
 
-.reminder-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 12px;
-  background: #079272;
+.preferences-warning:hover {
+  transform: translateY(-1px);
+  border-color: #f59e0b;
+  box-shadow: 0 12px 26px rgba(245, 158, 11, .18);
+}
+
+.warning-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #f59e0b;
   color: white;
   display: grid;
   place-items: center;
-  font-weight: 950;
-}
-
-.reminder-copy {
-  min-width: 0;
-}
-
-.reminder-copy p {
-  margin: 0 0 6px;
-  color: #079272;
-  font-size: .66rem;
-  font-weight: 950;
-  letter-spacing: .09em;
-  text-transform: uppercase;
-}
-
-.reminder-copy strong {
-  display: block;
-  color: #111827;
-  font-size: .82rem;
-  line-height: 1.2;
-  letter-spacing: -.015em;
-}
-
-.reminder-copy span {
-  display: block;
-  margin-top: 5px;
-  color: #78716c;
-  font-size: .72rem;
-  line-height: 1.35;
-}
-
-.reminder-button {
-  width: 100%;
-  border: none;
-  border-radius: 12px;
-  padding: 9px 10px;
-  background: #0f172a;
-  color: white;
   font-size: .78rem;
   font-weight: 950;
-  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.warning-copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.warning-copy strong {
+  color: #78350f;
+  font-size: .74rem;
+  font-weight: 950;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.warning-copy small {
+  color: #92400e;
+  font-size: .66rem;
+  font-weight: 750;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.warning-action {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .72);
+  color: #92400e;
+  padding: 5px 7px;
+  font-size: .63rem;
+  font-weight: 950;
+  white-space: nowrap;
 }
 </style>

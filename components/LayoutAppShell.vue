@@ -3,17 +3,29 @@ const route = useRoute()
 const { currentUser, logout } = useAuth()
 
 const sidebarOpen = ref(false)
+const preferencesReminderVisible = ref(false)
+
+const userProfileType = computed(() => {
+  return String((currentUser.value as any)?.profile_type || '').toUpperCase()
+})
+
+const workspaceLabel = computed(() => {
+  if (userProfileType.value === 'MENTOR') return 'Painel de mentoria'
+  if (userProfileType.value === 'EDUCATOR') return 'Painel da comunidade'
+  if (userProfileType.value === 'ORGANIZATION') return 'Painel da comunidade'
+  return 'Jornada do estudante'
+})
 
 const mainLinks = [
   {
     label: 'Início',
     to: '/me',
-    icon: '⌂',
+    icon: '🏠',
   },
   {
     label: 'Oportunidades',
     to: '/oportunidades',
-    icon: '✦',
+    icon: '✨',
   },
   {
     label: 'Olimpíadas',
@@ -23,26 +35,26 @@ const mainLinks = [
   {
     label: 'Calendário',
     to: '/calendario',
-    icon: '◷',
+    icon: '📅',
   },
   {
     label: 'Feed',
     to: '/feed',
-    icon: '≡',
+    icon: '📰',
   },
 ]
 
 const secondaryLinks = [
   {
-    label: 'Meu plano',
+    label: 'Minha jornada',
     to: '/me/plano',
-    icon: '✓',
+    icon: '🧭',
     disabled: true,
   },
   {
     label: 'Salvas',
     to: '/me/salvas',
-    icon: '☆',
+    icon: '🔖',
     disabled: true,
   },
 ]
@@ -110,9 +122,9 @@ async function handleLogout() {
         <NuxtLink to="/me" class="brand-link" @click="closeMobileSidebar">
           <div class="brand-mark">s</div>
 
-          <div>
+          <div class="brand-copy">
             <strong>seConecta</strong>
-            <span>Painel do estudante</span>
+            <span>{{ workspaceLabel }}</span>
           </div>
         </NuxtLink>
 
@@ -126,7 +138,7 @@ async function handleLogout() {
         </button>
       </div>
 
-      <nav class="sidebar-nav">
+      <nav class="sidebar-nav" aria-label="Navegação principal">
         <NuxtLink
           v-for="link in mainLinks"
           :key="link.to"
@@ -142,7 +154,7 @@ async function handleLogout() {
 
       <div class="sidebar-divider" />
 
-      <nav class="sidebar-nav sidebar-nav--secondary">
+      <nav class="sidebar-nav sidebar-nav--secondary" aria-label="Área pessoal">
         <NuxtLink
           v-for="link in secondaryLinks"
           :key="link.label"
@@ -156,31 +168,46 @@ async function handleLogout() {
         >
           <span class="sidebar-link__icon">{{ link.icon }}</span>
 
-          <span>
+          <span class="sidebar-link__label">
             {{ link.label }}
             <small v-if="link.disabled">em breve</small>
           </span>
         </NuxtLink>
       </nav>
 
-      <section class="sidebar-card sidebar-card--saved">
+      <section
+        v-if="!preferencesReminderVisible"
+        class="sidebar-card sidebar-card--saved"
+      >
+        <div class="sidebar-card__icon">🔖</div>
+
         <div>
           <p>Salvas</p>
-          <strong>Monte seu plano</strong>
-          <span>Salve oportunidades para acompanhar prazos.</span>
+          <strong>Guarde oportunidades</strong>
+          <span>Acompanhe prazos e monte sua jornada.</span>
         </div>
       </section>
 
-      <UserPreferencesSidebarReminder />
-      <section class="sidebar-card sidebar-card--nexo">
+      <UserPreferencesSidebarReminder
+        @visible-change="preferencesReminderVisible = $event"
+      />
+
+      <section
+        class="sidebar-card sidebar-card--nexo"
+        :class="{ 'sidebar-card--compact': preferencesReminderVisible }"
+      >
+        <div class="sidebar-card__icon">🤖</div>
+
         <div>
           <p>Nexo</p>
           <strong>Precisa de direção?</strong>
-          <span>Peça uma recomendação rápida.</span>
+          <span v-if="!preferencesReminderVisible">
+            Peça uma recomendação rápida para seu momento.
+          </span>
         </div>
 
         <NuxtLink to="/nexo" class="nexo-button" @click="closeMobileSidebar">
-          Perguntar
+          Perguntar ao Nexo
         </NuxtLink>
       </section>
 
@@ -191,14 +218,14 @@ async function handleLogout() {
               v-if="currentUser?.profile_picture_url"
               :src="currentUser.profile_picture_url"
               :alt="userName"
-            />
+            >
 
             <span v-else>{{ userInitial }}</span>
           </div>
 
-          <div>
+          <div class="sidebar-user__copy">
             <strong>{{ userName }}</strong>
-            <span>Meu perfil</span>
+            <span>Ver perfil</span>
           </div>
         </NuxtLink>
 
@@ -206,6 +233,7 @@ async function handleLogout() {
           type="button"
           class="logout-button"
           title="Sair"
+          aria-label="Sair"
           @click="handleLogout"
         >
           ↗
@@ -217,6 +245,7 @@ async function handleLogout() {
       <slot />
     </main>
   </div>
+
   <UserPreferencesOnboardingModal />
 </template>
 
@@ -242,13 +271,28 @@ async function handleLogout() {
   height: 100vh;
   padding: 22px 16px;
   border-right: 1px solid #e8e4dc;
-  background: rgba(255, 255, 255, .86);
+  background: rgba(255, 255, 255, .88);
   backdrop-filter: blur(18px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   z-index: 50;
   box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.app-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-sidebar::-webkit-scrollbar-thumb {
+  background: #ddd6ce;
+  border-radius: 999px;
 }
 
 .app-content {
@@ -263,7 +307,8 @@ async function handleLogout() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 3px 4px 12px;
+  padding: 3px 4px 10px;
+  flex-shrink: 0;
 }
 
 .brand-link {
@@ -286,6 +331,11 @@ async function handleLogout() {
   font-weight: 950;
   font-size: 1.15rem;
   flex-shrink: 0;
+  box-shadow: 0 12px 28px rgba(7, 146, 114, .18);
+}
+
+.brand-copy {
+  min-width: 0;
 }
 
 .sidebar-brand strong {
@@ -293,13 +343,19 @@ async function handleLogout() {
   color: #111;
   font-size: .95rem;
   letter-spacing: -.025em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sidebar-brand span {
   display: block;
-  color: #999;
+  color: #888;
   font-size: .73rem;
   margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sidebar-close {
@@ -312,11 +368,13 @@ async function handleLogout() {
   border-radius: 999px;
   font-size: 1.2rem;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .sidebar-nav {
   display: grid;
   gap: 5px;
+  flex-shrink: 0;
 }
 
 .sidebar-link {
@@ -333,12 +391,16 @@ async function handleLogout() {
   cursor: pointer;
   text-align: left;
   text-decoration: none;
-  transition: background .15s ease, color .15s ease, transform .15s ease;
+  transition:
+    background .15s ease,
+    color .15s ease,
+    transform .15s ease;
 }
 
 .sidebar-link:hover {
   background: #f7f5f0;
   color: #111;
+  transform: translateX(1px);
 }
 
 .sidebar-link--active {
@@ -352,10 +414,16 @@ async function handleLogout() {
 }
 
 .sidebar-link__icon {
-  width: 22px;
+  width: 23px;
   color: currentColor;
-  opacity: .9;
+  opacity: .95;
   flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+}
+
+.sidebar-link__label {
+  min-width: 0;
 }
 
 .sidebar-link small {
@@ -371,23 +439,41 @@ async function handleLogout() {
   cursor: default;
 }
 
+.sidebar-link--disabled:hover {
+  transform: none;
+}
+
 .sidebar-divider {
   height: 1px;
   background: #f0ece8;
-  margin: 2px 4px;
+  margin: 1px 4px;
+  flex-shrink: 0;
 }
 
 .sidebar-card {
   border: 1px solid #e8e4dc;
   background: white;
   border-radius: 18px;
-  padding: 14px;
+  padding: 13px;
+  display: grid;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.sidebar-card__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 13px;
+  background: #f7f5f0;
+  display: grid;
+  place-items: center;
+  font-size: .98rem;
 }
 
 .sidebar-card p {
-  margin: 0 0 8px;
-  color: #aaa;
-  font-size: .68rem;
+  margin: 0 0 6px;
+  color: #9a948b;
+  font-size: .66rem;
   font-weight: 950;
   text-transform: uppercase;
   letter-spacing: .1em;
@@ -408,13 +494,34 @@ async function handleLogout() {
   line-height: 1.4;
 }
 
+.sidebar-card--saved {
+  background: linear-gradient(135deg, #ffffff, #fafaf9);
+}
+
+.sidebar-card--saved .sidebar-card__icon {
+  background: #fef3c7;
+}
+
 .sidebar-card--nexo {
   margin-top: auto;
   background: linear-gradient(135deg, #ecfdf5, #ffffff);
+  border-color: #d9f4e8;
+}
+
+.sidebar-card--nexo .sidebar-card__icon {
+  background: #d9f4e8;
+}
+
+.sidebar-card--compact {
+  padding: 11px 12px;
+  gap: 8px;
+}
+
+.sidebar-card--compact p {
+  margin-bottom: 5px;
 }
 
 .nexo-button {
-  margin-top: 13px;
   width: 100%;
   border-radius: 12px;
   padding: 10px 12px;
@@ -425,6 +532,18 @@ async function handleLogout() {
   text-decoration: none;
   display: grid;
   place-items: center;
+  transition:
+    background .15s ease,
+    transform .15s ease;
+}
+
+.nexo-button:hover {
+  background: #067f64;
+  transform: translateY(-1px);
+}
+
+.sidebar-card--compact .nexo-button {
+  padding: 8px 10px;
 }
 
 .sidebar-user {
@@ -435,6 +554,7 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .sidebar-user__profile {
@@ -445,6 +565,10 @@ async function handleLogout() {
   gap: 9px;
   color: inherit;
   text-decoration: none;
+}
+
+.sidebar-user__copy {
+  min-width: 0;
 }
 
 .user-avatar {
@@ -464,12 +588,6 @@ async function handleLogout() {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.user-avatar--small {
-  width: 30px;
-  height: 30px;
-  font-size: .78rem;
 }
 
 .sidebar-user strong {
@@ -497,6 +615,16 @@ async function handleLogout() {
   border-radius: 999px;
   cursor: pointer;
   flex-shrink: 0;
+  transition:
+    background .15s ease,
+    color .15s ease,
+    transform .15s ease;
+}
+
+.logout-button:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+  transform: translateY(-1px);
 }
 
 .mobile-sidebar-button {
@@ -515,6 +643,27 @@ async function handleLogout() {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+@media (max-height: 760px) and (min-width: 1101px) {
+  .app-sidebar {
+    gap: 11px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+
+  .sidebar-card {
+    padding: 11px;
+  }
+
+  .sidebar-card span {
+    font-size: .7rem;
+  }
+
+  .sidebar-link {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
 }
 
 @media (max-width: 1100px) {

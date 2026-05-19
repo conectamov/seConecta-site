@@ -32,6 +32,71 @@ const TIMELINE_KIND_OPTIONS = [
   { value: 'other', label: 'Outro evento' },
 ]
 
+const TARGET_SUBJECT_OPTIONS = [
+  'Matemática',
+  'Programação',
+  'IA e Dados',
+  'Física',
+  'Química',
+  'Biologia',
+  'Pesquisa',
+  'Humanidades',
+  'Língua e escrita',
+  'Liderança e impacto',
+  'Empreendedorismo',
+]
+
+const TARGET_GOAL_OPTIONS = [
+  'Treinar olimpíadas',
+  'Pesquisa',
+  'Preparação universitária',
+  'Desenvolver habilidades',
+  'Explorar carreira',
+  'Mentoria/networking',
+  'Impacto social',
+]
+
+const EDUCATION_LEVEL_OPTIONS = [
+  'Fundamental II',
+  '1º ano EM',
+  '2º ano EM',
+  '3º ano EM',
+  'Gap year',
+  'Graduação',
+]
+
+const EXPERIENCE_LEVEL_OPTIONS = [
+  'Explorando',
+  'Iniciante',
+  'Intermediário',
+  'Avançado',
+  'Competitivo',
+]
+
+const COMPETITIVENESS_OPTIONS = [
+  'Baixa',
+  'Média',
+  'Alta',
+  'Elite',
+]
+
+const PREPARATION_HORIZON_OPTIONS = [
+  'Sem preparo prévio',
+  'Dias',
+  'Semanas',
+  'Meses',
+  '1 ano ou mais',
+]
+
+const RECURRENCE_TYPE_OPTIONS = [
+  'Evento único',
+  'Anual',
+  'Semestral',
+  'Mensal',
+  'Contínua/rolling',
+  'Não sei',
+]
+
 const defaultCategoryData = {
   organizer: null,
   target_audience: null,
@@ -82,6 +147,14 @@ const defaultFullOpportunityPayload = {
   category_data: defaultCategoryData,
   keywords: '',
   tags: [],
+  target_subjects: [],
+  target_goals: [],
+  target_education_levels: [],
+  recommended_experience_levels: [],
+  competitiveness_level: [],
+  preparation_horizon: [],
+  recurrence_type: [],
+  recommendation_notes: null,
 }
 
 const createMode = ref<CreateMode>('form')
@@ -98,6 +171,14 @@ const form = reactive({
   is_free: false,
   keywords: '',
   tagsInput: '',
+  target_subjects: [] as string[],
+  target_goals: [] as string[],
+  target_education_levels: [] as string[],
+  recommended_experience_levels: [] as string[],
+  competitiveness_level: [] as string[],
+  preparation_horizon: [] as string[],
+  recurrence_type: [] as string[],
+  recommendation_notes: '',
   timeline: [
     { kind: 'registration_deadline', label: 'Prazo final', date: '', details: '', show_on_calendar: true },
   ],
@@ -191,6 +272,27 @@ const fullJsonValidationError = computed(() => {
     return 'tags precisa ser uma lista ou uma string separada por vírgulas.'
   }
 
+  const listFields = [
+    'target_subjects',
+    'target_goals',
+    'target_education_levels',
+    'recommended_experience_levels',
+    'competitiveness_level',
+    'preparation_horizon',
+    'recurrence_type',
+  ]
+
+  for (const field of listFields) {
+    if (
+      field in payload &&
+      payload[field] !== null &&
+      !Array.isArray(payload[field]) &&
+      typeof payload[field] !== 'string'
+    ) {
+      return `${field} precisa ser uma lista ou uma string separada por vírgulas.`
+    }
+  }
+
   return null
 })
 
@@ -214,6 +316,48 @@ function parseTags(input: string) {
     .split(',')
     .map(tag => tag.trim())
     .filter(Boolean)
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map(item => String(item).trim())
+      .filter(Boolean)
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map(item => String(item).trim())
+          .filter(Boolean)
+      }
+    } catch {}
+
+    return value
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+  }
+
+  return []
+}
+
+function toggleArrayValue(list: string[], value: string) {
+  const index = list.indexOf(value)
+
+  if (index >= 0) {
+    list.splice(index, 1)
+    return
+  }
+
+  list.push(value)
+}
+
+function isSelected(list: string[], value: string) {
+  return list.includes(value)
 }
 
 function cleanTimeline() {
@@ -331,6 +475,14 @@ function buildGuidedPayload() {
     category_data: parsedCategoryData.value || {},
     keywords: form.keywords.trim() || null,
     tags: parseTags(form.tagsInput),
+    target_subjects: [...form.target_subjects],
+    target_goals: [...form.target_goals],
+    target_education_levels: [...form.target_education_levels],
+    recommended_experience_levels: [...form.recommended_experience_levels],
+    competitiveness_level: [...form.competitiveness_level],
+    preparation_horizon: [...form.preparation_horizon],
+    recurrence_type: [...form.recurrence_type],
+    recommendation_notes: form.recommendation_notes.trim() || null,
   }
 }
 
@@ -395,6 +547,17 @@ function normalizeFullOpportunityPayload(raw: Record<string, any>) {
   } else {
     payload.tags = []
   }
+
+  payload.target_subjects = normalizeStringList(payload.target_subjects)
+  payload.target_goals = normalizeStringList(payload.target_goals)
+  payload.target_education_levels = normalizeStringList(payload.target_education_levels)
+  payload.recommended_experience_levels = normalizeStringList(payload.recommended_experience_levels)
+  payload.competitiveness_level = normalizeStringList(payload.competitiveness_level)
+  payload.preparation_horizon = normalizeStringList(payload.preparation_horizon)
+  payload.recurrence_type = normalizeStringList(payload.recurrence_type)
+  payload.recommendation_notes = typeof payload.recommendation_notes === 'string'
+    ? payload.recommendation_notes.trim() || null
+    : payload.recommendation_notes ?? null
 
   if (payload.next_deadline === '') {
     payload.next_deadline = null
@@ -487,6 +650,15 @@ function applyJsonToForm() {
   form.tagsInput = Array.isArray(payload.tags)
     ? payload.tags.join(', ')
     : String(payload.tags || '')
+
+  form.target_subjects = normalizeStringList(payload.target_subjects)
+  form.target_goals = normalizeStringList(payload.target_goals)
+  form.target_education_levels = normalizeStringList(payload.target_education_levels)
+  form.recommended_experience_levels = normalizeStringList(payload.recommended_experience_levels)
+  form.competitiveness_level = normalizeStringList(payload.competitiveness_level)
+  form.preparation_horizon = normalizeStringList(payload.preparation_horizon)
+  form.recurrence_type = normalizeStringList(payload.recurrence_type)
+  form.recommendation_notes = String(payload.recommendation_notes || '')
 
   form.timeline = Array.isArray(payload.timeline) && payload.timeline.length
     ? payload.timeline
@@ -708,6 +880,138 @@ async function submit() {
             </label>
           </section>
 
+          <section class="form-section recommendation-section">
+            <div class="section-title-row">
+              <div>
+                <h2>Perfil recomendado</h2>
+                <p>Esses campos alimentam o algoritmo de recomendação personalizada. Marque apenas o que realmente representa a oportunidade.</p>
+              </div>
+            </div>
+
+            <div class="recommendation-field">
+              <span>Áreas relacionadas</span>
+              <div class="choice-grid">
+                <button
+                  v-for="option in TARGET_SUBJECT_OPTIONS"
+                  :key="option"
+                  type="button"
+                  class="choice-chip"
+                  :class="{ 'choice-chip--active': isSelected(form.target_subjects, option) }"
+                  @click="toggleArrayValue(form.target_subjects, option)"
+                >
+                  {{ option }}
+                </button>
+              </div>
+            </div>
+
+            <div class="recommendation-field">
+              <span>Boa para objetivos</span>
+              <div class="choice-grid">
+                <button
+                  v-for="option in TARGET_GOAL_OPTIONS"
+                  :key="option"
+                  type="button"
+                  class="choice-chip"
+                  :class="{ 'choice-chip--active': isSelected(form.target_goals, option) }"
+                  @click="toggleArrayValue(form.target_goals, option)"
+                >
+                  {{ option }}
+                </button>
+              </div>
+            </div>
+
+            <div class="recommendation-grid">
+              <div class="recommendation-field">
+                <span>Nível escolar sugerido</span>
+                <div class="choice-grid choice-grid--compact">
+                  <button
+                    v-for="option in EDUCATION_LEVEL_OPTIONS"
+                    :key="option"
+                    type="button"
+                    class="choice-chip"
+                    :class="{ 'choice-chip--active': isSelected(form.target_education_levels, option) }"
+                    @click="toggleArrayValue(form.target_education_levels, option)"
+                  >
+                    {{ option }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="recommendation-field">
+                <span>Nível recomendado</span>
+                <div class="choice-grid choice-grid--compact">
+                  <button
+                    v-for="option in EXPERIENCE_LEVEL_OPTIONS"
+                    :key="option"
+                    type="button"
+                    class="choice-chip"
+                    :class="{ 'choice-chip--active': isSelected(form.recommended_experience_levels, option) }"
+                    @click="toggleArrayValue(form.recommended_experience_levels, option)"
+                  >
+                    {{ option }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="recommendation-field">
+                <span>Competitividade</span>
+                <div class="choice-grid choice-grid--compact">
+                  <button
+                    v-for="option in COMPETITIVENESS_OPTIONS"
+                    :key="option"
+                    type="button"
+                    class="choice-chip"
+                    :class="{ 'choice-chip--active': isSelected(form.competitiveness_level, option) }"
+                    @click="toggleArrayValue(form.competitiveness_level, option)"
+                  >
+                    {{ option }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="recommendation-field">
+                <span>Tempo de preparo</span>
+                <div class="choice-grid choice-grid--compact">
+                  <button
+                    v-for="option in PREPARATION_HORIZON_OPTIONS"
+                    :key="option"
+                    type="button"
+                    class="choice-chip"
+                    :class="{ 'choice-chip--active': isSelected(form.preparation_horizon, option) }"
+                    @click="toggleArrayValue(form.preparation_horizon, option)"
+                  >
+                    {{ option }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="recommendation-field">
+              <span>Recorrência</span>
+              <div class="choice-grid choice-grid--compact">
+                <button
+                  v-for="option in RECURRENCE_TYPE_OPTIONS"
+                  :key="option"
+                  type="button"
+                  class="choice-chip"
+                  :class="{ 'choice-chip--active': isSelected(form.recurrence_type, option) }"
+                  @click="toggleArrayValue(form.recurrence_type, option)"
+                >
+                  {{ option }}
+                </button>
+              </div>
+            </div>
+
+            <label class="field recommendation-notes-field">
+              <span>Nota de recomendação</span>
+              <textarea
+                v-model="form.recommendation_notes"
+                rows="4"
+                placeholder="Explique para que tipo de estudante essa oportunidade é boa e quais cuidados considerar."
+              />
+            </label>
+          </section>
+
           <section class="form-section">
             <div class="section-title-row">
               <div>
@@ -769,7 +1073,7 @@ async function submit() {
                 <h2>JSON completo da oportunidade</h2>
                 <p>
                   Cole o objeto inteiro no mesmo padrão usado pelas oportunidades geradas:
-                  title, slug, category, timeline, category_data, priority, tags e demais campos.
+                  title, slug, category, timeline, category_data, priority, tags e campos de recomendação.
                 </p>
               </div>
 
@@ -1115,6 +1419,74 @@ textarea:focus {
   background: #fef2f2;
 }
 
+.recommendation-section {
+  display: grid;
+  gap: 18px;
+}
+
+.recommendation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.recommendation-field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.recommendation-field > span,
+.recommendation-notes-field > span {
+  color: #292524;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.choice-grid--compact {
+  gap: 7px;
+}
+
+.choice-chip {
+  border: 1px solid #e7e5e4;
+  background: #fafaf9;
+  color: #57534e;
+  border-radius: 999px;
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, color .15s, transform .15s;
+}
+
+.choice-chip:hover {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.choice-chip--active {
+  background: #059669;
+  border-color: #059669;
+  color: white;
+}
+
+.choice-chip--active:hover {
+  background: #047857;
+  border-color: #047857;
+  color: white;
+}
+
+.recommendation-notes-field {
+  margin-bottom: 0;
+}
+
 .form-section {
   margin-top: 28px;
   padding-top: 24px;
@@ -1344,6 +1716,8 @@ textarea:focus {
   }
 
   .section-grid,
+  .recommendation-grid,
+
   .timeline-row,
   .cover-dropzone {
     grid-template-columns: 1fr;

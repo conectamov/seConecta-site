@@ -38,6 +38,12 @@ type HomeOpportunity = {
   cover_url?: string | null
   tags: string[]
   timeline: TimelineItem[]
+  availability_context?: string | null
+  fit_band?: string | null
+  selection_bucket?: string | null
+  recommendation_score?: number | null
+  reason?: string | null
+  reasons?: string[]
 }
 
 type HomePost = {
@@ -55,6 +61,7 @@ const { get } = useAxios()
 const { currentUser, restoreSession } = useAuth()
 
 const opportunities = ref<HomeOpportunity[]>([])
+const recommendedOpportunities = ref<HomeOpportunity[]>([])
 const posts = ref<HomePost[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -237,6 +244,12 @@ function normalizeOpportunity(raw: any): HomeOpportunity {
     cover_url: raw?.cover_url || null,
     tags,
     timeline,
+    availability_context: raw?.availability_context ?? null,
+    fit_band: raw?.fit_band ?? null,
+    selection_bucket: raw?.selection_bucket ?? null,
+    recommendation_score: typeof raw?.recommendation_score === 'number' ? raw.recommendation_score : null,
+    reason: raw?.reason ?? null,
+    reasons: Array.isArray(raw?.reasons) ? raw.reasons : [],
   }
 }
 
@@ -334,6 +347,65 @@ function getRegistrationStatus(item: HomeOpportunity) {
   }
 }
 
+function getOpportunityStatus(item: HomeOpportunity) {
+  const availability = String(item.availability_context || '').toUpperCase()
+
+  if (availability === 'APPLY_NOW') {
+    return {
+      key: 'open',
+      label: 'Para agora',
+      detail: '',
+    }
+  }
+
+  if (availability === 'CLOSING_SOON') {
+    return {
+      key: 'urgent',
+      label: 'Prazo próximo',
+      detail: '',
+    }
+  }
+
+  if (availability === 'EVERGREEN') {
+    return {
+      key: 'evergreen',
+      label: 'Disponível',
+      detail: '',
+    }
+  }
+
+  if (availability === 'PREPARE_NOW') {
+    return {
+      key: 'soon',
+      label: 'Prepare-se',
+      detail: '',
+    }
+  }
+
+  if (availability === 'WATCH_NEXT_CYCLE') {
+    return {
+      key: 'watch',
+      label: 'Próximo ciclo',
+      detail: '',
+    }
+  }
+
+  return getRegistrationStatus(item)
+}
+
+function getFitBandLabel(item: HomeOpportunity) {
+  const fitBand = String(item.fit_band || '').toUpperCase()
+
+  const labels: Record<string, string> = {
+    SAFETY: 'Bom começo',
+    TARGET: 'Ideal para você',
+    REACH: 'Desafio possível',
+    ASPIRATIONAL: 'Meta futura',
+  }
+
+  return labels[fitBand] || ''
+}
+
 function getOpportunityPath(item: HomeOpportunity) {
   const open = item.slug || String(item.id)
 
@@ -361,17 +433,32 @@ function openPost(post: HomePost) {
 async function fetchHome() {
   loading.value = true
   error.value = null
+  recommendedOpportunities.value = []
 
   try {
     await restoreSession()
 
-    const [opportunitiesResult, postsResult] = await Promise.allSettled([
+    const shouldFetchPersonalized = Boolean(currentUser.value?.preferences_set)
+
+    const personalizedRecommendationsPromise = shouldFetchPersonalized
+      ? get('/opportunity/recommended/for-you', {
+          params: {
+            surface: 'HOME',
+            track: 'mixed',
+            limit: 8,
+            candidate_limit: 200,
+          },
+        })
+      : Promise.resolve(null)
+
+    const [opportunitiesResult, personalizedRecommendationsResult, postsResult] = await Promise.allSettled([
       get('/opportunity/cards', {
         params: {
           page: 1,
           limit: 8,
         },
       }),
+      personalizedRecommendationsPromise,
       get('/posts/feed', {
         params: {
           page: 1,
@@ -388,6 +475,18 @@ async function fetchHome() {
     if (opportunitiesResult.status === 'fulfilled') {
       const data = opportunitiesResult.value.data?.data ?? []
       opportunities.value = data.map(normalizeOpportunity)
+    }
+
+    if (
+      personalizedRecommendationsResult.status === 'fulfilled' &&
+      personalizedRecommendationsResult.value
+    ) {
+      const data = personalizedRecommendationsResult.value.data?.data ?? []
+      recommendedOpportunities.value = data.map(normalizeOpportunity)
+    }
+
+    if (personalizedRecommendationsResult.status === 'rejected') {
+      console.warn('[home] Could not load personalized recommendations:', personalizedRecommendationsResult.reason)
     }
 
     if (postsResult.status === 'fulfilled') {
@@ -418,6 +517,8 @@ const firstName = computed(() => {
 const userInitial = computed(() => {
   return firstName.value.charAt(0).toUpperCase()
 })
+
+const hasPreferencesSet = computed(() => Boolean(currentUser.value?.preferences_set))
 
 const userInterests = computed(() => {
   return normalizeInterests(
@@ -452,7 +553,7 @@ const agendaItems = computed(() => {
     .slice(0, 5)
 })
 
-const recommendedItems = computed(() => {
+const fallbackRecommendedItems = computed(() => {
   return [...opportunities.value]
     .sort((a, b) => {
       const priorityDiff = b.priority - a.priority
@@ -472,6 +573,26 @@ const recommendedItems = computed(() => {
       return Number(aDate) - Number(bDate)
     })
     .slice(0, 4)
+})
+
+const recommendedItems = computed(() => {
+  if (hasPreferencesSet.value && recommendedOpportunities.value.length > 0) {
+    return recommendedOpportunities.value.slice(0, 4)
+  }
+
+  return fallbackRecommendedItems.value
+})
+
+const recommendationSectionDescription = computed(() => {
+  if (hasPreferencesSet.value && recommendedOpportunities.value.length > 0) {
+    return 'Selecionadas pelo seu perfil, interesses, nível e momento atual.'
+  }
+
+  if (hasPreferencesSet.value) {
+    return 'Não consegui carregar recomendações personalizadas agora; mostrando oportunidades recentes em destaque.'
+  }
+
+  return 'Uma seleção curta, misturando prioridade, prazo e oportunidades recentes.'
 })
 
 const urgentCount = computed(() => {
@@ -575,7 +696,7 @@ onMounted(fetchHome)
           <div class="section-header">
             <div>
               <h2>Para você agora</h2>
-              <p>Uma seleção curta, misturando prioridade, prazo e oportunidades recentes.</p>
+              <p>{{ recommendationSectionDescription }}</p>
             </div>
 
             <button type="button" class="text-btn" @click="router.push('/oportunidades')">
@@ -602,16 +723,17 @@ onMounted(fetchHome)
 
                 <span
                   class="registration-chip"
-                  :class="`registration-chip--${getRegistrationStatus(item).key}`"
+                  :class="`registration-chip--${getOpportunityStatus(item).key}`"
                 >
-                  {{ getRegistrationStatus(item).label }}
+                  {{ getOpportunityStatus(item).label }}
                 </span>
               </div>
 
               <div class="opportunity-card__body">
                 <div class="card-meta">
                   <span>{{ item.subject || item.category }}</span>
-                  <span v-if="item.is_free">Gratuita</span>
+                  <span v-if="getFitBandLabel(item)">{{ getFitBandLabel(item) }}</span>
+                  <span v-else-if="item.is_free">Gratuita</span>
                 </div>
 
                 <h3>{{ item.title }}</h3>
@@ -1003,6 +1125,21 @@ onMounted(fetchHome)
 .registration-chip--soon {
   background: #eff6ff;
   color: #1d4ed8;
+}
+
+.registration-chip--urgent {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.registration-chip--evergreen {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.registration-chip--watch {
+  background: #fefce8;
+  color: #854d0e;
 }
 
 .registration-chip--none {
