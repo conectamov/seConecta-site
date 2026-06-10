@@ -1,5 +1,5 @@
-/// <reference types="@pinia/nuxt" />
 /// <reference types="@nuxtjs/tailwindcss" />
+/// <reference types="@pinia/nuxt" />
 /// <reference types="@vite-pwa/nuxt" />
 /// <reference types="@nuxt/telemetry" />
 /// <reference path="types/nitro-layouts.d.ts" />

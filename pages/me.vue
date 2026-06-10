@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import OpportunityDetailsModal from '~/components/OpportunityDetailsModal.vue'
+import OlympiadDetailsModal from '~/components/OlympiadDetailsModal.vue'
 
 definePageMeta({
   middleware: 'auth',
@@ -46,6 +48,22 @@ type HomeOpportunity = {
   reasons?: string[]
 }
 
+type CalendarEvent = {
+  id: string
+  title: string
+  starts_at: string
+  ends_at?: string | null
+  all_day: boolean
+  status: string
+  importance: string
+  source_type: string
+  opportunity_id?: number | null
+  description?: string | null
+  location?: string | null
+  external_url?: string | null
+  // other fields as needed
+}
+
 type HomePost = {
   id: number
   slug?: string | null
@@ -66,13 +84,15 @@ const posts = ref<HomePost[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 
+const selectedItem = ref<HomeOpportunity | null>(null)
+const nextCalendarEvent = ref<CalendarEvent | null>(null)
+const calendarLoading = ref(false)
+
+// ── HELPERS ──
+
 function normalizeJsonObject(value: any) {
   if (!value) return {}
-
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    return value
-  }
-
+  if (typeof value === 'object' && !Array.isArray(value)) return value
   if (typeof value === 'string') {
     try {
       const parsed = JSON.parse(value)
@@ -81,7 +101,6 @@ function normalizeJsonObject(value: any) {
       return {}
     }
   }
-
   return {}
 }
 
@@ -91,24 +110,18 @@ function normalizeTags(value: any): string[] {
       .map(tag => String(tag).trim())
       .filter(Boolean)
   }
-
   if (typeof value === 'string') {
     try {
       const parsed = JSON.parse(value)
-
       if (Array.isArray(parsed)) {
-        return parsed
-          .map(tag => String(tag).trim())
-          .filter(Boolean)
+        return parsed.map(tag => String(tag).trim()).filter(Boolean)
       }
     } catch {}
-
     return value
       .split(',')
       .map(tag => tag.trim())
       .filter(Boolean)
   }
-
   return []
 }
 
@@ -118,7 +131,6 @@ function getDateValue(event: any): string | null {
 
 function normalizeTimeline(value: any, fallbackDeadline?: string | null): TimelineItem[] {
   let timeline: any[] = []
-
   if (Array.isArray(value)) {
     timeline = value
   } else if (typeof value === 'string') {
@@ -129,14 +141,11 @@ function normalizeTimeline(value: any, fallbackDeadline?: string | null): Timeli
       timeline = []
     }
   }
-
   const normalized = timeline
     .filter(event => event && typeof event === 'object')
     .map((event) => {
       const date = getDateValue(event)
-
       if (!date) return null
-
       return {
         kind: event.kind || 'other',
         label: event.label || event.details || event.title || event.name || 'Evento',
@@ -156,29 +165,23 @@ function normalizeTimeline(value: any, fallbackDeadline?: string | null): Timeli
       show_on_calendar: true,
     })
   }
-
   return normalized
 }
 
 function parseLocalDate(raw: string | null | undefined): Date | null {
   if (!raw) return null
-
   const clean = String(raw).slice(0, 10)
-
   if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
     const [year, month, day] = clean.split('-').map(Number)
     return new Date(year, month - 1, day, 23, 59, 59)
   }
-
   const parsed = new Date(raw)
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 function formatShortDate(raw: string | null | undefined) {
   const date = parseLocalDate(raw)
-
   if (!date) return 'Sem data'
-
   return date.toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: 'short',
@@ -187,9 +190,7 @@ function formatShortDate(raw: string | null | undefined) {
 
 function daysUntil(raw: string | null | undefined) {
   const target = parseLocalDate(raw)
-
   if (!target) return null
-
   const now = new Date()
   return Math.ceil((target.getTime() - now.getTime()) / 86_400_000)
 }
@@ -204,7 +205,6 @@ function getTimelineKindLabel(kind: TimelineKind) {
     submission_deadline: 'Envio até',
     other: 'Evento',
   }
-
   return labels[kind] || 'Evento'
 }
 
@@ -213,14 +213,12 @@ function getTimelineTone(kind: TimelineKind) {
   if (kind === 'registration_start') return 'open'
   if (kind === 'exam' || kind === 'phase') return 'blue'
   if (kind === 'result') return 'purple'
-
   return 'neutral'
 }
 
 function normalizeOpportunity(raw: any): HomeOpportunity {
   const categoryData = normalizeJsonObject(raw?.category_data)
   const tags = normalizeTags(raw?.tags)
-
   const subject =
     categoryData.subject ||
     categoryData.area ||
@@ -228,7 +226,6 @@ function normalizeOpportunity(raw: any): HomeOpportunity {
     categoryData.theme ||
     raw?.subject ||
     null
-
   const timeline = normalizeTimeline(raw?.timeline, raw?.next_deadline)
 
   return {
@@ -256,9 +253,7 @@ function normalizeOpportunity(raw: any): HomeOpportunity {
 function normalizePost(raw: any): HomePost {
   const tags = normalizeTags(raw?.tags)
   const rawType = String(raw?.type || raw?.post_type || '').toUpperCase()
-
   let type: HomePost['type'] = 'Post'
-
   if (rawType.includes('GUIDE') || rawType.includes('GUIA')) type = 'Guia'
   else if (rawType.includes('NEWS') || rawType.includes('NOTÍCIA') || rawType.includes('NOTICIA')) type = 'Notícia'
   else if (raw?.title?.toLowerCase?.().includes('jornal')) type = 'Jornal'
@@ -281,45 +276,34 @@ function normalizeInterests(value: any): string[] {
       .filter(Boolean)
       .slice(0, 6)
   }
-
   if (typeof value === 'string') {
     try {
       const parsed = JSON.parse(value)
-
       if (Array.isArray(parsed)) {
-        return parsed
-          .map(item => String(item).trim())
-          .filter(Boolean)
-          .slice(0, 6)
+        return parsed.map(item => String(item).trim()).filter(Boolean).slice(0, 6)
       }
     } catch {}
-
     return value
       .split(',')
       .map(item => item.trim())
       .filter(Boolean)
       .slice(0, 6)
   }
-
   return []
 }
 
 function getRegistrationStatus(item: HomeOpportunity) {
   const now = new Date()
-
   const starts = item.timeline
     .filter(event => event.kind === 'registration_start')
     .map(event => parseLocalDate(event.date))
     .filter(Boolean) as Date[]
-
   const deadlines = item.timeline
     .filter(event => event.kind === 'registration_deadline')
     .map(event => parseLocalDate(event.date))
     .filter(Boolean) as Date[]
-
   starts.sort((a, b) => a.getTime() - b.getTime())
   deadlines.sort((a, b) => a.getTime() - b.getTime())
-
   const nextStart = starts.find(date => date >= now) || null
   const nextDeadline = deadlines.find(date => date >= now) || null
   const lastStart = [...starts].reverse().find(date => date <= now) || null
@@ -331,7 +315,6 @@ function getRegistrationStatus(item: HomeOpportunity) {
       detail: `até ${formatShortDate(nextDeadline.toISOString())}`,
     }
   }
-
   if (nextStart && nextDeadline) {
     return {
       key: 'soon',
@@ -339,7 +322,6 @@ function getRegistrationStatus(item: HomeOpportunity) {
       detail: formatShortDate(nextStart.toISOString()),
     }
   }
-
   return {
     key: 'none',
     label: 'Sem inscrição ativa',
@@ -349,85 +331,76 @@ function getRegistrationStatus(item: HomeOpportunity) {
 
 function getOpportunityStatus(item: HomeOpportunity) {
   const availability = String(item.availability_context || '').toUpperCase()
-
   if (availability === 'APPLY_NOW') {
-    return {
-      key: 'open',
-      label: 'Para agora',
-      detail: '',
-    }
+    return { key: 'open', label: 'Para agora', detail: '' }
   }
-
   if (availability === 'CLOSING_SOON') {
-    return {
-      key: 'urgent',
-      label: 'Prazo próximo',
-      detail: '',
-    }
+    return { key: 'urgent', label: 'Prazo próximo', detail: '' }
   }
-
   if (availability === 'EVERGREEN') {
-    return {
-      key: 'evergreen',
-      label: 'Disponível',
-      detail: '',
-    }
+    return { key: 'evergreen', label: 'Disponível', detail: '' }
   }
-
   if (availability === 'PREPARE_NOW') {
-    return {
-      key: 'soon',
-      label: 'Prepare-se',
-      detail: '',
-    }
+    return { key: 'soon', label: 'Prepare-se', detail: '' }
   }
-
   if (availability === 'WATCH_NEXT_CYCLE') {
-    return {
-      key: 'watch',
-      label: 'Próximo ciclo',
-      detail: '',
-    }
+    return { key: 'watch', label: 'Próximo ciclo', detail: '' }
   }
-
   return getRegistrationStatus(item)
 }
 
 function getFitBandLabel(item: HomeOpportunity) {
   const fitBand = String(item.fit_band || '').toUpperCase()
-
   const labels: Record<string, string> = {
     SAFETY: 'Bom começo',
     TARGET: 'Ideal para você',
     REACH: 'Desafio possível',
     ASPIRATIONAL: 'Meta futura',
   }
-
   return labels[fitBand] || ''
 }
 
-function getOpportunityPath(item: HomeOpportunity) {
-  const open = item.slug || String(item.id)
+// ── MODAL HANDLING ──
 
-  if (item.category === 'OLYMPIAD') {
-    return {
-      path: '/olimpiadas',
-      query: { open },
-    }
-  }
-
-  return {
-    path: '/oportunidades',
-    query: { open },
-  }
+function selectOpportunity(item: HomeOpportunity) {
+  selectedItem.value = item
 }
 
-function openOpportunity(item: HomeOpportunity) {
-  router.push(getOpportunityPath(item))
+function closeSelectedOpportunity() {
+  selectedItem.value = null
+}
+
+function handleEditOpportunity(item: HomeOpportunity) {
+  const id = Number(item.id)
+  if (!Number.isInteger(id) || id <= 0) return
+  router.push(`/oportunidades/edit/${id}`)
 }
 
 function openPost(post: HomePost) {
   router.push(`/feed/${post.slug || post.id}`)
+}
+
+// ── FETCH MAIN DATA ──
+
+async function fetchNextCalendarEvent() {
+  if (!currentUser.value) return
+  calendarLoading.value = true
+  try {
+    const res = await get('/users/me/calendar/events', {
+      params: {
+        limit: 1,
+        include_hidden: false,
+        ordering: 'starts_at',
+        upcoming: true,
+      },
+    })
+    const data = res.data?.data ?? []
+    nextCalendarEvent.value = Array.isArray(data) && data.length > 0 ? data[0] : null
+  } catch {
+    nextCalendarEvent.value = null
+  } finally {
+    calendarLoading.value = false
+  }
 }
 
 async function fetchHome() {
@@ -437,7 +410,6 @@ async function fetchHome() {
 
   try {
     await restoreSession()
-
     const shouldFetchPersonalized = Boolean(currentUser.value?.preferences_set)
 
     const personalizedRecommendationsPromise = shouldFetchPersonalized
@@ -504,13 +476,14 @@ async function fetchHome() {
   }
 }
 
+// ── COMPUTED ──
+
 const firstName = computed(() => {
   const name =
     currentUser.value?.full_name ||
     currentUser.value?.username ||
     currentUser.value?.email ||
     'estudante'
-
   return String(name).trim().split(' ')[0]
 })
 
@@ -537,7 +510,6 @@ const agendaItems = computed(() => {
         .map(event => {
           const daysLeft = daysUntil(event.date)
           const date = parseLocalDate(event.date)
-
           return {
             opportunity: item,
             event,
@@ -547,9 +519,7 @@ const agendaItems = computed(() => {
         })
     )
     .filter(item => item.date && item.daysLeft !== null && item.daysLeft >= 0)
-    .sort((a, b) => {
-      return (a.date?.getTime() ?? 0) - (b.date?.getTime() ?? 0)
-    })
+    .sort((a, b) => (a.date?.getTime() ?? 0) - (b.date?.getTime() ?? 0))
     .slice(0, 5)
 })
 
@@ -557,19 +527,15 @@ const fallbackRecommendedItems = computed(() => {
   return [...opportunities.value]
     .sort((a, b) => {
       const priorityDiff = b.priority - a.priority
-
       if (priorityDiff !== 0) return priorityDiff
-
       const aDate = a.timeline
         .map(event => parseLocalDate(event.date)?.getTime())
         .filter(Boolean)
         .sort((x, y) => Number(x) - Number(y))[0] ?? Number.POSITIVE_INFINITY
-
       const bDate = b.timeline
         .map(event => parseLocalDate(event.date)?.getTime())
         .filter(Boolean)
         .sort((x, y) => Number(x) - Number(y))[0] ?? Number.POSITIVE_INFINITY
-
       return Number(aDate) - Number(bDate)
     })
     .slice(0, 4)
@@ -579,7 +545,6 @@ const recommendedItems = computed(() => {
   if (hasPreferencesSet.value && recommendedOpportunities.value.length > 0) {
     return recommendedOpportunities.value.slice(0, 4)
   }
-
   return fallbackRecommendedItems.value
 })
 
@@ -587,30 +552,41 @@ const recommendationSectionDescription = computed(() => {
   if (hasPreferencesSet.value && recommendedOpportunities.value.length > 0) {
     return 'Selecionadas pelo seu perfil, interesses, nível e momento atual.'
   }
-
   if (hasPreferencesSet.value) {
     return 'Não consegui carregar recomendações personalizadas agora; mostrando oportunidades recentes em destaque.'
   }
-
   return 'Uma seleção curta, misturando prioridade, prazo e oportunidades recentes.'
 })
 
-const urgentCount = computed(() => {
-  return agendaItems.value.filter(item => item.daysLeft !== null && item.daysLeft <= 10).length
-})
+// ── NEXT STEP LOGIC ──
 
 const nextAction = computed(() => {
-  const urgent = agendaItems.value.find(item => item.daysLeft !== null && item.daysLeft <= 10)
-
-  if (urgent) {
+  // 1. Próximo evento do calendário (pessoal)
+  if (nextCalendarEvent.value) {
+    const ev = nextCalendarEvent.value
+    const dateStr = formatShortDate(ev.starts_at)
+    const title = ev.title || 'Compromisso'
     return {
-      title: `${urgentCount.value} prazo${urgentCount.value > 1 ? 's' : ''} importante${urgentCount.value > 1 ? 's' : ''} nos próximos dias`,
+      title: 'Seu próximo compromisso',
+      text: `${title} · ${dateStr}${ev.all_day ? ' (dia inteiro)' : ''}`,
+      cta: 'Ver rotina',
+      action: () => router.push('/calendario'),
+    }
+  }
+
+  // 2. Prazo urgente de oportunidades
+  const urgent = agendaItems.value.find(item => item.daysLeft !== null && item.daysLeft <= 10)
+  if (urgent) {
+    const urgentCount = agendaItems.value.filter(item => item.daysLeft !== null && item.daysLeft <= 10).length
+    return {
+      title: `${urgentCount} prazo${urgentCount > 1 ? 's' : ''} importante${urgentCount > 1 ? 's' : ''} nos próximos dias`,
       text: `${urgent.opportunity.title}: ${getTimelineKindLabel(urgent.event.kind).toLowerCase()} em ${formatShortDate(urgent.event.date)}.`,
       cta: 'Ver agenda',
       action: () => router.push('/calendario'),
     }
   }
 
+  // 3. Recomendações disponíveis
   if (recommendedItems.value.length > 0) {
     return {
       title: 'Novas recomendações para você',
@@ -620,6 +596,7 @@ const nextAction = computed(() => {
     }
   }
 
+  // 4. Fallback
   return {
     title: 'Monte seu perfil para receber recomendações melhores',
     text: 'Escolha seus interesses e acompanhe oportunidades, olimpíadas e guias em um só lugar.',
@@ -628,7 +605,10 @@ const nextAction = computed(() => {
   }
 })
 
-onMounted(fetchHome)
+onMounted(async () => {
+  await fetchHome()
+  await fetchNextCalendarEvent()
+})
 </script>
 
 <template>
@@ -660,6 +640,7 @@ onMounted(fetchHome)
       </div>
 
       <template v-else>
+        <!-- PRÓXIMO PASSO -->
         <section class="next-step-card">
           <div class="next-step-card__content">
             <span class="soft-badge">Seu próximo passo</span>
@@ -692,6 +673,7 @@ onMounted(fetchHome)
           </div>
         </section>
 
+        <!-- RECOMENDAÇÕES -->
         <section class="home-section">
           <div class="section-header">
             <div>
@@ -711,12 +693,11 @@ onMounted(fetchHome)
               class="opportunity-card"
               role="button"
               tabindex="0"
-              @click="openOpportunity(item)"
-              @keydown.enter="openOpportunity(item)"
+              @click="selectOpportunity(item)"
+              @keydown.enter="selectOpportunity(item)"
             >
               <div class="opportunity-card__cover">
                 <img v-if="item.cover_url" :src="item.cover_url" :alt="item.title" />
-
                 <div v-else class="cover-fallback">
                   {{ item.subject?.charAt(0) || item.category?.charAt(0) || '✦' }}
                 </div>
@@ -755,13 +736,13 @@ onMounted(fetchHome)
         </section>
 
         <div class="home-columns">
+          <!-- AGENDA -->
           <section class="home-section agenda-section">
             <div class="section-header">
               <div>
                 <h2>Próximas datas</h2>
                 <p>Agenda acionável com inscrições, provas e resultados.</p>
               </div>
-
               <button type="button" class="text-btn" @click="router.push('/calendario')">
                 Calendário
               </button>
@@ -774,8 +755,8 @@ onMounted(fetchHome)
                 class="agenda-item"
                 role="button"
                 tabindex="0"
-                @click="openOpportunity(item.opportunity)"
-                @keydown.enter="openOpportunity(item.opportunity)"
+                @click="selectOpportunity(item.opportunity)"
+                @keydown.enter="selectOpportunity(item.opportunity)"
               >
                 <div class="agenda-date">
                   <strong>{{ formatShortDate(item.event.date).split(' ')[0] }}</strong>
@@ -789,7 +770,6 @@ onMounted(fetchHome)
                   >
                     {{ getTimelineKindLabel(item.event.kind) }}
                   </span>
-
                   <h3>{{ item.opportunity.title }}</h3>
                   <p>{{ item.event.details || item.event.label }}</p>
                 </div>
@@ -802,13 +782,13 @@ onMounted(fetchHome)
             </div>
           </section>
 
+          <!-- NOVIDADES / FEED -->
           <section class="home-section news-section">
             <div class="section-header">
               <div>
                 <h2>Novidades e guias</h2>
                 <p>Posts recentes do feed e Jornal seConecta.</p>
               </div>
-
               <button type="button" class="text-btn" @click="router.push('/feed')">
                 Feed
               </button>
@@ -829,7 +809,6 @@ onMounted(fetchHome)
                   <h3>{{ post.title }}</h3>
                   <p>{{ post.excerpt }}</p>
                 </div>
-
                 <small>#{{ post.tag }}</small>
               </article>
             </div>
@@ -842,8 +821,26 @@ onMounted(fetchHome)
         </div>
       </template>
     </main>
+
+    <!-- MODAIS DE DETALHES -->
+    <OlympiadDetailsModal
+      v-if="selectedItem && selectedItem.category === 'OLYMPIAD'"
+      :item="selectedItem"
+      :is-admin="false"
+      @close="closeSelectedOpportunity"
+      @edit="handleEditOpportunity"
+    />
+
+    <OpportunityDetailsModal
+      v-if="selectedItem && selectedItem.category !== 'OLYMPIAD'"
+      :opportunity="selectedItem"
+      :is-admin="false"
+      @close="closeSelectedOpportunity"
+      @edit="handleEditOpportunity"
+    />
   </div>
 </template>
+
 
 <style scoped>
 .home-page {

@@ -1,61 +1,97 @@
 <script setup lang="ts">
+import brandMark from '~/assets/logo/seconecta-mark.png'
 const route = useRoute()
 const { currentUser, logout } = useAuth()
 
 const sidebarOpen = ref(false)
+const sidebarCollapsed = useState(
+  'sidebar-collapsed',
+  () => false
+)
+
 const preferencesReminderVisible = ref(false)
 
 const userProfileType = computed(() => {
-  return String((currentUser.value as any)?.profile_type || '').toUpperCase()
+  return String(
+    (currentUser.value as any)?.profile_type || ''
+  ).toUpperCase()
 })
 
 const workspaceLabel = computed(() => {
-  if (userProfileType.value === 'MENTOR') return 'Painel de mentoria'
-  if (userProfileType.value === 'EDUCATOR') return 'Painel da comunidade'
-  if (userProfileType.value === 'ORGANIZATION') return 'Painel da comunidade'
+  if (userProfileType.value === 'MENTOR') {
+    return 'Painel de mentoria'
+  }
+
+  if (userProfileType.value === 'EDUCATOR') {
+    return 'Painel da comunidade'
+  }
+
+  if (userProfileType.value === 'ORGANIZATION') {
+    return 'Painel da comunidade'
+  }
+
   return 'Jornada do estudante'
 })
 
-const mainLinks = [
+const navigationSections = [
   {
-    label: 'Início',
-    to: '/me',
-    icon: '🏠',
+    label: 'Explorar',
+    items: [
+      {
+        label: 'Início',
+        to: '/me',
+        icon: '🏠',
+      },
+      {
+        label: 'Oportunidades',
+        to: '/oportunidades',
+        icon: '✨',
+      },
+      {
+        label: 'Olimpíadas',
+        to: '/olimpiadas',
+        icon: '🏅',
+      },
+      {
+        label: 'Feed',
+        to: '/feed',
+        icon: '📰',
+      },
+    ],
   },
-  {
-    label: 'Oportunidades',
-    to: '/oportunidades',
-    icon: '✨',
-  },
-  {
-    label: 'Olimpíadas',
-    to: '/olimpiadas',
-    icon: '🏅',
-  },
-  {
-    label: 'Calendário',
-    to: '/calendario',
-    icon: '📅',
-  },
-  {
-    label: 'Feed',
-    to: '/feed',
-    icon: '📰',
-  },
-]
 
-const secondaryLinks = [
   {
     label: 'Minha jornada',
-    to: '/me/plano',
-    icon: '🧭',
-    disabled: true,
+    items: [
+      {
+        label: 'Minha rotina',
+        to: '/calendario',
+        icon: '📅',
+      },
+      {
+        label: 'Mentores',
+        to: '/turmas',
+        icon: '🫂',
+      },
+    ],
   },
+
   {
-    label: 'Salvas',
-    to: '/me/salvas',
-    icon: '🔖',
-    disabled: true,
+    label: 'Comunidade',
+    items: [
+      {
+        label: 'Comunidade',
+        to: '/comunidade',
+        icon: '🧭',
+        disabled: true,
+      },
+      {
+        label: 'Embaixadores',
+        to: '/embaixadores',
+        icon: '🚀',
+        disabled: true,
+      },
+    ],
   },
 ]
 
@@ -66,7 +102,10 @@ const userInitial = computed(() => {
     currentUser.value?.email ||
     'S'
 
-  return String(name).trim().charAt(0).toUpperCase()
+  return String(name)
+    .trim()
+    .charAt(0)
+    .toUpperCase()
 })
 
 const userName = computed(() => {
@@ -78,8 +117,14 @@ const userName = computed(() => {
 })
 
 function isActive(to: string) {
-  if (to === '/me') return route.path === '/me'
-  return route.path === to || route.path.startsWith(`${to}/`)
+  if (to === '/me') {
+    return route.path === '/me'
+  }
+
+  return (
+    route.path === to ||
+    route.path.startsWith(`${to}/`)
+  )
 }
 
 function closeMobileSidebar() {
@@ -116,117 +161,246 @@ async function handleLogout() {
 
     <aside
       class="app-sidebar"
-      :class="{ 'app-sidebar--open': sidebarOpen }"
+      :class="{
+        'app-sidebar--open': sidebarOpen,
+        'app-sidebar--collapsed': sidebarCollapsed
+      }"
     >
       <div class="sidebar-brand">
-        <NuxtLink to="/me" class="brand-link" @click="closeMobileSidebar">
-          <div class="brand-mark">s</div>
-
-          <div class="brand-copy">
-            <strong>seConecta</strong>
-            <span>{{ workspaceLabel }}</span>
+        <NuxtLink
+          to="/me"
+          class="brand-link"
+          @click="closeMobileSidebar"
+        >
+          <div class="brand-mark">
+            <img
+              :src="brandMark"
+              alt="seConecta"
+              class="brand-mark__image"
+            >
           </div>
+
+          <Transition name="sidebar-fade">
+            <div
+              v-if="!sidebarCollapsed"
+              class="brand-copy"
+            >
+              <strong>seConecta</strong>
+              <span>{{ workspaceLabel }}</span>
+            </div>
+          </Transition>
         </NuxtLink>
 
-        <button
-          type="button"
-          class="sidebar-close"
-          aria-label="Fechar menu"
-          @click="sidebarOpen = false"
-        >
-          ×
-        </button>
+        <div class="sidebar-brand__actions">
+          <button
+            type="button"
+            class="sidebar-collapse"
+            @click="
+              sidebarCollapsed =
+                !sidebarCollapsed
+            "
+          >
+            {{ sidebarCollapsed ? '→' : '←' }}
+          </button>
+
+          <button
+            type="button"
+            class="sidebar-close"
+            aria-label="Fechar menu"
+            @click="sidebarOpen = false"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
-      <nav class="sidebar-nav" aria-label="Navegação principal">
-        <NuxtLink
-          v-for="link in mainLinks"
-          :key="link.to"
-          :to="link.to"
-          class="sidebar-link"
-          :class="{ 'sidebar-link--active': isActive(link.to) }"
-          @click="closeMobileSidebar"
-        >
-          <span class="sidebar-link__icon">{{ link.icon }}</span>
-          <span>{{ link.label }}</span>
-        </NuxtLink>
-      </nav>
+      <button class="command-button">
+        <span>⌘K</span>
 
-      <div class="sidebar-divider" />
+        <Transition name="sidebar-fade">
+          <strong v-if="!sidebarCollapsed">
+            Buscar algo...
+          </strong>
+        </Transition>
+      </button>
 
-      <nav class="sidebar-nav sidebar-nav--secondary" aria-label="Área pessoal">
-        <NuxtLink
-          v-for="link in secondaryLinks"
-          :key="link.label"
-          :to="link.disabled ? route.fullPath : link.to"
-          class="sidebar-link"
-          :class="{
-            'sidebar-link--active': !link.disabled && isActive(link.to),
-            'sidebar-link--disabled': link.disabled,
-          }"
-          @click="closeMobileSidebar"
-        >
-          <span class="sidebar-link__icon">{{ link.icon }}</span>
-
-          <span class="sidebar-link__label">
-            {{ link.label }}
-            <small v-if="link.disabled">em breve</small>
-          </span>
-        </NuxtLink>
-      </nav>
-
-      <section
-        v-if="!preferencesReminderVisible"
-        class="sidebar-card sidebar-card--saved"
+      <nav
+        class="sidebar-sections"
+        aria-label="Navegação principal"
       >
-        <div class="sidebar-card__icon">🔖</div>
+        <section
+          v-for="section in navigationSections"
+          :key="section.label"
+          class="sidebar-section"
+        >
+          <Transition name="sidebar-fade">
+            <p
+              v-if="!sidebarCollapsed"
+              class="sidebar-section__label"
+            >
+              {{ section.label }}
+            </p>
+          </Transition>
 
-        <div>
-          <p>Salvas</p>
-          <strong>Guarde oportunidades</strong>
-          <span>Acompanhe prazos e monte sua jornada.</span>
-        </div>
-      </section>
+          <div class="sidebar-nav">
+            <NuxtLink
+              v-for="link in section.items"
+              :key="link.to"
+              :to="
+                link.disabled
+                  ? route.fullPath
+                  : link.to
+              "
+              class="sidebar-link"
+              :class="{
+                'sidebar-link--active':
+                  !link.disabled &&
+                  isActive(link.to),
+
+                'sidebar-link--disabled':
+                  link.disabled,
+              }"
+              @click="closeMobileSidebar"
+            >
+              <span class="sidebar-link__icon">
+                {{ link.icon }}
+              </span>
+
+              <Transition name="sidebar-fade">
+                <div
+                  v-if="!sidebarCollapsed"
+                  class="sidebar-link__content"
+                >
+                  <span>
+                    {{ link.label }}
+                  </span>
+
+                  <small v-if="link.disabled">
+                    em breve
+                  </small>
+                </div>
+              </Transition>
+            </NuxtLink>
+          </div>
+        </section>
+      </nav>
+      <!--
+      <Transition name="sidebar-fade">
+        <section
+          v-if="!sidebarCollapsed"
+          class="journey-card"
+        >
+          <span class="journey-card__label">
+            Seu foco atual
+          </span>
+
+          <strong>
+            🏅 OBMEP Nível 2
+          </strong>
+
+          <div class="journey-progress">
+            <div
+              class="journey-progress__fill"
+              style="width: 72%"
+            />
+          </div>
+
+          <span class="journey-card__hint">
+            Próximo passo:
+            geometria intermediária
+          </span>
+        </section>
+      </Transition>
 
       <UserPreferencesSidebarReminder
-        @visible-change="preferencesReminderVisible = $event"
+        v-if="!sidebarCollapsed"
+        @visible-change="
+          preferencesReminderVisible = $event
+        "
       />
+    -->
 
+      <!--
       <section
         class="sidebar-card sidebar-card--nexo"
-        :class="{ 'sidebar-card--compact': preferencesReminderVisible }"
+        :class="{
+          'sidebar-card--compact':
+            preferencesReminderVisible,
+          'sidebar-card--collapsed':
+            sidebarCollapsed
+        }"
       >
-        <div class="sidebar-card__icon">🤖</div>
-
-        <div>
-          <p>Nexo</p>
-          <strong>Precisa de direção?</strong>
-          <span v-if="!preferencesReminderVisible">
-            Peça uma recomendação rápida para seu momento.
-          </span>
+        <div class="sidebar-card__icon">
+          🤖
         </div>
 
-        <NuxtLink to="/nexo" class="nexo-button" @click="closeMobileSidebar">
-          Perguntar ao Nexo
+        <Transition name="sidebar-fade">
+          <div v-if="!sidebarCollapsed">
+            <p>Nexo</p>
+
+            <strong>
+              Continue sua jornada
+            </strong>
+
+            <span>
+              Quer uma recomendação para
+              estudar hoje?
+            </span>
+          </div>
+        </Transition>
+
+        <NuxtLink
+          to="/nexo"
+          class="nexo-button"
+          @click="closeMobileSidebar"
+        >
+          <span v-if="sidebarCollapsed">
+            ✨
+          </span>
+
+          <span v-else>
+            Perguntar ao Nexo
+          </span>
         </NuxtLink>
       </section>
+    -->
 
       <div class="sidebar-user">
-        <NuxtLink to="/perfil" class="sidebar-user__profile" @click="closeMobileSidebar">
+        <NuxtLink
+          to="/perfil"
+          class="sidebar-user__profile"
+          @click="closeMobileSidebar"
+        >
           <div class="user-avatar">
             <img
-              v-if="currentUser?.profile_picture_url"
-              :src="currentUser.profile_picture_url"
+              v-if="
+                currentUser?.profile_picture_url
+              "
+              :src="
+                currentUser.profile_picture_url
+              "
               :alt="userName"
             >
 
-            <span v-else>{{ userInitial }}</span>
+            <span v-else>
+              {{ userInitial }}
+            </span>
           </div>
 
-          <div class="sidebar-user__copy">
-            <strong>{{ userName }}</strong>
-            <span>Ver perfil</span>
-          </div>
+          <Transition name="sidebar-fade">
+            <div
+              v-if="!sidebarCollapsed"
+              class="sidebar-user__copy"
+            >
+              <strong>
+                {{ userName }}
+              </strong>
+
+              <span>
+                Ver perfil
+              </span>
+            </div>
+          </Transition>
         </NuxtLink>
 
         <button
@@ -252,378 +426,578 @@ async function handleLogout() {
 <style scoped>
 .app-shell {
   min-height: 100vh;
+
   background:
-    radial-gradient(circle at top left, rgba(7, 146, 114, .075), transparent 32rem),
+    radial-gradient(
+      circle at top left,
+      rgba(7, 146, 114, .08),
+      transparent 32rem
+    ),
     #fafaf9;
+
   color: #1c1917;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
   display: flex;
   align-items: stretch;
+
   width: 100%;
 }
 
 .app-sidebar {
-  width: 270px;
-  min-width: 270px;
-  max-width: 270px;
+  width: 280px;
+  min-width: 280px;
+
   position: sticky;
   top: 0;
+
   height: 100vh;
-  padding: 22px 16px;
-  border-right: 1px solid #e8e4dc;
-  background: rgba(255, 255, 255, .88);
-  backdrop-filter: blur(18px);
+
+  padding: 18px 14px;
+
+  background:
+    rgba(255,255,255,.74);
+
+  backdrop-filter: blur(24px);
+
+  border-right:
+    1px solid rgba(0,0,0,.05);
+
   display: flex;
   flex-direction: column;
   gap: 14px;
-  z-index: 50;
-  box-sizing: border-box;
+
   overflow-y: auto;
   overflow-x: hidden;
+
+  transition:
+    width .22s cubic-bezier(.22,1,.36,1),
+    min-width .22s cubic-bezier(.22,1,.36,1);
 }
 
-.app-sidebar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.app-sidebar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.app-sidebar::-webkit-scrollbar-thumb {
-  background: #ddd6ce;
-  border-radius: 999px;
+.app-sidebar--collapsed {
+  width: 88px;
+  min-width: 88px;
 }
 
 .app-content {
   flex: 1;
   min-width: 0;
-  width: calc(100% - 270px);
-  box-sizing: border-box;
 }
 
 .sidebar-brand {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 3px 4px 10px;
-  flex-shrink: 0;
+
+  gap: 10px;
 }
 
 .brand-link {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 12px;
+
   text-decoration: none;
   color: inherit;
-  min-width: 0;
 }
 
 .brand-mark {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
+
   border-radius: 14px;
-  background: linear-gradient(135deg, #079272, #0DA790);
+
+  background:
+    linear-gradient(
+      135deg,
+      #079272,
+      #0da790
+    );
+
   color: white;
+
   display: grid;
   place-items: center;
+
+  font-size: 1.1rem;
   font-weight: 950;
-  font-size: 1.15rem;
+
+  box-shadow:
+    0 10px 28px rgba(7,146,114,.18);
+
   flex-shrink: 0;
-  box-shadow: 0 12px 28px rgba(7, 146, 114, .18);
 }
 
-.brand-copy {
-  min-width: 0;
-}
-
-.sidebar-brand strong {
+.brand-copy strong {
   display: block;
-  color: #111;
+
   font-size: .95rem;
-  letter-spacing: -.025em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #111;
 }
 
-.sidebar-brand span {
+.brand-copy span {
   display: block;
+
+  margin-top: 2px;
+
+  font-size: .72rem;
   color: #888;
-  font-size: .73rem;
-  margin-top: 1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.sidebar-brand__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-collapse,
+.sidebar-close {
+  border: none;
+
+  width: 32px;
+  height: 32px;
+
+  border-radius: 999px;
+
+  background: #f5f5f4;
+
+  cursor: pointer;
+
+  color: #666;
+
+  transition:
+    background .15s ease,
+    transform .15s ease;
+}
+
+.sidebar-collapse:hover,
+.sidebar-close:hover {
+  background: #ece7df;
+  transform: translateY(-1px);
 }
 
 .sidebar-close {
   display: none;
-  border: none;
-  background: #f5f5f4;
-  color: #444;
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  font-size: 1.2rem;
+}
+
+.command-button {
+  width: 100%;
+
+  border: 1px solid rgba(0,0,0,.05);
+
+  background: rgba(255,255,255,.9);
+
+  border-radius: 16px;
+
+  padding: 11px 12px;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
   cursor: pointer;
-  flex-shrink: 0;
+
+  transition:
+    background .15s ease,
+    transform .18s ease;
+}
+
+.command-button:hover {
+  background: white;
+  transform: translateY(-1px);
+}
+
+.command-button span {
+  width: 30px;
+  height: 30px;
+
+  border-radius: 10px;
+
+  background: #f5f5f4;
+
+  display: grid;
+  place-items: center;
+
+  font-size: .72rem;
+  font-weight: 900;
+
+  color: #666;
+}
+
+.command-button strong {
+  color: #666;
+  font-size: .8rem;
+}
+
+.sidebar-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-section__label {
+  margin: 0 10px;
+
+  color: #9a948b;
+
+  font-size: .68rem;
+  font-weight: 950;
+
+  text-transform: uppercase;
+  letter-spacing: .12em;
 }
 
 .sidebar-nav {
   display: grid;
-  gap: 5px;
-  flex-shrink: 0;
+  gap: 4px;
 }
 
 .sidebar-link {
-  border: none;
-  background: transparent;
-  color: #5f5a54;
-  border-radius: 14px;
+  position: relative;
+
+  border-radius: 16px;
+
   padding: 11px 12px;
+
   display: flex;
   align-items: center;
-  gap: 11px;
-  font-size: .84rem;
-  font-weight: 850;
-  cursor: pointer;
-  text-align: left;
+  gap: 12px;
+
   text-decoration: none;
+
+  color: #5f5a54;
+
   transition:
-    background .15s ease,
-    color .15s ease,
-    transform .15s ease;
+    transform .22s cubic-bezier(.22,1,.36,1),
+    background .18s ease,
+    color .18s ease,
+    box-shadow .18s ease;
 }
 
 .sidebar-link:hover {
-  background: #f7f5f0;
+  transform: translateX(3px);
+
+  background: rgba(255,255,255,.9);
+
   color: #111;
-  transform: translateX(1px);
 }
 
 .sidebar-link--active {
-  background: #0f172a;
-  color: white;
-}
+  background:
+    linear-gradient(
+      135deg,
+      rgba(7,146,114,.14),
+      rgba(13,167,144,.08)
+    );
 
-.sidebar-link--active:hover {
-  background: #0f172a;
-  color: white;
+  color: #065f46;
+
+  border:
+    1px solid rgba(7,146,114,.08);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.65),
+    0 4px 14px rgba(7,146,114,.08);
 }
 
 .sidebar-link__icon {
-  width: 23px;
-  color: currentColor;
-  opacity: .95;
-  flex-shrink: 0;
+  width: 24px;
+
   display: inline-grid;
   place-items: center;
+
+  flex-shrink: 0;
 }
 
-.sidebar-link__label {
-  min-width: 0;
+.sidebar-link__content {
+  display: flex;
+  flex-direction: column;
 }
 
-.sidebar-link small {
-  display: inline-flex;
-  margin-left: 6px;
-  color: #aaa;
-  font-size: .64rem;
+.sidebar-link__content span {
+  font-size: .84rem;
   font-weight: 850;
 }
 
+.sidebar-link__content small {
+  color: #999;
+
+  font-size: .62rem;
+
+  margin-top: 2px;
+}
+
 .sidebar-link--disabled {
-  opacity: .65;
-  cursor: default;
+  opacity: .6;
 }
 
-.sidebar-link--disabled:hover {
-  transform: none;
+.journey-card {
+  margin-top: 6px;
+
+  border:
+    1px solid rgba(0,0,0,.05);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255,255,255,.9),
+      rgba(255,255,255,.72)
+    );
+
+  border-radius: 20px;
+
+  padding: 14px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.sidebar-divider {
-  height: 1px;
-  background: #f0ece8;
-  margin: 1px 4px;
-  flex-shrink: 0;
+.journey-card__label {
+  color: #9a948b;
+
+  font-size: .66rem;
+  font-weight: 950;
+
+  text-transform: uppercase;
+  letter-spacing: .12em;
+}
+
+.journey-card strong {
+  color: #111;
+  font-size: .9rem;
+}
+
+.journey-card__hint {
+  color: #777;
+  font-size: .73rem;
+}
+
+.journey-progress {
+  height: 8px;
+
+  border-radius: 999px;
+
+  overflow: hidden;
+
+  background: #ece7df;
+}
+
+.journey-progress__fill {
+  height: 100%;
+
+  border-radius: inherit;
+
+  background:
+    linear-gradient(
+      90deg,
+      #079272,
+      #0da790
+    );
 }
 
 .sidebar-card {
-  border: 1px solid #e8e4dc;
-  background: white;
-  border-radius: 18px;
+  border:
+    1px solid rgba(0,0,0,.05);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(236,253,245,.95),
+      rgba(255,255,255,.8)
+    );
+
+  border-radius: 20px;
+
   padding: 13px;
-  display: grid;
-  gap: 10px;
-  flex-shrink: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-card--collapsed {
+  align-items: center;
 }
 
 .sidebar-card__icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 13px;
-  background: #f7f5f0;
+  width: 34px;
+  height: 34px;
+
+  border-radius: 12px;
+
+  background: #d9f4e8;
+
   display: grid;
   place-items: center;
-  font-size: .98rem;
 }
 
 .sidebar-card p {
   margin: 0 0 6px;
+
   color: #9a948b;
+
   font-size: .66rem;
   font-weight: 950;
+
   text-transform: uppercase;
   letter-spacing: .1em;
 }
 
 .sidebar-card strong {
   display: block;
+
   color: #111;
-  font-size: .82rem;
-  letter-spacing: -.015em;
+
+  font-size: .84rem;
+
   margin-bottom: 4px;
 }
 
 .sidebar-card span {
-  display: block;
-  color: #888;
-  font-size: .73rem;
+  color: #777;
+
+  font-size: .74rem;
+
   line-height: 1.4;
-}
-
-.sidebar-card--saved {
-  background: linear-gradient(135deg, #ffffff, #fafaf9);
-}
-
-.sidebar-card--saved .sidebar-card__icon {
-  background: #fef3c7;
-}
-
-.sidebar-card--nexo {
-  margin-top: auto;
-  background: linear-gradient(135deg, #ecfdf5, #ffffff);
-  border-color: #d9f4e8;
-}
-
-.sidebar-card--nexo .sidebar-card__icon {
-  background: #d9f4e8;
-}
-
-.sidebar-card--compact {
-  padding: 11px 12px;
-  gap: 8px;
-}
-
-.sidebar-card--compact p {
-  margin-bottom: 5px;
 }
 
 .nexo-button {
   width: 100%;
-  border-radius: 12px;
+
+  border-radius: 14px;
+
   padding: 10px 12px;
-  background: #079272;
+
+  background:
+    linear-gradient(
+      135deg,
+      #079272,
+      #0da790
+    );
+
   color: white;
+
   font-size: .8rem;
   font-weight: 900;
-  text-decoration: none;
+
   display: grid;
   place-items: center;
+
+  text-decoration: none;
+
   transition:
-    background .15s ease,
-    transform .15s ease;
+    transform .18s ease,
+    box-shadow .18s ease;
 }
 
 .nexo-button:hover {
-  background: #067f64;
   transform: translateY(-1px);
-}
 
-.sidebar-card--compact .nexo-button {
-  padding: 8px 10px;
+  box-shadow:
+    0 10px 24px rgba(7,146,114,.18);
 }
 
 .sidebar-user {
-  border: 1px solid #e8e4dc;
-  background: white;
+  margin-top: auto;
+
+  border:
+    1px solid rgba(0,0,0,.05);
+
+  background:
+    rgba(255,255,255,.8);
+
   border-radius: 18px;
+
   padding: 9px;
+
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
 }
 
 .sidebar-user__profile {
-  min-width: 0;
   flex: 1;
+
   display: flex;
   align-items: center;
-  gap: 9px;
-  color: inherit;
-  text-decoration: none;
-}
+  gap: 10px;
 
-.sidebar-user__copy {
-  min-width: 0;
+  text-decoration: none;
+  color: inherit;
 }
 
 .user-avatar {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
+
   border-radius: 999px;
+
+  overflow: hidden;
+
   background: #0f172a;
+
   color: white;
+
   display: grid;
   place-items: center;
+
   font-weight: 900;
-  overflow: hidden;
+
   flex-shrink: 0;
 }
 
 .user-avatar img {
   width: 100%;
   height: 100%;
+
   object-fit: cover;
 }
 
 .sidebar-user strong {
   display: block;
+
   color: #111;
+
   font-size: .78rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 128px;
 }
 
 .sidebar-user span {
-  display: block;
   color: #999;
+
   font-size: .68rem;
 }
 
 .logout-button {
   border: none;
-  background: #f5f5f4;
-  color: #777;
+
   width: 32px;
   height: 32px;
+
   border-radius: 999px;
+
+  background: #f5f5f4;
+
+  color: #777;
+
   cursor: pointer;
-  flex-shrink: 0;
+
   transition:
-    background .15s ease,
-    color .15s ease,
-    transform .15s ease;
+    transform .18s ease,
+    background .18s ease;
 }
 
 .logout-button:hover {
   background: #fee2e2;
+
   color: #b91c1c;
+
   transform: translateY(-1px);
 }
 
@@ -635,6 +1009,19 @@ async function handleLogout() {
   display: none;
 }
 
+.sidebar-fade-enter-active,
+.sidebar-fade-leave-active {
+  transition:
+    opacity .12s ease,
+    transform .12s ease;
+}
+
+.sidebar-fade-enter-from,
+.sidebar-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-4px);
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity .16s ease;
@@ -643,27 +1030,6 @@ async function handleLogout() {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-}
-
-@media (max-height: 760px) and (min-width: 1101px) {
-  .app-sidebar {
-    gap: 11px;
-    padding-top: 16px;
-    padding-bottom: 16px;
-  }
-
-  .sidebar-card {
-    padding: 11px;
-  }
-
-  .sidebar-card span {
-    font-size: .7rem;
-  }
-
-  .sidebar-link {
-    padding-top: 10px;
-    padding-bottom: 10px;
-  }
 }
 
 @media (max-width: 1100px) {
@@ -677,40 +1043,68 @@ async function handleLogout() {
 
   .mobile-sidebar-button {
     display: grid;
+
     place-items: center;
+
     position: fixed;
+
     left: 14px;
     top: 14px;
-    z-index: 70;
+
+    z-index: 80;
+
     width: 42px;
     height: 42px;
-    border: 1px solid #e8e4dc;
+
+    border:
+      1px solid rgba(0,0,0,.06);
+
     border-radius: 999px;
+
     background: white;
-    color: #111;
-    font-size: 1.15rem;
-    cursor: pointer;
-    box-shadow: 0 10px 30px rgba(0,0,0,.08);
+
+    box-shadow:
+      0 10px 30px rgba(0,0,0,.08);
   }
 
   .sidebar-backdrop {
     display: block;
+
     position: fixed;
     inset: 0;
-    z-index: 55;
+
     background: rgba(0,0,0,.35);
-    backdrop-filter: blur(2px);
+
+    z-index: 55;
+
+    backdrop-filter: blur(3px);
   }
 
   .app-sidebar {
     position: fixed;
+
     inset: 0 auto 0 0;
-    width: min(290px, calc(100vw - 42px));
+
+    width: min(
+      290px,
+      calc(100vw - 42px)
+    );
+
     min-width: unset;
-    max-width: unset;
+
     transform: translateX(-105%);
-    transition: transform .18s ease;
-    box-shadow: 22px 0 70px rgba(0,0,0,.16);
+
+    transition:
+      transform .22s cubic-bezier(.22,1,.36,1);
+  }
+
+  .app-sidebar--collapsed {
+    width: min(
+      290px,
+      calc(100vw - 42px)
+    );
+
+    min-width: unset;
   }
 
   .app-sidebar--open {
@@ -720,6 +1114,10 @@ async function handleLogout() {
   .sidebar-close {
     display: grid;
     place-items: center;
+  }
+
+  .sidebar-collapse {
+    display: none;
   }
 }
 </style>

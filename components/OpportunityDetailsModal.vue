@@ -673,7 +673,16 @@ function normalizeOpportunity(raw: any) {
     color: '#10b981',
   }
 
-  const categoryMeta = CATEGORY_META[category] ?? raw.categoryMeta ?? fallbackMeta
+  const rawCategoryMeta =
+    raw.categoryMeta && typeof raw.categoryMeta === 'object'
+      ? raw.categoryMeta
+      : {}
+
+  const categoryMeta = {
+    ...fallbackMeta,
+    ...(CATEGORY_META[category] ?? {}),
+    ...rawCategoryMeta,
+  }
   const timeline = normalizeTimeline(raw.timeline)
   const categoryData = normalizeJsonObject(raw.category_data)
   const nextTimelineEvent = getFirstTimelineDeadline(timeline)
@@ -1019,7 +1028,8 @@ onBeforeUnmount(() => {
               v-else
               class="opportunity-modal__cover-fallback"
               :style="{ background: `linear-gradient(135deg, ${item.categoryMeta.color}38, ${item.categoryMeta.color}10)` }"
-            >
+
+              >
               <span>{{ item.categoryMeta.icon }}</span>
             </div>
 
@@ -1053,7 +1063,7 @@ onBeforeUnmount(() => {
                     borderColor: item.categoryMeta.color + '55',
                   }"
                 >
-                  {{ item.categoryMeta.icon }} {{ item.categoryMeta.label }}
+                  {{ item.categoryMeta?.icon || '✨' }} {{ item.categoryMeta?.label || 'Oportunidade' }}
                 </span>
 
                 <span v-if="item.human_verified" class="opportunity-badge opportunity-badge--glass">

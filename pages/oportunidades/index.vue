@@ -849,6 +849,11 @@ function handleEditOpportunity(item: any) {
 }
 
 function toggleTypeFilter(value: string) {
+  if (value === 'OLYMPIAD') {
+    navigateTo('/olimpiadas')
+    return
+  }
+
   if (!value) {
     activeCategories.value = []
     return

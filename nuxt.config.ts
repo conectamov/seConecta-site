@@ -49,7 +49,16 @@ export default defineNuxtConfig({
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap' },
       ],
       script: [
-        { src: 'https://kit.fontawesome.com/55ef797121.js', crossorigin: 'anonymous', defer: true },
+        {
+          src: 'https://kit.fontawesome.com/55ef797121.js',
+          crossorigin: 'anonymous',
+          defer: true,
+        },
+        {
+          src: 'https://static.cloudflareinsights.com/beacon.min.js',
+          defer: true,
+          'data-cf-beacon': '{"token":"36541bbeb1674ab3b9f6359a368d9169"}',
+        },
       ],
     },
   },

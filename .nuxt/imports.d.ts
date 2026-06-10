@@ -34,6 +34,7 @@ export { useAuth } from '../composables/useAuth';
 export { useAxios } from '../composables/useAxios';
 export { useImageUpload } from '../composables/useImageUpload';
 export { useNotifications } from '../composables/useNotifications';
+export { useOpportunityBulletin } from '../composables/useOpportunityBulletin';
 export { useUserCache } from '../composables/useUserCache';
 export { defineStore, acceptHMRUpdate, usePinia, storeToRefs } from '../node_modules/@pinia/nuxt/dist/runtime/composables';
 export { usePWA, useTransparentPwaIcon, useMaskablePwaIcon, useFaviconPwaIcon, useApplePwaIcon, useAppleSplashScreenPwaIcon } from '../node_modules/@vite-pwa/nuxt/dist/runtime/composables/index';

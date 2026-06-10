@@ -80,6 +80,68 @@ const COMPETITIVENESS_OPTIONS = [
   'Elite',
 ]
 
+const OLYMPIAD_TYPE_OPTIONS = [
+  { value: 'regional', label: 'Regional' },
+  { value: 'national', label: 'Nacional' },
+  { value: 'qualifier', label: 'Seletiva / classificatória' },
+  { value: 'international', label: 'Internacional' },
+  { value: 'independent', label: 'Independente' },
+]
+
+const OLYMPIAD_SUBJECT_OPTIONS = [
+  { value: 'Mathematics', label: 'Matemática' },
+  { value: 'Programming', label: 'Programação' },
+  { value: 'Informatics', label: 'Informática' },
+  { value: 'Physics', label: 'Física' },
+  { value: 'Chemistry', label: 'Química' },
+  { value: 'Biology', label: 'Biologia' },
+  { value: 'Astronomy', label: 'Astronomia' },
+  { value: 'Linguistics', label: 'Linguística' },
+  { value: 'History', label: 'História' },
+  { value: 'Geography', label: 'Geografia' },
+  { value: 'Science', label: 'Ciências' },
+  { value: 'Robotics', label: 'Robótica' },
+  { value: 'Writing', label: 'Redação / escrita' },
+  { value: 'Economics', label: 'Economia' },
+]
+
+
+const OLYMPIAD_SUBJECT_ALIASES: Record<string, string> = {
+  math: 'Mathematics',
+  matematica: 'Mathematics',
+  mathematics: 'Mathematics',
+  programming: 'Programming',
+  programacao: 'Programming',
+  informatics: 'Informatics',
+  informatica: 'Informatics',
+  computer_science: 'Informatics',
+  computacao: 'Informatics',
+  physics: 'Physics',
+  fisica: 'Physics',
+  chemistry: 'Chemistry',
+  quimica: 'Chemistry',
+  biology: 'Biology',
+  biologia: 'Biology',
+  astronomy: 'Astronomy',
+  astronomia: 'Astronomy',
+  linguistics: 'Linguistics',
+  linguistica: 'Linguistics',
+  history: 'History',
+  historia: 'History',
+  geography: 'Geography',
+  geografia: 'Geography',
+  science: 'Science',
+  ciencias: 'Science',
+  robotics: 'Robotics',
+  robotica: 'Robotics',
+  writing: 'Writing',
+  redacao: 'Writing',
+  escrita: 'Writing',
+  economics: 'Economics',
+  economia: 'Economics',
+}
+
+
 const PREPARATION_HORIZON_OPTIONS = [
   'Sem preparo prévio',
   'Dias',
@@ -99,6 +161,8 @@ const RECURRENCE_TYPE_OPTIONS = [
 
 const defaultCategoryData = {
   organizer: null,
+  olympiad_type: null,
+  olympiad_subject: [],
   target_audience: null,
   requirements: [],
   benefits: [],
@@ -147,6 +211,8 @@ const defaultFullOpportunityPayload = {
   category_data: defaultCategoryData,
   keywords: '',
   tags: [],
+  olympiad_type: 'independent',
+  olympiad_subject: [],
   target_subjects: [],
   target_goals: [],
   target_education_levels: [],
@@ -171,6 +237,8 @@ const form = reactive({
   is_free: false,
   keywords: '',
   tagsInput: '',
+  olympiad_type: '',
+  olympiad_subject: [] as string[],
   target_subjects: [] as string[],
   target_goals: [] as string[],
   target_education_levels: [] as string[],
@@ -247,8 +315,8 @@ const fullJsonValidationError = computed(() => {
     return 'O JSON precisa ter title.'
   }
 
-  if (!String(payload.category || '').trim()) {
-    return 'O JSON precisa ter category.'
+  if (!String(payload.category || '').trim() && !hasOlympiadJsonClassification(payload)) {
+    return 'O JSON precisa ter category ou olympiad_type/olympiad_subject.'
   }
 
   if (!String(payload.description || '').trim()) {
@@ -273,6 +341,7 @@ const fullJsonValidationError = computed(() => {
   }
 
   const listFields = [
+    'olympiad_subject',
     'target_subjects',
     'target_goals',
     'target_education_levels',
@@ -343,6 +412,86 @@ function normalizeStringList(value: unknown): string[] {
   }
 
   return []
+}
+
+
+function normalizeOptionKey(value: unknown) {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function normalizeOptionValue(value: unknown, options: Array<{ value: string; label: string }>) {
+  const values = normalizeStringList(value)
+  const normalized = values.map(item => normalizeOptionKey(item))
+
+  return options.find(option =>
+    normalized.includes(normalizeOptionKey(option.value)) ||
+    normalized.includes(normalizeOptionKey(option.label))
+  )?.value || ''
+}
+
+function normalizeOptionValues(value: unknown, options: Array<{ value: string; label: string }>) {
+  const values = normalizeStringList(value)
+  const normalized = values.map(item => normalizeOptionKey(item))
+  const result: string[] = []
+  const allowed = new Set(options.map(option => option.value))
+
+  if (options === OLYMPIAD_SUBJECT_OPTIONS) {
+    for (const token of normalized) {
+      const alias = OLYMPIAD_SUBJECT_ALIASES[token]
+      if (alias && allowed.has(alias) && !result.includes(alias)) result.push(alias)
+    }
+  }
+
+  for (const option of options) {
+    if (
+      normalized.includes(normalizeOptionKey(option.value)) ||
+      normalized.includes(normalizeOptionKey(option.label))
+    ) {
+      if (!result.includes(option.value)) result.push(option.value)
+    }
+  }
+
+  return result
+}
+
+function hasOlympiadJsonClassification(payload: Record<string, any>) {
+  return Boolean(
+    normalizeOptionValue(payload?.olympiad_type ?? payload?.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS) ||
+    normalizeOptionValues(payload?.olympiad_subject ?? payload?.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS).length
+  )
+}
+
+function forceOlympiadCategoryFromJsonFields(payload: Record<string, any>) {
+  payload.category_data = isPlainObject(payload.category_data)
+    ? payload.category_data
+    : {}
+
+  const rawOlympiadType = normalizeOptionValue(payload.olympiad_type ?? payload.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS)
+  const olympiadSubject = normalizeOptionValues(payload.olympiad_subject ?? payload.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS)
+  const shouldBeOlympiad = Boolean(rawOlympiadType || olympiadSubject.length || payload.category === 'OLYMPIAD')
+  const olympiadType = shouldBeOlympiad ? (rawOlympiadType || 'independent') : null
+
+  if (shouldBeOlympiad) {
+    payload.category = 'OLYMPIAD'
+    payload.olympiad_type = olympiadType
+    payload.olympiad_subject = olympiadSubject
+    payload.category_data = {
+      ...payload.category_data,
+      olympiad_type: olympiadType,
+      olympiad_subject: olympiadSubject,
+    }
+  } else {
+    payload.olympiad_type = null
+    payload.olympiad_subject = []
+  }
+
+  return payload
 }
 
 function toggleArrayValue(list: string[], value: string) {
@@ -461,10 +610,14 @@ function clearCoverImage() {
 }
 
 function buildGuidedPayload() {
-  return {
+  const olympiadSubject = [...form.olympiad_subject]
+  const shouldBeOlympiad = Boolean(form.category === 'OLYMPIAD' || form.olympiad_type || olympiadSubject.length)
+  const olympiadType = shouldBeOlympiad ? (form.olympiad_type || 'independent') : null
+
+  const payload: Record<string, any> = {
     title: form.title.trim(),
     slug: form.slug.trim() || null,
-    category: form.category,
+    category: shouldBeOlympiad ? 'OLYMPIAD' : form.category,
     description: form.description.trim(),
     excerpt: form.excerpt.trim() || null,
     cover_url: form.cover_url.trim() || null,
@@ -472,9 +625,17 @@ function buildGuidedPayload() {
     location: form.location.trim() || 'Online',
     is_free: form.is_free,
     timeline: cleanTimeline(),
-    category_data: parsedCategoryData.value || {},
+    category_data: {
+      ...(parsedCategoryData.value || {}),
+      ...(shouldBeOlympiad ? {
+        olympiad_type: olympiadType,
+        olympiad_subject: olympiadSubject,
+      } : {}),
+    },
     keywords: form.keywords.trim() || null,
     tags: parseTags(form.tagsInput),
+    olympiad_type: shouldBeOlympiad ? olympiadType : null,
+    olympiad_subject: shouldBeOlympiad ? olympiadSubject : [],
     target_subjects: [...form.target_subjects],
     target_goals: [...form.target_goals],
     target_education_levels: [...form.target_education_levels],
@@ -484,6 +645,8 @@ function buildGuidedPayload() {
     recurrence_type: [...form.recurrence_type],
     recommendation_notes: form.recommendation_notes.trim() || null,
   }
+
+  return forceOlympiadCategoryFromJsonFields(payload)
 }
 
 function normalizeFullOpportunityPayload(raw: Record<string, any>) {
@@ -547,6 +710,8 @@ function normalizeFullOpportunityPayload(raw: Record<string, any>) {
   } else {
     payload.tags = []
   }
+
+  forceOlympiadCategoryFromJsonFields(payload)
 
   payload.target_subjects = normalizeStringList(payload.target_subjects)
   payload.target_goals = normalizeStringList(payload.target_goals)
@@ -634,7 +799,7 @@ function applyJsonToForm() {
     return
   }
 
-  const payload = parsedFullOpportunity.value
+  const payload = forceOlympiadCategoryFromJsonFields(JSON.parse(JSON.stringify(parsedFullOpportunity.value)))
 
   form.title = String(payload.title || '')
   form.slug = String(payload.slug || '')
@@ -651,6 +816,8 @@ function applyJsonToForm() {
     ? payload.tags.join(', ')
     : String(payload.tags || '')
 
+  form.olympiad_type = normalizeOptionValue(payload.olympiad_type ?? payload.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS)
+  form.olympiad_subject = normalizeOptionValues(payload.olympiad_subject ?? payload.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS)
   form.target_subjects = normalizeStringList(payload.target_subjects)
   form.target_goals = normalizeStringList(payload.target_goals)
   form.target_education_levels = normalizeStringList(payload.target_education_levels)
@@ -885,6 +1052,45 @@ async function submit() {
               <div>
                 <h2>Perfil recomendado</h2>
                 <p>Esses campos alimentam o algoritmo de recomendação personalizada. Marque apenas o que realmente representa a oportunidade.</p>
+              </div>
+            </div>
+
+            <div v-if="form.category === 'OLYMPIAD'" class="recommendation-field recommendation-field--olympiad">
+              <span>Campos específicos de olimpíadas</span>
+              <p class="field-help">Esses dois campos alimentam o filtro do catálogo de olimpíadas e ficam salvos no JSON completo.</p>
+
+              <div class="recommendation-grid">
+                <div>
+                  <span class="mini-label">Tipo da olimpíada</span>
+                  <div class="choice-grid choice-grid--compact">
+                    <button
+                      v-for="option in OLYMPIAD_TYPE_OPTIONS"
+                      :key="option.value"
+                      type="button"
+                      class="choice-chip"
+                      :class="{ 'choice-chip--active': form.olympiad_type === option.value }"
+                      @click="form.olympiad_type = form.olympiad_type === option.value ? '' : option.value"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <span class="mini-label">Matéria da olimpíada</span>
+                  <div class="choice-grid choice-grid--compact">
+                    <button
+                      v-for="option in OLYMPIAD_SUBJECT_OPTIONS"
+                      :key="option.value"
+                      type="button"
+                      class="choice-chip"
+                      :class="{ 'choice-chip--active': form.olympiad_subject.includes(option.value) }"
+                      @click="toggleArrayValue(form.olympiad_subject, option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1742,5 +1948,21 @@ textarea:focus {
   .cover-preview {
     height: 180px;
   }
+}
+</style>
+
+<style scoped>
+.mini-label {
+  display: block;
+  margin: 0 0 8px;
+  color: #6b7280;
+  font-size: .74rem;
+  font-weight: 800;
+}
+.field-help {
+  margin: -4px 0 12px;
+  color: #78716c;
+  font-size: .82rem;
+  line-height: 1.5;
 }
 </style>

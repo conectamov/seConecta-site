@@ -94,6 +94,31 @@ const COMPETITIVENESS_OPTIONS = [
   { value: 'ELITE', label: 'Elite' },
 ]
 
+const OLYMPIAD_TYPE_OPTIONS = [
+  { value: 'regional', label: 'Regional' },
+  { value: 'national', label: 'Nacional' },
+  { value: 'qualifier', label: 'Pré-Seletiva' },
+  { value: 'international', label: 'Internacional' },
+  { value: 'independent', label: 'Independente' },
+]
+
+const OLYMPIAD_SUBJECT_OPTIONS = [
+  { value: 'math', label: 'Matemática' },
+  { value: 'programming', label: 'Programação' },
+  { value: 'physics', label: 'Física' },
+  { value: 'chemistry', label: 'Química' },
+  { value: 'biology', label: 'Biologia' },
+  { value: 'astronomy', label: 'Astronomia' },
+  { value: 'linguistics', label: 'Linguística' },
+  { value: 'history', label: 'História' },
+  { value: 'geography', label: 'Geografia' },
+  { value: 'science', label: 'Ciências' },
+  { value: 'robotics', label: 'Robótica' },
+  { value: 'writing', label: 'Redação e Humanidades' },
+  { value: 'economics', label: 'Economia' },
+  { value: 'other', label: 'Outras áreas' },
+]
+
 const PREPARATION_HORIZON_OPTIONS = [
   { value: 'NONE', label: 'Sem preparo prévio' },
   { value: 'DAYS', label: 'Dias' },
@@ -113,6 +138,8 @@ const RECURRENCE_TYPE_OPTIONS = [
 
 const categoryDataTemplate = {
   organizer: null,
+  olympiad_type: null,
+  olympiad_subject: null,
   target_audience: null,
   requirements: [],
   benefits: [],
@@ -149,6 +176,8 @@ const fullJsonSchemaTemplate = {
   approved: null,
   priority: 0,
   next_deadline: null,
+  olympiad_type: null,
+  olympiad_subject: null,
   target_subjects: [],
   target_goals: [],
   target_education_levels: [],
@@ -235,6 +264,8 @@ const form = reactive({
   priority: 0,
   keywords: '',
   tags: [] as string[],
+  olympiad_type: '',
+  olympiad_subject: '',
   target_subjects: [] as string[],
   target_goals: [] as string[],
   target_education_levels: [] as string[],
@@ -338,6 +369,8 @@ const previewFacts = computed(() => {
 
 const recommendationPreviewFacts = computed(() => {
   const facts = [
+    { label: 'Tipo de olimpíada', value: getOptionLabel(OLYMPIAD_TYPE_OPTIONS, form.olympiad_type) },
+    { label: 'Matéria da olimpíada', value: getOptionLabel(OLYMPIAD_SUBJECT_OPTIONS, form.olympiad_subject) },
     { label: 'Áreas', value: getRecommendationListLabels(TARGET_SUBJECT_OPTIONS, form.target_subjects).join(' · ') },
     { label: 'Objetivos', value: getRecommendationListLabels(TARGET_GOAL_OPTIONS, form.target_goals).join(' · ') },
     { label: 'Nível escolar', value: getRecommendationListLabels(TARGET_EDUCATION_LEVEL_OPTIONS, form.target_education_levels).join(' · ') },
@@ -404,6 +437,63 @@ function normalizeStringList(value: any): string[] {
   return []
 }
 
+type RecommendationOption = { value: string; label: string }
+
+function normalizeKey(value: any) {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function normalizeOptionList(value: any, options: RecommendationOption[]): string[] {
+  const values = normalizeStringList(value)
+
+  const byExactValue = new Map(options.map(option => [option.value, option.value]))
+  const byNormalized = new Map<string, string>()
+
+  options.forEach(option => {
+    byNormalized.set(normalizeKey(option.value), option.value)
+    byNormalized.set(normalizeKey(option.label), option.value)
+  })
+
+  return Array.from(new Set(
+    values
+      .map(item => {
+        const raw = String(item).trim()
+        return byExactValue.get(raw) || byNormalized.get(normalizeKey(raw)) || raw
+      })
+      .filter(Boolean)
+  ))
+}
+
+function normalizeOlympiadFields(data: any) {
+  return {
+    olympiad_type: normalizeOptionValue(data?.olympiad_type ?? data?.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS),
+    olympiad_subject: normalizeOptionValue(data?.olympiad_subject ?? data?.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS),
+  }
+}
+
+function normalizeRecommendationFields(data: any) {
+  return {
+    target_subjects: normalizeOptionList(data?.target_subjects, TARGET_SUBJECT_OPTIONS),
+    target_goals: normalizeOptionList(data?.target_goals, TARGET_GOAL_OPTIONS),
+    target_education_levels: normalizeOptionList(data?.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS),
+    recommended_experience_levels: normalizeOptionList(data?.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS),
+    competitiveness_level: normalizeOptionList(data?.competitiveness_level, COMPETITIVENESS_OPTIONS),
+    preparation_horizon: normalizeOptionList(data?.preparation_horizon, PREPARATION_HORIZON_OPTIONS),
+    recurrence_type: normalizeOptionList(data?.recurrence_type, RECURRENCE_TYPE_OPTIONS),
+  }
+}
+
+
+function normalizeOptionValue(value: any, options: RecommendationOption[]) {
+  return normalizeOptionList(value, options)[0] || ''
+}
+
 function toggleListValue(list: string[], value: string) {
   const idx = list.indexOf(value)
 
@@ -420,7 +510,7 @@ function getOptionLabel(options: Array<{ value: string; label: string }>, value:
 }
 
 function getRecommendationListLabels(options: Array<{ value: string; label: string }>, values: string[]) {
-  return normalizeStringList(values).map(value => getOptionLabel(options, value))
+  return normalizeOptionList(values, options).map(value => getOptionLabel(options, value))
 }
 
 function addTag() {
@@ -613,13 +703,15 @@ function mergeFullJsonSchema() {
       ? current.timeline
       : cloneJson(fullJsonSchemaTemplate.timeline),
     tags: normalizeTags(current.tags),
-    target_subjects: normalizeStringList(current.target_subjects),
-    target_goals: normalizeStringList(current.target_goals),
-    target_education_levels: normalizeStringList(current.target_education_levels),
-    recommended_experience_levels: normalizeStringList(current.recommended_experience_levels),
-    competitiveness_level: normalizeStringList(current.competitiveness_level),
-    preparation_horizon: normalizeStringList(current.preparation_horizon),
-    recurrence_type: normalizeStringList(current.recurrence_type),
+    olympiad_type: normalizeOptionValue(current.olympiad_type ?? current.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS) || null,
+    olympiad_subject: normalizeOptionValue(current.olympiad_subject ?? current.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS) || null,
+    target_subjects: normalizeOptionList(current.target_subjects, TARGET_SUBJECT_OPTIONS),
+    target_goals: normalizeOptionList(current.target_goals, TARGET_GOAL_OPTIONS),
+    target_education_levels: normalizeOptionList(current.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS),
+    recommended_experience_levels: normalizeOptionList(current.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS),
+    competitiveness_level: normalizeOptionList(current.competitiveness_level, COMPETITIVENESS_OPTIONS),
+    preparation_horizon: normalizeOptionList(current.preparation_horizon, PREPARATION_HORIZON_OPTIONS),
+    recurrence_type: normalizeOptionList(current.recurrence_type, RECURRENCE_TYPE_OPTIONS),
     recommendation_notes: current.recommendation_notes || null,
   }, null, 2)
 }
@@ -637,9 +729,17 @@ function buildVisualPayload() {
     human_verified: !!form.human_verified,
     priority: Math.min(5, Math.max(0, Number(form.priority || 0))),
     timeline: cleanTimeline(),
-    category_data: parsedCategoryData.value || {},
+    category_data: {
+      ...(parsedCategoryData.value || {}),
+      ...(form.category === 'OLYMPIAD' ? {
+        olympiad_type: form.olympiad_type || null,
+        olympiad_subject: form.olympiad_subject || null,
+      } : {}),
+    },
     keywords: form.keywords.trim() || null,
     tags: form.tags,
+    olympiad_type: form.category === 'OLYMPIAD' ? (form.olympiad_type || null) : null,
+    olympiad_subject: form.category === 'OLYMPIAD' ? (form.olympiad_subject || null) : null,
     target_subjects: form.target_subjects,
     target_goals: form.target_goals,
     target_education_levels: form.target_education_levels,
@@ -684,13 +784,15 @@ function buildFullJsonFromOpportunity(data: any) {
         : cloneJson(categoryDataTemplate),
     keywords: data.keywords || null,
     tags: normalizeTags(data.tags),
-    target_subjects: normalizeStringList(data.target_subjects),
-    target_goals: normalizeStringList(data.target_goals),
-    target_education_levels: normalizeStringList(data.target_education_levels),
-    recommended_experience_levels: normalizeStringList(data.recommended_experience_levels),
-    competitiveness_level: normalizeStringList(data.competitiveness_level),
-    preparation_horizon: normalizeStringList(data.preparation_horizon),
-    recurrence_type: normalizeStringList(data.recurrence_type),
+    olympiad_type: normalizeOptionValue(data.olympiad_type ?? data.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS) || null,
+    olympiad_subject: normalizeOptionValue(data.olympiad_subject ?? data.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS) || null,
+    target_subjects: normalizeOptionList(data.target_subjects, TARGET_SUBJECT_OPTIONS),
+    target_goals: normalizeOptionList(data.target_goals, TARGET_GOAL_OPTIONS),
+    target_education_levels: normalizeOptionList(data.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS),
+    recommended_experience_levels: normalizeOptionList(data.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS),
+    competitiveness_level: normalizeOptionList(data.competitiveness_level, COMPETITIVENESS_OPTIONS),
+    preparation_horizon: normalizeOptionList(data.preparation_horizon, PREPARATION_HORIZON_OPTIONS),
+    recurrence_type: normalizeOptionList(data.recurrence_type, RECURRENCE_TYPE_OPTIONS),
     recommendation_notes: data.recommendation_notes || null,
   }
 
@@ -731,13 +833,15 @@ function applyFullJsonToForm() {
   form.priority = typeof data.priority === 'number' ? data.priority : 0
   form.keywords = data.keywords || ''
   form.tags = normalizeTags(data.tags)
-  form.target_subjects = normalizeStringList(data.target_subjects)
-  form.target_goals = normalizeStringList(data.target_goals)
-  form.target_education_levels = normalizeStringList(data.target_education_levels)
-  form.recommended_experience_levels = normalizeStringList(data.recommended_experience_levels)
-  form.competitiveness_level = normalizeStringList(data.competitiveness_level)
-  form.preparation_horizon = normalizeStringList(data.preparation_horizon)
-  form.recurrence_type = normalizeStringList(data.recurrence_type)
+  form.olympiad_type = normalizeOptionValue(data.olympiad_type ?? data.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS)
+  form.olympiad_subject = normalizeOptionValue(data.olympiad_subject ?? data.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS)
+  form.target_subjects = normalizeOptionList(data.target_subjects, TARGET_SUBJECT_OPTIONS)
+  form.target_goals = normalizeOptionList(data.target_goals, TARGET_GOAL_OPTIONS)
+  form.target_education_levels = normalizeOptionList(data.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS)
+  form.recommended_experience_levels = normalizeOptionList(data.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS)
+  form.competitiveness_level = normalizeOptionList(data.competitiveness_level, COMPETITIVENESS_OPTIONS)
+  form.preparation_horizon = normalizeOptionList(data.preparation_horizon, PREPARATION_HORIZON_OPTIONS)
+  form.recurrence_type = normalizeOptionList(data.recurrence_type, RECURRENCE_TYPE_OPTIONS)
   form.recommendation_notes = data.recommendation_notes || ''
   form.timeline = normalizeTimeline(data.timeline)
 
@@ -904,13 +1008,15 @@ function hydrateForm(data: any) {
   form.priority = typeof data.priority === 'number' ? data.priority : 0
   form.keywords = data.keywords || ''
   form.tags = normalizeTags(data.tags)
-  form.target_subjects = normalizeStringList(data.target_subjects)
-  form.target_goals = normalizeStringList(data.target_goals)
-  form.target_education_levels = normalizeStringList(data.target_education_levels)
-  form.recommended_experience_levels = normalizeStringList(data.recommended_experience_levels)
-  form.competitiveness_level = normalizeStringList(data.competitiveness_level)
-  form.preparation_horizon = normalizeStringList(data.preparation_horizon)
-  form.recurrence_type = normalizeStringList(data.recurrence_type)
+  form.olympiad_type = normalizeOptionValue(data.olympiad_type ?? data.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS)
+  form.olympiad_subject = normalizeOptionValue(data.olympiad_subject ?? data.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS)
+  form.target_subjects = normalizeOptionList(data.target_subjects, TARGET_SUBJECT_OPTIONS)
+  form.target_goals = normalizeOptionList(data.target_goals, TARGET_GOAL_OPTIONS)
+  form.target_education_levels = normalizeOptionList(data.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS)
+  form.recommended_experience_levels = normalizeOptionList(data.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS)
+  form.competitiveness_level = normalizeOptionList(data.competitiveness_level, COMPETITIVENESS_OPTIONS)
+  form.preparation_horizon = normalizeOptionList(data.preparation_horizon, PREPARATION_HORIZON_OPTIONS)
+  form.recurrence_type = normalizeOptionList(data.recurrence_type, RECURRENCE_TYPE_OPTIONS)
   form.recommendation_notes = data.recommendation_notes || ''
   form.timeline = normalizeTimeline(data.timeline)
 
@@ -964,14 +1070,24 @@ function cleanFullJsonPayload(raw: Record<string, any>) {
         : {},
     keywords: raw.keywords ? String(raw.keywords).trim() : null,
     tags: normalizeTags(raw.tags),
-    target_subjects: normalizeStringList(raw.target_subjects),
-    target_goals: normalizeStringList(raw.target_goals),
-    target_education_levels: normalizeStringList(raw.target_education_levels),
-    recommended_experience_levels: normalizeStringList(raw.recommended_experience_levels),
-    competitiveness_level: normalizeStringList(raw.competitiveness_level),
-    preparation_horizon: normalizeStringList(raw.preparation_horizon),
-    recurrence_type: normalizeStringList(raw.recurrence_type),
+    olympiad_type: normalizeOptionValue(raw.olympiad_type ?? raw.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS) || null,
+    olympiad_subject: normalizeOptionValue(raw.olympiad_subject ?? raw.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS) || null,
+    target_subjects: normalizeOptionList(raw.target_subjects, TARGET_SUBJECT_OPTIONS),
+    target_goals: normalizeOptionList(raw.target_goals, TARGET_GOAL_OPTIONS),
+    target_education_levels: normalizeOptionList(raw.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS),
+    recommended_experience_levels: normalizeOptionList(raw.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS),
+    competitiveness_level: normalizeOptionList(raw.competitiveness_level, COMPETITIVENESS_OPTIONS),
+    preparation_horizon: normalizeOptionList(raw.preparation_horizon, PREPARATION_HORIZON_OPTIONS),
+    recurrence_type: normalizeOptionList(raw.recurrence_type, RECURRENCE_TYPE_OPTIONS),
     recommendation_notes: raw.recommendation_notes ? String(raw.recommendation_notes).trim() : null,
+  }
+
+  if (payload.category === 'OLYMPIAD') {
+    payload.category_data = {
+      ...payload.category_data,
+      olympiad_type: payload.olympiad_type,
+      olympiad_subject: payload.olympiad_subject,
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(raw, 'slug')) {
@@ -1144,6 +1260,8 @@ onMounted(fetchOpportunity)
         </button>
         <div v-if="activeGuide === 3" class="guide-content">
           <p>Esses campos alimentam o algoritmo de Para você, fit band, boletim e ranking personalizado.</p>
+          <code>olympiad_type</code>
+          <code>olympiad_subject</code>
           <code>target_subjects</code>
           <code>target_goals</code>
           <code>recommended_experience_levels</code>
@@ -1428,6 +1546,47 @@ onMounted(fetchOpportunity)
             </div>
 
             <div class="recommendation-editor">
+              <div v-if="form.category === 'OLYMPIAD'" class="recommendation-block recommendation-block--olympiad">
+                <div class="recommendation-block__header">
+                  <strong>Campos específicos de olimpíadas</strong>
+                  <span>Use estes campos para filtrar o catálogo de olimpíadas e para explicar o escopo corretamente no modal.</span>
+                </div>
+
+                <div class="grid-two">
+                  <div>
+                    <span class="mini-label">Tipo da olimpíada</span>
+                    <div class="option-chip-grid option-chip-grid--compact">
+                      <button
+                        v-for="option in OLYMPIAD_TYPE_OPTIONS"
+                        :key="option.value"
+                        type="button"
+                        class="option-chip"
+                        :class="{ 'option-chip--active': form.olympiad_type === option.value }"
+                        @click="form.olympiad_type = form.olympiad_type === option.value ? '' : option.value"
+                      >
+                        {{ option.label }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span class="mini-label">Matéria da olimpíada</span>
+                    <div class="option-chip-grid option-chip-grid--compact">
+                      <button
+                        v-for="option in OLYMPIAD_SUBJECT_OPTIONS"
+                        :key="option.value"
+                        type="button"
+                        class="option-chip"
+                        :class="{ 'option-chip--active': form.olympiad_subject === option.value }"
+                        @click="form.olympiad_subject = form.olympiad_subject === option.value ? '' : option.value"
+                      >
+                        {{ option.label }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div class="recommendation-block">
                 <div class="recommendation-block__header">
                   <strong>Áreas relacionadas</strong>
@@ -1708,7 +1867,7 @@ onMounted(fetchOpportunity)
               <code>official_site_url</code>, <code>location</code>, <code>is_free</code>,
               <code>human_verified</code>, <code>approved</code>, <code>priority</code>,
               <code>next_deadline</code>, <code>timeline</code>, <code>category_data</code>,
-              <code>keywords</code>, <code>tags</code>, <code>target_subjects</code>,
+              <code>keywords</code>, <code>tags</code>, <code>olympiad_type</code>, <code>olympiad_subject</code>, <code>target_subjects</code>,
               <code>target_goals</code>, <code>target_education_levels</code>,
               <code>recommended_experience_levels</code>, <code>competitiveness_level</code>,
               <code>preparation_horizon</code>, <code>recurrence_type</code> e
@@ -2735,5 +2894,15 @@ button:disabled {
   .cover-preview {
     height: 180px;
   }
+}
+</style>
+
+<style scoped>
+.mini-label {
+  display: block;
+  margin: 0 0 8px;
+  color: #6b7280;
+  font-size: .74rem;
+  font-weight: 800;
 }
 </style>
