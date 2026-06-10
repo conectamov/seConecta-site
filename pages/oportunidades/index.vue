@@ -425,10 +425,95 @@ function normalize(o: any) {
     created_at: o.created_at,
     updated_at: o.updated_at,
     detail_loaded: detailLoaded,
+
+    // Personalized recommendation metadata returned by /opportunity/recommended/for-you.
+    availability_context: o.availability_context ?? null,
+    fit_band: o.fit_band ?? null,
+    selection_bucket: o.selection_bucket ?? null,
+    recommendation_score: typeof o.recommendation_score === 'number' ? o.recommendation_score : null,
+    reason: o.reason ?? null,
+    reasons: Array.isArray(o.reasons) ? o.reasons.filter(Boolean).map(String) : [],
+    penalties: Array.isArray(o.penalties) ? o.penalties.filter(Boolean).map(String) : [],
+    track: o.track ?? (o.category === 'OLYMPIAD' ? 'OLYMPIAD' : 'GENERAL'),
   }
 }
 
+function recommendationLabel(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    APPLY_NOW: 'Para agora',
+    CLOSING_SOON: 'Prazo próximo',
+    EVERGREEN: 'Sempre disponível',
+    PREPARE_NOW: 'Prepare-se',
+    WATCH_NEXT_CYCLE: 'Próximo ciclo',
+    CLOSED: 'Encerrada',
+    SAFETY: 'Bom primeiro passo',
+    TARGET: 'Ideal para você',
+    REACH: 'Desafio possível',
+    ASPIRATIONAL: 'Meta futura',
+    UNKNOWN: 'Recomendação',
+  }
+
+  const key = String(value || '').toUpperCase()
+  return labels[key] || 'Recomendação'
+}
+
+function recommendationTone(value: string | null | undefined) {
+  const key = String(value || '').toUpperCase()
+
+  if (['APPLY_NOW', 'TARGET', 'SAFETY', 'EVERGREEN'].includes(key)) return 'green'
+  if (['CLOSING_SOON', 'REACH'].includes(key)) return 'amber'
+  if (['PREPARE_NOW', 'WATCH_NEXT_CYCLE'].includes(key)) return 'blue'
+  if (['ASPIRATIONAL'].includes(key)) return 'purple'
+  if (['CLOSED'].includes(key)) return 'zinc'
+
+  return 'zinc'
+}
+
+function getRecommendationChips(item: any) {
+  const chips: Array<{ label: string; tone: string }> = []
+  const availability = item?.availability_context
+  const fit = item?.fit_band
+
+  if (availability) {
+    chips.push({
+      label: recommendationLabel(availability),
+      tone: recommendationTone(availability),
+    })
+  }
+
+  if (fit && fit !== 'UNKNOWN') {
+    chips.push({
+      label: recommendationLabel(fit),
+      tone: recommendationTone(fit),
+    })
+  }
+
+  if (item?.is_free) {
+    chips.push({ label: 'Gratuita', tone: 'green' })
+  }
+
+  return chips.slice(0, 3)
+}
+
+function getRecommendationReason(item: any) {
+  if (item?.reason) return item.reason
+  if (Array.isArray(item?.reasons) && item.reasons.length > 0) return item.reasons[0]
+  return item?.excerpt || 'Selecionada pelo seu perfil, interesses e momento atual.'
+}
+
+function openPreferencesSetup() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('open-user-preferences-onboarding'))
+    return
+  }
+
+  navigateTo('/perfil')
+}
+
 const opportunities = ref<any[]>([])
+const personalizedOpportunities = ref<any[]>([])
+const loadingPersonalized = ref(false)
+const personalizedError = ref<string | null>(null)
 const loading = ref(true)
 const loadingMore = ref(false)
 const error = ref<string | null>(null)
@@ -453,9 +538,23 @@ const currentUser = ref<any | null>(null)
 const authChecked = ref(false)
 
 let opportunitiesRequestSeq = 0
+let personalizedRequestSeq = 0
 
 const isAdmin = computed(() => !!(currentUser.value?.is_superuser || currentUser.value?.is_manager))
 const isLoggedIn = computed(() => !!currentUser.value)
+const userHasPreferencesSet = computed(() => {
+  const user = currentUser.value || {}
+
+  return Boolean(
+    user.preferences_set ||
+    user.has_preferences_set ||
+    user.has_opportunity_preferences ||
+    user.opportunity_preferences_set ||
+    user.personalized_settings_created ||
+    user.preferences?.embedding ||
+    user.opportunity_preferences?.embedding
+  )
+})
 
 const MEMBER_NUDGE_DISMISS_KEY = 'seconecta:opportunities-member-nudge-dismissed-at'
 const MEMBER_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000
@@ -600,6 +699,46 @@ async function fetchOpportunities(reset = true) {
   }
 }
 
+async function fetchRecommendedForYou() {
+  const requestSeq = ++personalizedRequestSeq
+
+  if (!isLoggedIn.value || !userHasPreferencesSet.value) {
+    personalizedOpportunities.value = []
+    personalizedError.value = null
+    return
+  }
+
+  loadingPersonalized.value = true
+  personalizedError.value = null
+
+  try {
+    const res = await get('/opportunity/recommended/for-you', {
+      params: {
+        surface: 'OPPORTUNITIES_PAGE',
+        track: 'general',
+        limit: 8,
+        candidate_limit: 200,
+      },
+    })
+
+    if (requestSeq !== personalizedRequestSeq) return
+
+    const data = res.data?.data ?? []
+    personalizedOpportunities.value = data
+      .map(normalize)
+      .filter((item: any) => item.category !== 'OLYMPIAD')
+  } catch (e: any) {
+    if (requestSeq !== personalizedRequestSeq) return
+
+    personalizedOpportunities.value = []
+    personalizedError.value = e?.response?.data?.detail || e?.message || 'Não foi possível carregar recomendações personalizadas.'
+  } finally {
+    if (requestSeq === personalizedRequestSeq) {
+      loadingPersonalized.value = false
+    }
+  }
+}
+
 async function loadMore() {
   if (!hasMore.value || loadingMore.value) return
   currentPage.value++
@@ -710,6 +849,11 @@ function handleEditOpportunity(item: any) {
 }
 
 function toggleTypeFilter(value: string) {
+  if (value === 'OLYMPIAD') {
+    navigateTo('/olimpiadas')
+    return
+  }
+
   if (!value) {
     activeCategories.value = []
     return
@@ -842,6 +986,8 @@ onMounted(async () => {
   if (isAdmin.value) {
     await fetchOpportunities(true)
   }
+
+  await fetchRecommendedForYou()
 })
 
 onUnmounted(() => {
@@ -889,6 +1035,30 @@ const activeFilters = computed(
     + (isAdmin.value && verificationFilter.value !== 'all' ? 1 : 0)
 )
 const filtersActive = computed(() => activeFilters.value > 0)
+const shouldShowPersonalizedContext = computed(() => {
+  return (
+    authChecked.value &&
+    !filtersActive.value &&
+    !loading.value &&
+    !error.value
+  )
+})
+
+const showPersonalizedSetupCard = computed(() => {
+  return shouldShowPersonalizedContext.value && isLoggedIn.value && !userHasPreferencesSet.value
+})
+
+const showPersonalizedRail = computed(() => {
+  return shouldShowPersonalizedContext.value && personalizedOpportunities.value.length > 0
+})
+
+const showPersonalizedLoading = computed(() => {
+  return shouldShowPersonalizedContext.value && loadingPersonalized.value && isLoggedIn.value && userHasPreferencesSet.value
+})
+
+const showPersonalizedSection = computed(() => {
+  return showPersonalizedSetupCard.value || showPersonalizedRail.value || showPersonalizedLoading.value
+})
 
 function prioritySort(items: any[]) {
   return [...items].sort((a, b) => {
@@ -1240,6 +1410,132 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
             </div>
           </aside>
         </Transition>
+
+        <section v-if="showPersonalizedSection" class="opp-for-you-section">
+          <div class="opp-for-you-panel">
+            <div class="opp-for-you-header">
+              <div>
+                <span class="opp-for-you-eyebrow">Radar personalizado</span>
+                <h2>Para você</h2>
+                <p>
+                  Recomendações escolhidas pelo seu perfil, nível, interesses e momento da oportunidade.
+                </p>
+              </div>
+
+              <div class="opp-for-you-actions">
+                <button
+                  v-if="isLoggedIn"
+                  type="button"
+                  class="opp-for-you-link"
+                  @click="openPreferencesSetup"
+                >
+                  Ajustar perfil
+                </button>
+              </div>
+            </div>
+
+            <div v-if="showPersonalizedSetupCard" class="opp-for-you-empty">
+              <div>
+                <strong>Monte seu radar para ver oportunidades personalizadas.</strong>
+                <span>
+                  O catálogo continua livre, mas com seu perfil o seConecta consegue separar próximos passos, desafios e metas futuras.
+                </span>
+              </div>
+
+              <button type="button" class="opp-btn opp-btn--primary" @click="openPreferencesSetup">
+                Configurar radar
+              </button>
+            </div>
+
+            <div v-else-if="showPersonalizedLoading" class="opp-for-you-row">
+              <div v-for="i in 4" :key="i" class="opp-for-you-skeleton"></div>
+            </div>
+
+            <div v-else class="opp-for-you-row">
+              <article
+                v-for="item in personalizedOpportunities"
+                :key="`personalized-${item.id}`"
+                class="opp-for-you-card"
+                role="button"
+                tabindex="0"
+                @click="selectOpportunity(item)"
+                @keydown.enter="selectOpportunity(item)"
+              >
+                <div class="opp-for-you-card__cover">
+                  <img
+                    v-if="item.cover_url"
+                    :src="item.cover_url"
+                    :alt="item.title"
+                    loading="lazy"
+                    decoding="async"
+                  />
+
+                  <div
+                    v-else
+                    class="opp-for-you-card__fallback"
+                    :style="{ background: `linear-gradient(135deg, ${item.categoryMeta.color}24, ${item.categoryMeta.color}08)` }"
+                  >
+                    <span>{{ item.categoryMeta.icon }}</span>
+                  </div>
+
+                  <div class="opp-for-you-card__badges">
+                    <span class="opp-for-you-badge opp-for-you-badge--main">
+                      ✦ Para você
+                    </span>
+
+                    <span
+                      v-for="chip in getRecommendationChips(item).slice(0, 1)"
+                      :key="chip.label"
+                      class="opp-for-you-badge"
+                      :class="`opp-for-you-badge--${chip.tone}`"
+                    >
+                      {{ chip.label }}
+                    </span>
+                  </div>
+
+                  <div
+                    v-if="item.next_deadline"
+                    class="opp-card__deadline"
+                    :class="{
+                      'opp-card__deadline--urgent': item.deadline.urgent,
+                      'opp-card__deadline--overdue': item.deadline.overdue
+                    }"
+                  >
+                    {{ item.deadlineActionLabel }}
+                  </div>
+                </div>
+
+                <div class="opp-for-you-card__body">
+                  <div class="opp-card__meta">
+                    <span
+                      class="opp-meta-chip"
+                      :style="{ color: item.categoryMeta.color, borderColor: item.categoryMeta.color + '33', background: item.categoryMeta.color + '10' }"
+                    >
+                      {{ item.categoryMeta.icon }} {{ item.categoryMeta.label }}
+                    </span>
+                    <span v-if="item.is_free" class="opp-meta-chip opp-meta-chip--free">Gratuito</span>
+                  </div>
+
+                  <h3>{{ item.title }}</h3>
+                  <p>{{ getRecommendationReason(item) }}</p>
+
+                  <div class="opp-for-you-chip-row">
+                    <span
+                      v-for="chip in getRecommendationChips(item).slice(1)"
+                      :key="chip.label"
+                      class="opp-for-you-mini-chip"
+                      :class="`opp-for-you-mini-chip--${chip.tone}`"
+                    >
+                      {{ chip.label }}
+                    </span>
+                  </div>
+
+                  <div class="opp-card__action">Ver detalhes →</div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
 
         <div v-if="editorialItems.length > 0" class="opp-priority-section">
           <div class="opp-section-header">
@@ -2396,6 +2692,40 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
     scroll-snap-align: start;
   }
 
+  .opp-for-you-section {
+    margin: 0 16px 28px;
+  }
+
+  .opp-for-you-panel {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .opp-for-you-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .opp-for-you-row {
+    display: flex;
+    gap: 12px;
+    padding: 2px 0 12px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .opp-for-you-card,
+  .opp-for-you-skeleton {
+    flex: 0 0 78vw;
+    width: auto;
+    min-width: 260px;
+    max-width: 330px;
+    scroll-snap-align: start;
+  }
+
+  .opp-for-you-empty {
+    grid-template-columns: 1fr;
+  }
+
   .opp-card:hover,
   .opp-featured-card:hover,
   .opp-editorial-card:hover {
@@ -2430,6 +2760,304 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
   .opp-modal__body {
     padding: 20px;
   }
+}
+
+
+.opp-for-you-section {
+  margin-bottom: 34px;
+}
+
+.opp-for-you-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(16, 185, 129, .18);
+  border-radius: 24px;
+  padding: 20px;
+  background:
+    radial-gradient(circle at top left, rgba(16, 185, 129, .14), transparent 28rem),
+    linear-gradient(135deg, #ffffff, #f0fdfa);
+  box-shadow: 0 18px 56px rgba(15, 23, 42, .07);
+}
+
+.opp-for-you-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.opp-for-you-eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 7px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, .12);
+  color: #047857;
+  font-family: 'Sora', sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+}
+
+.opp-for-you-header h2 {
+  margin: 0;
+  font-family: 'Sora', sans-serif;
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 850;
+  letter-spacing: -.035em;
+}
+
+.opp-for-you-header p {
+  max-width: 620px;
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.opp-for-you-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.opp-for-you-link {
+  border: 1px solid rgba(16, 185, 129, .22);
+  border-radius: 999px;
+  background: white;
+  color: #047857;
+  padding: 8px 12px;
+  font-family: 'Sora', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.opp-for-you-link:hover {
+  background: #ecfdf5;
+}
+
+.opp-for-you-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(270px, 330px);
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 10px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.opp-for-you-row::-webkit-scrollbar {
+  display: none;
+}
+
+.opp-for-you-card {
+  min-height: 366px;
+  scroll-snap-align: start;
+  background: rgba(255,255,255,.96);
+  border: 1px solid rgba(16, 185, 129, .16);
+  border-radius: 18px;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.opp-for-you-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(16, 185, 129, .34);
+  box-shadow: 0 16px 44px rgba(16, 185, 129, .12);
+}
+
+.opp-for-you-card__cover {
+  position: relative;
+  height: 150px;
+  overflow: hidden;
+  background: #f5f5f4;
+}
+
+.opp-for-you-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .5s;
+}
+
+.opp-for-you-card:hover .opp-for-you-card__cover img {
+  transform: scale(1.04);
+}
+
+.opp-for-you-card__fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.opp-for-you-card__fallback span {
+  font-size: 2.8rem;
+  opacity: .75;
+}
+
+.opp-for-you-card__badges {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.opp-for-you-badge,
+.opp-for-you-mini-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  font-family: 'Sora', sans-serif;
+  font-weight: 800;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.opp-for-you-badge {
+  padding: 5px 9px;
+  font-size: 10px;
+}
+
+.opp-for-you-badge--main {
+  background: rgba(15, 23, 42, .80);
+  color: white;
+  border: 1px solid rgba(255,255,255,.14);
+}
+
+.opp-for-you-badge--green,
+.opp-for-you-mini-chip--green {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.opp-for-you-badge--amber,
+.opp-for-you-mini-chip--amber {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.opp-for-you-badge--blue,
+.opp-for-you-mini-chip--blue {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.opp-for-you-badge--purple,
+.opp-for-you-mini-chip--purple {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+.opp-for-you-badge--zinc,
+.opp-for-you-mini-chip--zinc {
+  background: #f5f5f4;
+  color: #57534e;
+  border: 1px solid #e7e5e4;
+}
+
+.opp-for-you-card__body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  flex: 1;
+}
+
+.opp-for-you-card__body h3 {
+  margin: 0;
+  color: #0f172a;
+  font-family: 'Sora', sans-serif;
+  font-size: 14.5px;
+  line-height: 1.32;
+  font-weight: 850;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.opp-for-you-card__body p {
+  margin: 0;
+  color: #64748b;
+  font-size: 12.5px;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+.opp-for-you-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.opp-for-you-mini-chip {
+  padding: 4px 8px;
+  font-size: 10px;
+}
+
+.opp-for-you-empty {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border: 1px dashed rgba(16,185,129,.35);
+  border-radius: 18px;
+  background: rgba(255,255,255,.72);
+}
+
+.opp-for-you-empty strong {
+  display: block;
+  color: #0f172a;
+  font-family: 'Sora', sans-serif;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.opp-for-you-empty span {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.opp-for-you-skeleton {
+  height: 330px;
+  border-radius: 18px;
+  border: 1px solid rgba(16,185,129,.12);
+  background: linear-gradient(90deg, rgba(255,255,255,.78), rgba(236,253,245,.9), rgba(255,255,255,.78));
+  background-size: 220% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
 }
 
 .opp-member-nudge {
@@ -2576,6 +3204,43 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
 
   .opp-member-nudge__text {
     font-size: 13px;
+  }
+}
+
+
+@media (max-width: 640px) {
+  .opp-for-you-section {
+    margin: 0 16px 28px;
+  }
+
+  .opp-for-you-panel {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .opp-for-you-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .opp-for-you-row {
+    display: flex;
+    gap: 12px;
+    padding: 2px 0 12px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .opp-for-you-card,
+  .opp-for-you-skeleton {
+    flex: 0 0 78vw;
+    width: auto;
+    min-width: 260px;
+    max-width: 330px;
+    scroll-snap-align: start;
+  }
+
+  .opp-for-you-empty {
+    grid-template-columns: 1fr;
   }
 }
 

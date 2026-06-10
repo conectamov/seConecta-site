@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 definePageMeta({ middleware: 'auth' })
 useSeoMeta({ title: 'Editar oportunidade — seConecta' })
@@ -7,6 +7,7 @@ useSeoMeta({ title: 'Editar oportunidade — seConecta' })
 const route = useRoute()
 const router = useRouter()
 const { get, patch, post, del } = useAxios()
+const { uploadImage, validateImageFile } = useImageUpload()
 const { currentUser } = useAuth()
 
 const CATEGORIES = [
@@ -22,6 +23,17 @@ const CATEGORIES = [
   { value: 'POST', label: 'Post' },
 ]
 
+const TIMELINE_KIND_OPTIONS = [
+  { value: '', label: 'Tipo não definido' },
+  { value: 'registration_start', label: 'Início das inscrições' },
+  { value: 'registration_deadline', label: 'Prazo de inscrição' },
+  { value: 'exam', label: 'Prova' },
+  { value: 'phase', label: 'Fase' },
+  { value: 'result', label: 'Resultado' },
+  { value: 'submission_deadline', label: 'Prazo de envio' },
+  { value: 'other', label: 'Outro evento' },
+]
+
 const STATUS_OPTIONS = ['OPEN', 'SOON', 'ONGOING', 'CLOSED']
 
 const PRIORITY_OPTIONS = [
@@ -33,8 +45,101 @@ const PRIORITY_OPTIONS = [
   { value: 5, label: '5 — Editorial Pick' },
 ]
 
+const TARGET_SUBJECT_OPTIONS = [
+  { value: 'MATHEMATICS', label: 'Matemática' },
+  { value: 'PROGRAMMING', label: 'Programação' },
+  { value: 'AI_DATA', label: 'IA e Dados' },
+  { value: 'PHYSICS', label: 'Física' },
+  { value: 'CHEMISTRY', label: 'Química' },
+  { value: 'BIOLOGY', label: 'Biologia' },
+  { value: 'RESEARCH', label: 'Pesquisa' },
+  { value: 'HUMANITIES', label: 'Humanidades' },
+  { value: 'LEADERSHIP_IMPACT', label: 'Liderança e impacto' },
+  { value: 'LANGUAGES_WRITING', label: 'Línguas e escrita' },
+  { value: 'ENTREPRENEURSHIP', label: 'Empreendedorismo' },
+]
+
+const TARGET_GOAL_OPTIONS = [
+  { value: 'DISCOVER_OPPORTUNITIES', label: 'Descobrir oportunidades' },
+  { value: 'OLYMPIAD_TRAINING', label: 'Treinar olimpíadas' },
+  { value: 'SKILL_BUILDING', label: 'Desenvolver habilidades' },
+  { value: 'COLLEGE_PREP', label: 'Preparação universitária' },
+  { value: 'RESEARCH', label: 'Pesquisa' },
+  { value: 'SOCIAL_IMPACT', label: 'Impacto social' },
+  { value: 'CAREER_EXPLORATION', label: 'Explorar carreira' },
+  { value: 'MENTORSHIP', label: 'Mentoria/networking' },
+]
+
+const TARGET_EDUCATION_LEVEL_OPTIONS = [
+  { value: 'FUNDAMENTAL_2', label: 'Fundamental II' },
+  { value: 'ENSINO_MEDIO_1', label: '1º ano EM' },
+  { value: 'ENSINO_MEDIO_2', label: '2º ano EM' },
+  { value: 'ENSINO_MEDIO_3', label: '3º ano EM' },
+  { value: 'GAP_YEAR', label: 'Gap year' },
+  { value: 'UNDERGRAD', label: 'Graduação' },
+]
+
+const EXPERIENCE_LEVEL_OPTIONS = [
+  { value: 'EXPLORING', label: 'Explorando' },
+  { value: 'BEGINNER', label: 'Iniciante' },
+  { value: 'INTERMEDIATE', label: 'Intermediário' },
+  { value: 'ADVANCED', label: 'Avançado' },
+  { value: 'COMPETITIVE', label: 'Competitivo' },
+]
+
+const COMPETITIVENESS_OPTIONS = [
+  { value: 'LOW', label: 'Baixa' },
+  { value: 'MEDIUM', label: 'Média' },
+  { value: 'HIGH', label: 'Alta' },
+  { value: 'ELITE', label: 'Elite' },
+]
+
+const OLYMPIAD_TYPE_OPTIONS = [
+  { value: 'regional', label: 'Regional' },
+  { value: 'national', label: 'Nacional' },
+  { value: 'qualifier', label: 'Pré-Seletiva' },
+  { value: 'international', label: 'Internacional' },
+  { value: 'independent', label: 'Independente' },
+]
+
+const OLYMPIAD_SUBJECT_OPTIONS = [
+  { value: 'math', label: 'Matemática' },
+  { value: 'programming', label: 'Programação' },
+  { value: 'physics', label: 'Física' },
+  { value: 'chemistry', label: 'Química' },
+  { value: 'biology', label: 'Biologia' },
+  { value: 'astronomy', label: 'Astronomia' },
+  { value: 'linguistics', label: 'Linguística' },
+  { value: 'history', label: 'História' },
+  { value: 'geography', label: 'Geografia' },
+  { value: 'science', label: 'Ciências' },
+  { value: 'robotics', label: 'Robótica' },
+  { value: 'writing', label: 'Redação e Humanidades' },
+  { value: 'economics', label: 'Economia' },
+  { value: 'other', label: 'Outras áreas' },
+]
+
+const PREPARATION_HORIZON_OPTIONS = [
+  { value: 'NONE', label: 'Sem preparo prévio' },
+  { value: 'DAYS', label: 'Dias' },
+  { value: 'WEEKS', label: 'Semanas' },
+  { value: 'MONTHS', label: 'Meses' },
+  { value: 'YEAR_PLUS', label: '1 ano ou mais' },
+]
+
+const RECURRENCE_TYPE_OPTIONS = [
+  { value: 'ONE_TIME', label: 'Evento único' },
+  { value: 'ANNUAL', label: 'Anual' },
+  { value: 'SEMESTER', label: 'Semestral' },
+  { value: 'MONTHLY', label: 'Mensal' },
+  { value: 'ROLLING', label: 'Contínua/rolling' },
+  { value: 'UNKNOWN', label: 'Não sei' },
+]
+
 const categoryDataTemplate = {
   organizer: null,
+  olympiad_type: null,
+  olympiad_subject: null,
   target_audience: null,
   requirements: [],
   benefits: [],
@@ -71,8 +176,19 @@ const fullJsonSchemaTemplate = {
   approved: null,
   priority: 0,
   next_deadline: null,
+  olympiad_type: null,
+  olympiad_subject: null,
+  target_subjects: [],
+  target_goals: [],
+  target_education_levels: [],
+  recommended_experience_levels: [],
+  competitiveness_level: [],
+  preparation_horizon: [],
+  recurrence_type: [],
+  recommendation_notes: null,
   timeline: [
     {
+      kind: null,
       label: '',
       date: null,
       details: null,
@@ -115,6 +231,7 @@ const canUseAdminActions = computed(() => isSuperuser.value || isManager.value)
 
 const loading = ref(true)
 const saving = ref(false)
+const uploadingCover = ref(false)
 const enhancing = ref(false)
 const deleting = ref(false)
 const showDeleteModal = ref(false)
@@ -124,6 +241,9 @@ const activeTab = ref<'write' | 'json' | 'preview'>('write')
 const activeGuide = ref<number | null>(0)
 const loadedOpportunity = ref<any | null>(null)
 const tagInput = ref('')
+const coverUploadStatus = ref<string | null>(null)
+const localCoverPreviewUrl = ref<string | null>(null)
+const coverFileInput = ref<HTMLInputElement | null>(null)
 
 const fullJsonMode = ref(false)
 const fullJsonText = ref('')
@@ -144,8 +264,33 @@ const form = reactive({
   priority: 0,
   keywords: '',
   tags: [] as string[],
-  timeline: [] as Array<{ label: string; date: string; details: string; show_on_calendar: boolean }>,
+  olympiad_type: '',
+  olympiad_subject: '',
+  target_subjects: [] as string[],
+  target_goals: [] as string[],
+  target_education_levels: [] as string[],
+  recommended_experience_levels: [] as string[],
+  competitiveness_level: [] as string[],
+  preparation_horizon: [] as string[],
+  recurrence_type: [] as string[],
+  recommendation_notes: '',
+  timeline: [] as Array<{ kind: string; label: string; date: string; details: string; show_on_calendar: boolean }>,
   categoryDataJson: JSON.stringify(categoryDataTemplate, null, 2),
+})
+
+const coverPreviewUrl = computed(() => {
+  return localCoverPreviewUrl.value || form.cover_url || ''
+})
+
+function revokeLocalCoverPreview() {
+  if (localCoverPreviewUrl.value) {
+    URL.revokeObjectURL(localCoverPreviewUrl.value)
+    localCoverPreviewUrl.value = null
+  }
+}
+
+onBeforeUnmount(() => {
+  revokeLocalCoverPreview()
 })
 
 const parsedCategoryData = computed(() => {
@@ -188,12 +333,13 @@ const wordCount = computed(() => form.description.trim().split(/\s+/).filter(Boo
 const hasValidId = computed(() => opportunityId.value !== null)
 
 const canSave = computed(() => {
+  if (saving.value || uploadingCover.value) return false
+
   if (fullJsonMode.value) {
     return Boolean(
       hasValidId.value &&
       parsedFullJson.value !== null &&
-      fullJsonRequiredOk.value &&
-      !errors.value.full_json,
+      fullJsonRequiredOk.value,
     )
   }
 
@@ -201,8 +347,7 @@ const canSave = computed(() => {
     hasValidId.value &&
     form.title.trim() &&
     form.description.trim() &&
-    parsedCategoryData.value !== null &&
-    !Object.keys(errors.value).length,
+    parsedCategoryData.value !== null,
   )
 })
 
@@ -222,6 +367,23 @@ const previewFacts = computed(() => {
   return facts.filter(f => f.value !== null && f.value !== undefined && String(f.value).trim())
 })
 
+const recommendationPreviewFacts = computed(() => {
+  const facts = [
+    { label: 'Tipo de olimpíada', value: getOptionLabel(OLYMPIAD_TYPE_OPTIONS, form.olympiad_type) },
+    { label: 'Matéria da olimpíada', value: getOptionLabel(OLYMPIAD_SUBJECT_OPTIONS, form.olympiad_subject) },
+    { label: 'Áreas', value: getRecommendationListLabels(TARGET_SUBJECT_OPTIONS, form.target_subjects).join(' · ') },
+    { label: 'Objetivos', value: getRecommendationListLabels(TARGET_GOAL_OPTIONS, form.target_goals).join(' · ') },
+    { label: 'Nível escolar', value: getRecommendationListLabels(TARGET_EDUCATION_LEVEL_OPTIONS, form.target_education_levels).join(' · ') },
+    { label: 'Experiência', value: getRecommendationListLabels(EXPERIENCE_LEVEL_OPTIONS, form.recommended_experience_levels).join(' · ') },
+    { label: 'Competitividade', value: getRecommendationListLabels(COMPETITIVENESS_OPTIONS, form.competitiveness_level).join(' · ') },
+    { label: 'Preparo', value: getRecommendationListLabels(PREPARATION_HORIZON_OPTIONS, form.preparation_horizon).join(' · ') },
+    { label: 'Recorrência', value: getRecommendationListLabels(RECURRENCE_TYPE_OPTIONS, form.recurrence_type).join(' · ') },
+    { label: 'Nota', value: form.recommendation_notes },
+  ]
+
+  return facts.filter(f => f.value !== null && f.value !== undefined && String(f.value).trim())
+})
+
 function normalizeDate(raw: any) {
   if (!raw) return ''
   return String(raw).slice(0, 10)
@@ -231,6 +393,7 @@ function normalizeTimeline(value: any) {
   if (!Array.isArray(value)) return []
 
   return value.map(item => ({
+    kind: typeof item?.kind === 'string' ? item.kind : '',
     label: item?.label || item?.details || item?.title || item?.name || 'Evento',
     date: normalizeDate(item?.date),
     details: item?.details || item?.description || '',
@@ -252,6 +415,104 @@ function normalizeTags(value: any) {
   return []
 }
 
+function normalizeStringList(value: any): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map(item => String(item).trim())
+      .filter(Boolean)
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) return normalizeStringList(parsed)
+    } catch {}
+
+    return value
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+  }
+
+  return []
+}
+
+type RecommendationOption = { value: string; label: string }
+
+function normalizeKey(value: any) {
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function normalizeOptionList(value: any, options: RecommendationOption[]): string[] {
+  const values = normalizeStringList(value)
+
+  const byExactValue = new Map(options.map(option => [option.value, option.value]))
+  const byNormalized = new Map<string, string>()
+
+  options.forEach(option => {
+    byNormalized.set(normalizeKey(option.value), option.value)
+    byNormalized.set(normalizeKey(option.label), option.value)
+  })
+
+  return Array.from(new Set(
+    values
+      .map(item => {
+        const raw = String(item).trim()
+        return byExactValue.get(raw) || byNormalized.get(normalizeKey(raw)) || raw
+      })
+      .filter(Boolean)
+  ))
+}
+
+function normalizeOlympiadFields(data: any) {
+  return {
+    olympiad_type: normalizeOptionValue(data?.olympiad_type ?? data?.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS),
+    olympiad_subject: normalizeOptionValue(data?.olympiad_subject ?? data?.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS),
+  }
+}
+
+function normalizeRecommendationFields(data: any) {
+  return {
+    target_subjects: normalizeOptionList(data?.target_subjects, TARGET_SUBJECT_OPTIONS),
+    target_goals: normalizeOptionList(data?.target_goals, TARGET_GOAL_OPTIONS),
+    target_education_levels: normalizeOptionList(data?.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS),
+    recommended_experience_levels: normalizeOptionList(data?.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS),
+    competitiveness_level: normalizeOptionList(data?.competitiveness_level, COMPETITIVENESS_OPTIONS),
+    preparation_horizon: normalizeOptionList(data?.preparation_horizon, PREPARATION_HORIZON_OPTIONS),
+    recurrence_type: normalizeOptionList(data?.recurrence_type, RECURRENCE_TYPE_OPTIONS),
+  }
+}
+
+
+function normalizeOptionValue(value: any, options: RecommendationOption[]) {
+  return normalizeOptionList(value, options)[0] || ''
+}
+
+function toggleListValue(list: string[], value: string) {
+  const idx = list.indexOf(value)
+
+  if (idx >= 0) {
+    list.splice(idx, 1)
+    return
+  }
+
+  list.push(value)
+}
+
+function getOptionLabel(options: Array<{ value: string; label: string }>, value: string) {
+  return options.find(option => option.value === value)?.label || value
+}
+
+function getRecommendationListLabels(options: Array<{ value: string; label: string }>, values: string[]) {
+  return normalizeOptionList(values, options).map(value => getOptionLabel(options, value))
+}
+
 function addTag() {
   const tag = tagInput.value.trim().replace(/^#/, '')
   if (tag && !form.tags.includes(tag)) form.tags.push(tag)
@@ -260,6 +521,71 @@ function addTag() {
 
 function removeTag(tag: string) {
   form.tags = form.tags.filter(t => t !== tag)
+}
+
+function syncCoverUrlToFullJson(url: string | null) {
+  try {
+    const parsed = JSON.parse(fullJsonText.value || '{}')
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return
+
+    parsed.cover_url = url || null
+    fullJsonText.value = JSON.stringify(parsed, null, 2)
+  } catch {
+    // Se o JSON completo estiver inválido, não sincroniza para não apagar o trabalho manual.
+  }
+}
+
+async function handleCoverFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+
+  if (!file) return
+
+  error.value = null
+  success.value = null
+  coverUploadStatus.value = null
+  delete errors.value.cover_url
+  delete errors.value.full_json
+
+  try {
+    validateImageFile(file)
+
+    revokeLocalCoverPreview()
+    localCoverPreviewUrl.value = URL.createObjectURL(file)
+
+    uploadingCover.value = true
+    coverUploadStatus.value = 'Enviando imagem para o Cloudinary…'
+
+    const uploadedUrl = await uploadImage(file)
+
+    form.cover_url = uploadedUrl
+    syncCoverUrlToFullJson(uploadedUrl)
+
+    revokeLocalCoverPreview()
+    coverUploadStatus.value = 'Imagem enviada. A capa foi atualizada com uma URL do Cloudinary.'
+  } catch (e: any) {
+    revokeLocalCoverPreview()
+    errors.value.cover_url = e?.message || 'Erro ao enviar imagem.'
+    error.value = errors.value.cover_url
+    coverUploadStatus.value = null
+  } finally {
+    uploadingCover.value = false
+
+    if (input) input.value = ''
+  }
+}
+
+function clearCoverImage() {
+  revokeLocalCoverPreview()
+  form.cover_url = ''
+  coverUploadStatus.value = null
+  delete errors.value.cover_url
+  syncCoverUrlToFullJson(null)
+
+  if (coverFileInput.value) {
+    coverFileInput.value.value = ''
+  }
 }
 
 function onTagKeydown(e: KeyboardEvent) {
@@ -277,6 +603,7 @@ function cleanTimeline() {
   return form.timeline
     .filter(item => item.label?.trim() || item.date || item.details?.trim())
     .map(item => ({
+      kind: item.kind?.trim() || null,
       label: item.label?.trim() || item.details?.trim() || 'Evento',
       date: item.date || null,
       details: item.details?.trim() || null,
@@ -291,6 +618,7 @@ function cleanFullTimeline(value: any) {
     .filter(item => item && typeof item === 'object')
     .filter(item => item.label || item.date || item.details)
     .map(item => ({
+      kind: typeof item.kind === 'string' && item.kind.trim() ? item.kind.trim() : null,
       label: String(item.label || item.details || 'Evento').trim(),
       date: item.date || null,
       details: item.details ? String(item.details).trim() : null,
@@ -299,7 +627,7 @@ function cleanFullTimeline(value: any) {
 }
 
 function addTimelineItem() {
-  form.timeline.push({ label: '', date: '', details: '', show_on_calendar: false })
+  form.timeline.push({ kind: '', label: '', date: '', details: '', show_on_calendar: false })
 }
 
 function removeTimelineItem(index: number) {
@@ -375,6 +703,16 @@ function mergeFullJsonSchema() {
       ? current.timeline
       : cloneJson(fullJsonSchemaTemplate.timeline),
     tags: normalizeTags(current.tags),
+    olympiad_type: normalizeOptionValue(current.olympiad_type ?? current.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS) || null,
+    olympiad_subject: normalizeOptionValue(current.olympiad_subject ?? current.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS) || null,
+    target_subjects: normalizeOptionList(current.target_subjects, TARGET_SUBJECT_OPTIONS),
+    target_goals: normalizeOptionList(current.target_goals, TARGET_GOAL_OPTIONS),
+    target_education_levels: normalizeOptionList(current.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS),
+    recommended_experience_levels: normalizeOptionList(current.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS),
+    competitiveness_level: normalizeOptionList(current.competitiveness_level, COMPETITIVENESS_OPTIONS),
+    preparation_horizon: normalizeOptionList(current.preparation_horizon, PREPARATION_HORIZON_OPTIONS),
+    recurrence_type: normalizeOptionList(current.recurrence_type, RECURRENCE_TYPE_OPTIONS),
+    recommendation_notes: current.recommendation_notes || null,
   }, null, 2)
 }
 
@@ -391,9 +729,25 @@ function buildVisualPayload() {
     human_verified: !!form.human_verified,
     priority: Math.min(5, Math.max(0, Number(form.priority || 0))),
     timeline: cleanTimeline(),
-    category_data: parsedCategoryData.value || {},
+    category_data: {
+      ...(parsedCategoryData.value || {}),
+      ...(form.category === 'OLYMPIAD' ? {
+        olympiad_type: form.olympiad_type || null,
+        olympiad_subject: form.olympiad_subject || null,
+      } : {}),
+    },
     keywords: form.keywords.trim() || null,
     tags: form.tags,
+    olympiad_type: form.category === 'OLYMPIAD' ? (form.olympiad_type || null) : null,
+    olympiad_subject: form.category === 'OLYMPIAD' ? (form.olympiad_subject || null) : null,
+    target_subjects: form.target_subjects,
+    target_goals: form.target_goals,
+    target_education_levels: form.target_education_levels,
+    recommended_experience_levels: form.recommended_experience_levels,
+    competitiveness_level: form.competitiveness_level,
+    preparation_horizon: form.preparation_horizon,
+    recurrence_type: form.recurrence_type,
+    recommendation_notes: form.recommendation_notes.trim() || null,
   }
 
   if (form.slug.trim()) payload.slug = form.slug.trim()
@@ -418,6 +772,7 @@ function buildFullJsonFromOpportunity(data: any) {
     priority: typeof data.priority === 'number' ? data.priority : 0,
     next_deadline: data.next_deadline || null,
     timeline: normalizeTimeline(data.timeline).map(item => ({
+      kind: item.kind || null,
       label: item.label || 'Evento',
       date: item.date || null,
       details: item.details || null,
@@ -429,6 +784,16 @@ function buildFullJsonFromOpportunity(data: any) {
         : cloneJson(categoryDataTemplate),
     keywords: data.keywords || null,
     tags: normalizeTags(data.tags),
+    olympiad_type: normalizeOptionValue(data.olympiad_type ?? data.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS) || null,
+    olympiad_subject: normalizeOptionValue(data.olympiad_subject ?? data.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS) || null,
+    target_subjects: normalizeOptionList(data.target_subjects, TARGET_SUBJECT_OPTIONS),
+    target_goals: normalizeOptionList(data.target_goals, TARGET_GOAL_OPTIONS),
+    target_education_levels: normalizeOptionList(data.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS),
+    recommended_experience_levels: normalizeOptionList(data.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS),
+    competitiveness_level: normalizeOptionList(data.competitiveness_level, COMPETITIVENESS_OPTIONS),
+    preparation_horizon: normalizeOptionList(data.preparation_horizon, PREPARATION_HORIZON_OPTIONS),
+    recurrence_type: normalizeOptionList(data.recurrence_type, RECURRENCE_TYPE_OPTIONS),
+    recommendation_notes: data.recommendation_notes || null,
   }
 
   return payload
@@ -468,6 +833,16 @@ function applyFullJsonToForm() {
   form.priority = typeof data.priority === 'number' ? data.priority : 0
   form.keywords = data.keywords || ''
   form.tags = normalizeTags(data.tags)
+  form.olympiad_type = normalizeOptionValue(data.olympiad_type ?? data.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS)
+  form.olympiad_subject = normalizeOptionValue(data.olympiad_subject ?? data.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS)
+  form.target_subjects = normalizeOptionList(data.target_subjects, TARGET_SUBJECT_OPTIONS)
+  form.target_goals = normalizeOptionList(data.target_goals, TARGET_GOAL_OPTIONS)
+  form.target_education_levels = normalizeOptionList(data.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS)
+  form.recommended_experience_levels = normalizeOptionList(data.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS)
+  form.competitiveness_level = normalizeOptionList(data.competitiveness_level, COMPETITIVENESS_OPTIONS)
+  form.preparation_horizon = normalizeOptionList(data.preparation_horizon, PREPARATION_HORIZON_OPTIONS)
+  form.recurrence_type = normalizeOptionList(data.recurrence_type, RECURRENCE_TYPE_OPTIONS)
+  form.recommendation_notes = data.recommendation_notes || ''
   form.timeline = normalizeTimeline(data.timeline)
 
   const categoryData = data.category_data && typeof data.category_data === 'object'
@@ -543,10 +918,6 @@ function validateFullJson() {
     errors.value.full_json = 'category_data precisa ser um objeto JSON.'
   }
 
-  if (payload.cover_url && !/^https?:\/\/.+/.test(String(payload.cover_url))) {
-    errors.value.full_json = 'cover_url precisa começar com http:// ou https://.'
-  }
-
   if (payload.official_site_url && !/^https?:\/\/.+/.test(String(payload.official_site_url))) {
     errors.value.full_json = 'official_site_url precisa começar com http:// ou https://.'
   }
@@ -591,9 +962,6 @@ function validate() {
     errors.value.description = 'A descrição é obrigatória.'
   }
 
-  if (form.cover_url.trim() && !/^https?:\/\/.+/.test(form.cover_url.trim())) {
-    errors.value.cover_url = 'URL de capa inválida.'
-  }
 
   if (form.official_site_url.trim() && !/^https?:\/\/.+/.test(form.official_site_url.trim())) {
     errors.value.official_site_url = 'URL do site oficial inválida.'
@@ -640,6 +1008,16 @@ function hydrateForm(data: any) {
   form.priority = typeof data.priority === 'number' ? data.priority : 0
   form.keywords = data.keywords || ''
   form.tags = normalizeTags(data.tags)
+  form.olympiad_type = normalizeOptionValue(data.olympiad_type ?? data.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS)
+  form.olympiad_subject = normalizeOptionValue(data.olympiad_subject ?? data.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS)
+  form.target_subjects = normalizeOptionList(data.target_subjects, TARGET_SUBJECT_OPTIONS)
+  form.target_goals = normalizeOptionList(data.target_goals, TARGET_GOAL_OPTIONS)
+  form.target_education_levels = normalizeOptionList(data.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS)
+  form.recommended_experience_levels = normalizeOptionList(data.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS)
+  form.competitiveness_level = normalizeOptionList(data.competitiveness_level, COMPETITIVENESS_OPTIONS)
+  form.preparation_horizon = normalizeOptionList(data.preparation_horizon, PREPARATION_HORIZON_OPTIONS)
+  form.recurrence_type = normalizeOptionList(data.recurrence_type, RECURRENCE_TYPE_OPTIONS)
+  form.recommendation_notes = data.recommendation_notes || ''
   form.timeline = normalizeTimeline(data.timeline)
 
   const categoryData = data.category_data && typeof data.category_data === 'object'
@@ -692,6 +1070,24 @@ function cleanFullJsonPayload(raw: Record<string, any>) {
         : {},
     keywords: raw.keywords ? String(raw.keywords).trim() : null,
     tags: normalizeTags(raw.tags),
+    olympiad_type: normalizeOptionValue(raw.olympiad_type ?? raw.category_data?.olympiad_type, OLYMPIAD_TYPE_OPTIONS) || null,
+    olympiad_subject: normalizeOptionValue(raw.olympiad_subject ?? raw.category_data?.olympiad_subject, OLYMPIAD_SUBJECT_OPTIONS) || null,
+    target_subjects: normalizeOptionList(raw.target_subjects, TARGET_SUBJECT_OPTIONS),
+    target_goals: normalizeOptionList(raw.target_goals, TARGET_GOAL_OPTIONS),
+    target_education_levels: normalizeOptionList(raw.target_education_levels, TARGET_EDUCATION_LEVEL_OPTIONS),
+    recommended_experience_levels: normalizeOptionList(raw.recommended_experience_levels, EXPERIENCE_LEVEL_OPTIONS),
+    competitiveness_level: normalizeOptionList(raw.competitiveness_level, COMPETITIVENESS_OPTIONS),
+    preparation_horizon: normalizeOptionList(raw.preparation_horizon, PREPARATION_HORIZON_OPTIONS),
+    recurrence_type: normalizeOptionList(raw.recurrence_type, RECURRENCE_TYPE_OPTIONS),
+    recommendation_notes: raw.recommendation_notes ? String(raw.recommendation_notes).trim() : null,
+  }
+
+  if (payload.category === 'OLYMPIAD') {
+    payload.category_data = {
+      ...payload.category_data,
+      olympiad_type: payload.olympiad_type,
+      olympiad_subject: payload.olympiad_subject,
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(raw, 'slug')) {
@@ -724,6 +1120,11 @@ function buildPayload() {
 async function save() {
   error.value = null
   success.value = null
+
+  if (uploadingCover.value) {
+    error.value = 'Aguarde o envio da imagem terminar.'
+    return
+  }
 
   if (!validate()) {
     error.value = Object.values(errors.value)[0] || 'Revise os campos antes de salvar.'
@@ -855,9 +1256,26 @@ onMounted(fetchOpportunity)
           :class="{ 'guide-topic--active': activeGuide === 3 }"
           @click="activeGuide = activeGuide === 3 ? null : 3"
         >
-          JSON completo
+          Perfil recomendado
         </button>
         <div v-if="activeGuide === 3" class="guide-content">
+          <p>Esses campos alimentam o algoritmo de Para você, fit band, boletim e ranking personalizado.</p>
+          <code>olympiad_type</code>
+          <code>olympiad_subject</code>
+          <code>target_subjects</code>
+          <code>target_goals</code>
+          <code>recommended_experience_levels</code>
+          <code>recurrence_type</code>
+        </div>
+
+        <button
+          class="guide-topic"
+          :class="{ 'guide-topic--active': activeGuide === 4 }"
+          @click="activeGuide = activeGuide === 4 ? null : 4"
+        >
+          JSON completo
+        </button>
+        <div v-if="activeGuide === 4" class="guide-content">
           <p>Use o modo JSON completo para editar todos os campos enviados para a API de uma vez.</p>
           <code>title</code>
           <code>category</code>
@@ -926,9 +1344,9 @@ onMounted(fetchOpportunity)
             <button
               type="submit"
               class="submit-btn"
-              :disabled="saving || !canSave"
+              :disabled="saving || uploadingCover || !canSave"
             >
-              {{ saving ? 'Salvando…' : 'Salvar' }}
+              {{ uploadingCover ? 'Enviando imagem…' : saving ? 'Salvando…' : 'Salvar' }}
             </button>
           </div>
         </header>
@@ -1027,23 +1445,66 @@ onMounted(fetchOpportunity)
             <div class="section-title-row">
               <div>
                 <h2>Links e mídia</h2>
-                <p>Use URLs completas começando com https://.</p>
               </div>
             </div>
 
-            <div class="grid-two">
-              <label class="field">
-                <span>Imagem de capa</span>
-                <input v-model="form.cover_url" placeholder="https://…" />
-                <p v-if="errors.cover_url" class="field-error">{{ errors.cover_url }}</p>
+            <section class="upload-card">
+              <div class="upload-card-header">
+                <div>
+                  <span>Imagem de capa</span>
+                  <p>Upload opcional por Cloudinary. No formulário visual não há campo para colar link manualmente.</p>
+                </div>
+
+                <button
+                  v-if="form.cover_url || coverPreviewUrl"
+                  type="button"
+                  class="small-btn small-btn--danger"
+                  :disabled="uploadingCover"
+                  @click="clearCoverImage"
+                >
+                  Remover capa
+                </button>
+              </div>
+
+              <label
+                class="cover-dropzone"
+                :class="{ 'is-uploading': uploadingCover, 'has-preview': Boolean(coverPreviewUrl) }"
+              >
+                <input
+                  ref="coverFileInput"
+                  class="file-input"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  :disabled="uploadingCover"
+                  @change="handleCoverFileChange"
+                />
+
+                <div v-if="coverPreviewUrl" class="cover-preview">
+                  <img :src="coverPreviewUrl" alt="Prévia da capa da oportunidade" />
+                </div>
+
+                <div class="cover-dropzone-text">
+                  <strong>
+                    {{ uploadingCover ? 'Enviando imagem…' : coverPreviewUrl ? 'Trocar imagem' : 'Clique para escolher uma imagem' }}
+                  </strong>
+                  <small>Máximo 5MB · JPG, PNG ou WEBP · opcional</small>
+                </div>
               </label>
 
-              <label class="field">
-                <span>Site oficial</span>
-                <input v-model="form.official_site_url" placeholder="https://…" />
-                <p v-if="errors.official_site_url" class="field-error">{{ errors.official_site_url }}</p>
-              </label>
-            </div>
+              <div v-if="form.cover_url" class="cloudinary-url-preview">
+                <span>URL da capa salva</span>
+                <code>{{ form.cover_url }}</code>
+              </div>
+
+              <p v-if="coverUploadStatus" class="upload-status">{{ coverUploadStatus }}</p>
+              <p v-if="errors.cover_url" class="field-error">{{ errors.cover_url }}</p>
+            </section>
+
+            <label class="field official-url-field">
+              <span>Site oficial</span>
+              <input v-model="form.official_site_url" placeholder="https://…" />
+              <p v-if="errors.official_site_url" class="field-error">{{ errors.official_site_url }}</p>
+            </label>
           </section>
 
           <section class="form-section">
@@ -1079,6 +1540,219 @@ onMounted(fetchOpportunity)
           <section class="form-section">
             <div class="section-title-row">
               <div>
+                <h2>Perfil recomendado</h2>
+                <p>Campos usados pelo sistema de recomendações: Para você, boletim, fit band e seleção por nível.</p>
+              </div>
+            </div>
+
+            <div class="recommendation-editor">
+              <div v-if="form.category === 'OLYMPIAD'" class="recommendation-block recommendation-block--olympiad">
+                <div class="recommendation-block__header">
+                  <strong>Campos específicos de olimpíadas</strong>
+                  <span>Use estes campos para filtrar o catálogo de olimpíadas e para explicar o escopo corretamente no modal.</span>
+                </div>
+
+                <div class="grid-two">
+                  <div>
+                    <span class="mini-label">Tipo da olimpíada</span>
+                    <div class="option-chip-grid option-chip-grid--compact">
+                      <button
+                        v-for="option in OLYMPIAD_TYPE_OPTIONS"
+                        :key="option.value"
+                        type="button"
+                        class="option-chip"
+                        :class="{ 'option-chip--active': form.olympiad_type === option.value }"
+                        @click="form.olympiad_type = form.olympiad_type === option.value ? '' : option.value"
+                      >
+                        {{ option.label }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span class="mini-label">Matéria da olimpíada</span>
+                    <div class="option-chip-grid option-chip-grid--compact">
+                      <button
+                        v-for="option in OLYMPIAD_SUBJECT_OPTIONS"
+                        :key="option.value"
+                        type="button"
+                        class="option-chip"
+                        :class="{ 'option-chip--active': form.olympiad_subject === option.value }"
+                        @click="form.olympiad_subject = form.olympiad_subject === option.value ? '' : option.value"
+                      >
+                        {{ option.label }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="recommendation-block">
+                <div class="recommendation-block__header">
+                  <strong>Áreas relacionadas</strong>
+                  <span>Conecta a oportunidade aos interesses/matérias do estudante.</span>
+                </div>
+
+                <div class="option-chip-grid">
+                  <button
+                    v-for="option in TARGET_SUBJECT_OPTIONS"
+                    :key="option.value"
+                    type="button"
+                    class="option-chip"
+                    :class="{ 'option-chip--active': form.target_subjects.includes(option.value) }"
+                    @click="toggleListValue(form.target_subjects, option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="recommendation-block">
+                <div class="recommendation-block__header">
+                  <strong>Objetivos que ela atende</strong>
+                  <span>Ajuda a decidir se aparece para olimpíadas, pesquisa, college prep, habilidades etc.</span>
+                </div>
+
+                <div class="option-chip-grid">
+                  <button
+                    v-for="option in TARGET_GOAL_OPTIONS"
+                    :key="option.value"
+                    type="button"
+                    class="option-chip"
+                    :class="{ 'option-chip--active': form.target_goals.includes(option.value) }"
+                    @click="toggleListValue(form.target_goals, option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid-two">
+                <div class="recommendation-block">
+                  <div class="recommendation-block__header">
+                    <strong>Nível escolar sugerido</strong>
+                    <span>Quem deveria considerar essa oportunidade.</span>
+                  </div>
+
+                  <div class="option-chip-grid option-chip-grid--compact">
+                    <button
+                      v-for="option in TARGET_EDUCATION_LEVEL_OPTIONS"
+                      :key="option.value"
+                      type="button"
+                      class="option-chip"
+                      :class="{ 'option-chip--active': form.target_education_levels.includes(option.value) }"
+                      @click="toggleListValue(form.target_education_levels, option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="recommendation-block">
+                  <div class="recommendation-block__header">
+                    <strong>Nível recomendado</strong>
+                    <span>Base para safety, target, reach e aspiracional.</span>
+                  </div>
+
+                  <div class="option-chip-grid option-chip-grid--compact">
+                    <button
+                      v-for="option in EXPERIENCE_LEVEL_OPTIONS"
+                      :key="option.value"
+                      type="button"
+                      class="option-chip"
+                      :class="{ 'option-chip--active': form.recommended_experience_levels.includes(option.value) }"
+                      @click="toggleListValue(form.recommended_experience_levels, option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="recommendation-block">
+                  <div class="recommendation-block__header">
+                    <strong>Competitividade</strong>
+                    <span>Quão seletiva/difícil é a oportunidade.</span>
+                  </div>
+
+                  <div class="option-chip-grid option-chip-grid--compact">
+                    <button
+                      v-for="option in COMPETITIVENESS_OPTIONS"
+                      :key="option.value"
+                      type="button"
+                      class="option-chip"
+                      :class="{ 'option-chip--active': form.competitiveness_level.includes(option.value) }"
+                      @click="toggleListValue(form.competitiveness_level, option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="recommendation-block">
+                  <div class="recommendation-block__header">
+                    <strong>Tempo de preparo</strong>
+                    <span>Ajuda a decidir se é para agora ou para preparar.</span>
+                  </div>
+
+                  <div class="option-chip-grid option-chip-grid--compact">
+                    <button
+                      v-for="option in PREPARATION_HORIZON_OPTIONS"
+                      :key="option.value"
+                      type="button"
+                      class="option-chip"
+                      :class="{ 'option-chip--active': form.preparation_horizon.includes(option.value) }"
+                      @click="toggleListValue(form.preparation_horizon, option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="recommendation-block">
+                  <div class="recommendation-block__header">
+                    <strong>Recorrência</strong>
+                    <span>Define se algo fechado ainda vale acompanhar no próximo ciclo.</span>
+                  </div>
+
+                  <div class="option-chip-grid option-chip-grid--compact">
+                    <button
+                      v-for="option in RECURRENCE_TYPE_OPTIONS"
+                      :key="option.value"
+                      type="button"
+                      class="option-chip"
+                      :class="{ 'option-chip--active': form.recurrence_type.includes(option.value) }"
+                      @click="toggleListValue(form.recurrence_type, option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                </div>
+
+                <label class="field recommendation-notes-field">
+                  <span>Notas de recomendação</span>
+                  <textarea
+                    v-model="form.recommendation_notes"
+                    rows="5"
+                    maxlength="512"
+                    placeholder="Ex.: boa primeira olimpíada para estudantes iniciantes em matemática."
+                  />
+                </label>
+              </div>
+
+              <div v-if="recommendationPreviewFacts.length > 0" class="preview-box recommendation-preview">
+                <div class="preview-grid">
+                  <div v-for="fact in recommendationPreviewFacts" :key="fact.label" class="preview-card">
+                    <span>{{ fact.label }}</span>
+                    <strong>{{ fact.value }}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="section-title-row">
+              <div>
                 <h2>Cronograma</h2>
                 <p>Marque “Calendário” apenas para datas acionáveis: inscrições, prazos, provas ou resultados importantes.</p>
               </div>
@@ -1087,6 +1761,11 @@ onMounted(fetchOpportunity)
 
             <div class="timeline-editor">
               <div v-for="(item, idx) in form.timeline" :key="idx" class="timeline-row">
+                <select v-model="item.kind" class="timeline-kind-select">
+                  <option v-for="option in TIMELINE_KIND_OPTIONS" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
                 <input v-model="item.label" placeholder="Nome da etapa" />
                 <input v-model="item.date" type="date" />
                 <input v-model="item.details" placeholder="Detalhes" />
@@ -1169,7 +1848,6 @@ onMounted(fetchOpportunity)
           <div class="full-json-warning">
             <strong>Modo avançado.</strong>
             Aqui você consegue editar tudo: conteúdo, links, cronograma, publicação, prioridade, tags e <code>category_data</code>.
-            Antes de salvar, confira se o JSON continua válido.
           </div>
 
           <textarea
@@ -1189,7 +1867,11 @@ onMounted(fetchOpportunity)
               <code>official_site_url</code>, <code>location</code>, <code>is_free</code>,
               <code>human_verified</code>, <code>approved</code>, <code>priority</code>,
               <code>next_deadline</code>, <code>timeline</code>, <code>category_data</code>,
-              <code>keywords</code> e <code>tags</code>.
+              <code>keywords</code>, <code>tags</code>, <code>olympiad_type</code>, <code>olympiad_subject</code>, <code>target_subjects</code>,
+              <code>target_goals</code>, <code>target_education_levels</code>,
+              <code>recommended_experience_levels</code>, <code>competitiveness_level</code>,
+              <code>preparation_horizon</code>, <code>recurrence_type</code> e
+              <code>recommendation_notes</code>.
             </p>
           </div>
         </section>
@@ -1491,6 +2173,148 @@ onMounted(fetchOpportunity)
   padding-left: 0;
 }
 
+.upload-card {
+  border: 1px solid #e8e4dc;
+  border-radius: 16px;
+  background: #fafaf9;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.upload-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.upload-card-header span {
+  color: #555;
+  font-size: .78rem;
+  font-weight: 850;
+}
+
+.upload-card-header p {
+  margin: 4px 0 0;
+  color: #999;
+  font-size: .78rem;
+  line-height: 1.5;
+}
+
+.cover-dropzone {
+  position: relative;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 14px;
+  align-items: center;
+  min-height: 148px;
+  padding: 12px;
+  border: 1.5px dashed #a7f3d0;
+  border-radius: 15px;
+  background: #ecfdf5;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, opacity .15s;
+}
+
+.cover-dropzone:hover {
+  border-color: #079272;
+  background: #d1fae5;
+}
+
+.cover-dropzone.is-uploading {
+  cursor: wait;
+  opacity: .75;
+}
+
+.cover-dropzone:not(.has-preview) {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+}
+
+.file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file-input:disabled {
+  cursor: wait;
+}
+
+.cover-preview {
+  height: 124px;
+  border-radius: 13px;
+  overflow: hidden;
+  background: #e8e4dc;
+  border: 1px solid #d6d3d1;
+}
+
+.cover-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-dropzone-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #065f46;
+}
+
+.cover-dropzone-text strong {
+  font-size: .88rem;
+}
+
+.cover-dropzone-text small {
+  color: #047857;
+  font-size: .74rem;
+  font-weight: 800;
+}
+
+.cloudinary-url-preview {
+  margin-top: 12px;
+  padding: 10px 11px;
+  border: 1px solid #e8e4dc;
+  border-radius: 12px;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cloudinary-url-preview span {
+  color: #999;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.cloudinary-url-preview code {
+  color: #047857;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: .72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-status {
+  margin: 10px 0 0;
+  color: #047857;
+  font-size: .76rem;
+  font-weight: 850;
+}
+
+.official-url-field {
+  margin-bottom: 0;
+}
+
 .form-section {
   padding: 24px 26px 0;
 }
@@ -1650,6 +2474,78 @@ textarea:focus {
   padding: 0;
 }
 
+.recommendation-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.recommendation-block {
+  border: 1px solid #e8e4dc;
+  border-radius: 16px;
+  background: #fafaf9;
+  padding: 14px;
+}
+
+.recommendation-block__header {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.recommendation-block__header strong {
+  color: #111;
+  font-size: .84rem;
+  font-weight: 950;
+}
+
+.recommendation-block__header span {
+  color: #999;
+  font-size: .76rem;
+  line-height: 1.45;
+}
+
+.option-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.option-chip-grid--compact {
+  gap: 7px;
+}
+
+.option-chip {
+  border: 1px solid #e8e4dc;
+  background: white;
+  color: #57534e;
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-size: .74rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s, transform .15s;
+}
+
+.option-chip:hover {
+  transform: translateY(-1px);
+  border-color: #a7f3d0;
+}
+
+.option-chip--active {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.recommendation-notes-field {
+  margin-bottom: 0;
+}
+
+.recommendation-preview {
+  background: #f0faf7;
+  border-color: rgba(7,146,114,.18);
+}
+
 .timeline-editor {
   display: flex;
   flex-direction: column;
@@ -1658,9 +2554,13 @@ textarea:focus {
 
 .timeline-row {
   display: grid;
-  grid-template-columns: 1fr 150px 1fr 126px 38px;
+  grid-template-columns: 190px 1fr 150px 1fr 126px 38px;
   gap: 8px;
   align-items: center;
+}
+
+.timeline-kind-select {
+  min-width: 0;
 }
 
 .timeline-row button {
@@ -1961,14 +2861,16 @@ button:disabled {
   .editor-header,
   .header-actions,
   .section-title-row,
-  .actions {
+  .actions,
+  .upload-card-header {
     flex-direction: column;
     align-items: stretch;
   }
 
   .grid-two,
   .preview-grid,
-  .timeline-row {
+  .timeline-row,
+  .cover-dropzone {
     grid-template-columns: 1fr;
   }
 
@@ -1988,5 +2890,19 @@ button:disabled {
   .json-area--full {
     min-height: 520px;
   }
+
+  .cover-preview {
+    height: 180px;
+  }
+}
+</style>
+
+<style scoped>
+.mini-label {
+  display: block;
+  margin: 0 0 8px;
+  color: #6b7280;
+  font-size: .74rem;
+  font-weight: 800;
 }
 </style>

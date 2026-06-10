@@ -1,9 +1,10 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'auth' })
+definePageMeta({  middleware: 'auth' })
 useSeoMeta({ title: 'Novo Post — seConecta' })
 
 const router = useRouter()
 const { post: apiPost } = useAxios()
+const { uploadImage, validateImageFile, isCloudinaryImageUrl } = useImageUpload()
 
 const form = ref({
   title: '',
@@ -22,6 +23,23 @@ const activeTab = ref<'write' | 'preview'>('write')
 const errors = ref<Record<string, string>>({})
 const activeGuide = ref<number | null>(null)
 const hasDraft = ref(false)
+const coverFileInput = ref<HTMLInputElement | null>(null)
+const uploadingCover = ref(false)
+const coverUploadStatus = ref<string | null>(null)
+const localCoverPreviewUrl = ref<string | null>(null)
+
+const coverPreviewUrl = computed(() => localCoverPreviewUrl.value || form.value.cover_url || '')
+
+function revokeLocalCoverPreview() {
+  if (localCoverPreviewUrl.value) {
+    URL.revokeObjectURL(localCoverPreviewUrl.value)
+    localCoverPreviewUrl.value = null
+  }
+}
+
+onBeforeUnmount(() => {
+  revokeLocalCoverPreview()
+})
 
 // Restaura rascunho ao abrir
 onMounted(() => {
@@ -43,9 +61,12 @@ watch(form, (val) => {
 }, { deep: true })
 
 function discardDraft() {
+  revokeLocalCoverPreview()
   form.value = { title: '', content_md: '', excerpt: '', keywords: '', cover_url: '', tags: [], deadline: '' }
   localStorage.removeItem('new-post-draft')
   hasDraft.value = false
+  coverUploadStatus.value = null
+  if (coverFileInput.value) coverFileInput.value.value = ''
 }
 
 function slugify(text: string) {
@@ -65,12 +86,57 @@ function onTagKeydown(e: KeyboardEvent) {
   if (e.key === 'Backspace' && !tagInput.value && form.value.tags.length) form.value.tags.pop()
 }
 
+
+async function handleCoverFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+
+  if (!file) return
+
+  error.value = null
+  coverUploadStatus.value = null
+  delete errors.value.cover_url
+
+  try {
+    validateImageFile(file)
+
+    revokeLocalCoverPreview()
+    localCoverPreviewUrl.value = URL.createObjectURL(file)
+
+    uploadingCover.value = true
+    coverUploadStatus.value = 'Enviando imagem para o Cloudinary…'
+
+    const uploadedUrl = await uploadImage(file)
+
+    form.value.cover_url = uploadedUrl
+    revokeLocalCoverPreview()
+    coverUploadStatus.value = 'Imagem enviada. Ela será usada como capa do post.'
+  } catch (e: any) {
+    revokeLocalCoverPreview()
+    errors.value.cover_url = e?.message || 'Erro ao enviar imagem.'
+    coverUploadStatus.value = null
+  } finally {
+    uploadingCover.value = false
+    if (input) input.value = ''
+  }
+}
+
+function clearCoverImage() {
+  revokeLocalCoverPreview()
+  form.value.cover_url = ''
+  coverUploadStatus.value = null
+  delete errors.value.cover_url
+
+  if (coverFileInput.value) {
+    coverFileInput.value.value = ''
+  }
+}
+
 function validate() {
   errors.value = {}
   if (!form.value.title.trim()) errors.value.title = 'O título é obrigatório.'
   else if (form.value.title.length > 256) errors.value.title = 'Máximo 256 caracteres.'
   if (!form.value.content_md.trim()) errors.value.content_md = 'O conteúdo é obrigatório.'
-  if (form.value.cover_url && !/^https?:\/\/.+/.test(form.value.cover_url)) errors.value.cover_url = 'URL inválida.'
   
   // Optional: Validation for keywords phrase length if you want to ensure quality
   if (form.value.keywords && form.value.keywords.length < 10) {
@@ -104,6 +170,11 @@ watch(() => form.value.content_md, async (md) => {
 }, { immediate: true })
 
 async function handleSubmit() {
+  if (uploadingCover.value) {
+    error.value = 'Aguarde o envio da imagem terminar.'
+    return
+  }
+
   if (!validate()) return
   submitting.value = true; error.value = null
   const payload: Record<string, any> = {
@@ -203,8 +274,8 @@ const topics = [
             <span class="text-[0.72rem] text-[#bbb]">{{ wordCount }} palavras · ~{{ readTime }}min leitura</span>
             <button
               class="px-5 py-2.5 rounded-xl text-[0.85rem] font-bold text-white bg-gradient-to-r from-[#079272] to-[#0DA790] hover:shadow-[0_4px_16px_rgba(7,146,114,0.3)] hover:-translate-y-0.5 transition-all border-none cursor-pointer disabled:opacity-50"
-              :disabled="submitting || success" @click="handleSubmit">
-              {{ submitting ? 'Publicando…' : 'Publicar' }}
+              :disabled="submitting || uploadingCover || success" @click="handleSubmit">
+              {{ uploadingCover ? 'Enviando imagem…' : submitting ? 'Publicando…' : 'Publicar' }}
             </button>
           </div>
         </div>
@@ -217,10 +288,62 @@ const topics = [
           </div>
 
           <div>
-            <label class="block text-[0.78rem] font-semibold text-[#555] mb-1.5">URL da imagem de capa <span class="text-[#bbb] font-normal">(opcional)</span></label>
-            <input v-model="form.cover_url" type="url" placeholder="https://…"
-              class="w-full px-4 py-2.5 rounded-xl border text-[0.85rem] outline-none transition-all"
-              :class="errors.cover_url ? 'border-red-300 bg-red-50' : 'border-[#e8e4dc] focus:border-[#079272] focus:ring-2 focus:ring-[#079272]/15'" />
+            <div class="flex items-center justify-between gap-3 mb-1.5">
+              <label class="block text-[0.78rem] font-semibold text-[#555]">
+                Imagem de capa <span class="text-[#bbb] font-normal">(opcional)</span>
+              </label>
+
+              <button
+                v-if="form.cover_url || coverPreviewUrl"
+                type="button"
+                class="text-[0.72rem] font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-500 border border-red-100 hover:bg-red-100 transition-colors disabled:opacity-50"
+                :disabled="uploadingCover"
+                @click="clearCoverImage"
+              >
+                Remover imagem
+              </button>
+            </div>
+
+            <label
+              class="relative flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl border border-dashed transition-all cursor-pointer overflow-hidden"
+              :class="errors.cover_url
+                ? 'border-red-300 bg-red-50'
+                : uploadingCover
+                  ? 'border-[#079272]/40 bg-[#f0faf7] opacity-80 cursor-wait'
+                  : 'border-[#c5e8df] bg-[#f0faf7] hover:border-[#079272] hover:bg-[#e8f5f2]'"
+            >
+              <input
+                ref="coverFileInput"
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                class="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait"
+                :disabled="uploadingCover"
+                @change="handleCoverFileChange"
+              />
+
+              <div
+                v-if="coverPreviewUrl"
+                class="w-full sm:w-44 h-32 rounded-xl overflow-hidden bg-white border border-[#e8e4dc] flex-shrink-0"
+              >
+                <img :src="coverPreviewUrl" alt="Prévia da capa" class="w-full h-full object-cover" />
+              </div>
+
+              <div class="text-center sm:text-left flex-1">
+                <p class="text-[0.86rem] font-bold text-[#079272]">
+                  {{ uploadingCover ? 'Enviando imagem…' : coverPreviewUrl ? 'Trocar imagem de capa' : 'Clique para enviar uma imagem' }}
+                </p>
+                <p class="text-[0.74rem] text-[#5a9e8a] mt-1">
+                  JPG, PNG ou WEBP até 5MB. A imagem precisa ser enviada pelo Cloudinary do seConecta.
+                </p>
+                <p v-if="form.cover_url" class="text-[0.68rem] text-[#aaa] mt-2 break-all">
+                  {{ form.cover_url }}
+                </p>
+              </div>
+            </label>
+
+            <p v-if="coverUploadStatus" class="text-[#079272] text-[0.73rem] font-semibold mt-1.5">
+              {{ coverUploadStatus }}
+            </p>
             <p v-if="errors.cover_url" class="text-red-500 text-[0.73rem] mt-1">{{ errors.cover_url }}</p>
           </div>
 

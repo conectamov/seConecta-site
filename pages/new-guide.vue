@@ -1,5 +1,6 @@
 <script setup lang="ts">
-definePageMeta({ middleware: 'auth' })
+definePageMeta({ layout:'app', middleware: 'auth' })
+
 useSeoMeta({ title: 'Novo Guia — seConecta' })
 
 const router = useRouter()

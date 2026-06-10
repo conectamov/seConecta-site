@@ -141,7 +141,139 @@
             </div>
           </div>
 
-          <div class="lg:col-span-8">
+
+          <div class="lg:col-span-8 space-y-6">
+            <div
+              v-if="mentorPending && isMentorTagged"
+              class="bg-white border border-[#e8e4dc] rounded-[24px] p-7 shadow-sm animate-pulse"
+            >
+              <div class="h-3 w-36 bg-[#f0ece5] rounded mb-4"></div>
+              <div class="h-6 w-72 bg-[#f0ece5] rounded mb-3"></div>
+              <div class="h-3 w-full max-w-xl bg-[#f0ece5] rounded mb-2"></div>
+              <div class="h-3 w-4/5 bg-[#f0ece5] rounded"></div>
+            </div>
+
+            <section
+              v-else-if="approvedMentor"
+              class="bg-white border border-[#d8eee7] rounded-[24px] overflow-hidden shadow-sm"
+            >
+              <div class="px-7 py-5 bg-gradient-to-r from-[#f0faf7] to-white border-b border-[#e3f3ee]">
+                <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div>
+                    <div class="flex flex-wrap items-center gap-2 mb-3">
+                      <span class="px-3 py-1 rounded-full bg-[#079272] text-white text-[0.65rem] font-black uppercase tracking-[0.12em]">
+                        Mentor
+                      </span>
+
+                      <span class="px-3 py-1 rounded-full bg-white border border-[#cde8df] text-[#067a60] text-[0.65rem] font-black uppercase tracking-[0.12em]">
+                        {{ mentorTypeLabel(approvedMentor.mentor_type) }}
+                      </span>
+
+                      <span class="px-3 py-1 rounded-full bg-white border border-[#dbeafe] text-[#2563eb] text-[0.65rem] font-black uppercase tracking-[0.12em]">
+                        {{ mentorLevelLabel(approvedMentor.mentor_level) }}
+                      </span>
+                    </div>
+
+                    <h2 class="text-xl sm:text-2xl font-black text-[#111] tracking-[-0.03em] leading-tight">
+                      {{ approvedMentor.headline || `Mentoria com ${user.full_name || user.username}` }}
+                    </h2>
+
+                    <p class="mt-2 text-[0.92rem] text-[#555] leading-relaxed max-w-2xl">
+                      {{ approvedMentor.bio || 'Este mentor ainda não adicionou uma descrição pública para sua mentoria.' }}
+                    </p>
+                  </div>
+
+                  <NuxtLink
+                    to="/turmas"
+                    class="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-[#111] text-white text-sm font-bold hover:bg-[#333] transition-colors shrink-0"
+                  >
+                    Ver turmas
+                  </NuxtLink>
+                </div>
+              </div>
+
+              <div class="p-7 grid gap-5">
+                <div
+                  v-if="approvedMentor.areas?.length || approvedMentor.topics?.length"
+                  class="grid md:grid-cols-2 gap-4"
+                >
+                  <div v-if="approvedMentor.areas?.length" class="bg-[#fbfbfa] border border-[#eee8de] rounded-2xl p-4">
+                    <h3 class="text-[0.68rem] font-black uppercase tracking-[0.12em] text-[#079272] mb-3">
+                      Áreas de mentoria
+                    </h3>
+
+                    <div class="flex flex-wrap gap-2">
+                      <span
+                        v-for="area in approvedMentor.areas"
+                        :key="area"
+                        class="px-3 py-1.5 rounded-xl bg-white border border-[#e8e4dc] text-xs font-bold text-[#444]"
+                      >
+                        {{ area }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div v-if="approvedMentor.topics?.length" class="bg-[#fbfbfa] border border-[#eee8de] rounded-2xl p-4">
+                    <h3 class="text-[0.68rem] font-black uppercase tracking-[0.12em] text-[#079272] mb-3">
+                      Tópicos
+                    </h3>
+
+                    <div class="flex flex-wrap gap-2">
+                      <span
+                        v-for="topic in approvedMentor.topics"
+                        :key="topic"
+                        class="px-3 py-1.5 rounded-xl bg-white border border-[#e8e4dc] text-xs font-bold text-[#444]"
+                      >
+                        #{{ topic }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid sm:grid-cols-3 gap-4">
+                  <div class="bg-[#f7f5f0] border border-[#eee8de] rounded-2xl p-4">
+                    <div class="text-[0.65rem] font-black uppercase tracking-[0.12em] text-[#aaa] mb-1">
+                      Disponibilidade
+                    </div>
+                    <div class="text-[0.86rem] font-semibold text-[#444] leading-snug">
+                      {{ mentorAvailabilityLabel }}
+                    </div>
+                  </div>
+
+                  <div class="bg-[#f7f5f0] border border-[#eee8de] rounded-2xl p-4">
+                    <div class="text-[0.65rem] font-black uppercase tracking-[0.12em] text-[#aaa] mb-1">
+                      Turmas simultâneas
+                    </div>
+                    <div class="text-[0.86rem] font-semibold text-[#444]">
+                      até {{ approvedMentor.max_active_turmas || 1 }}
+                    </div>
+                  </div>
+
+                  <div class="bg-[#f7f5f0] border border-[#eee8de] rounded-2xl p-4">
+                    <div class="text-[0.65rem] font-black uppercase tracking-[0.12em] text-[#aaa] mb-1">
+                      Status
+                    </div>
+                    <div class="text-[0.86rem] font-semibold text-[#067a60]">
+                      aprovado no seConecta
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="approvedMentor.proof_links?.length" class="flex flex-wrap gap-2">
+                  <a
+                    v-for="link in approvedMentor.proof_links"
+                    :key="link"
+                    :href="link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="px-3 py-1.5 rounded-xl bg-[#eff6ff] border border-[#bfdbfe] text-[#2563eb] text-xs font-bold hover:bg-[#dbeafe] transition-colors"
+                  >
+                    Referência pública
+                  </a>
+                </div>
+              </div>
+            </section>
+
             <div class="bg-white border border-[#e8e4dc] rounded-[24px] p-7 shadow-sm min-h-[400px]">
               <h2 class="text-xl font-black text-[#111] mb-6">Últimas Publicações</h2>
 
@@ -265,6 +397,49 @@ const {
 
 const posts = computed(() => postsData.value || [])
 
+
+// 3. Buscar perfil público de mentor aprovado
+const isMentorTagged = computed(() => {
+  return Boolean(
+    user.value?.tags?.some((tag: string) => String(tag).toLowerCase() === 'mentor')
+  )
+})
+
+const {
+  data: mentorData,
+  pending: mentorPending
+} = useAsyncData(
+  `mentor-profile-${username.value}`,
+  async () => {
+    if (!username.value) return null
+
+    try {
+      const res = await get(`/turmas/mentor/by-username/${username.value}`)
+      return res.data?.data || res.data || null
+    } catch (e) {
+      return null
+    }
+  },
+  { watch: [username, userId], server: false }
+)
+
+const approvedMentor = computed(() => {
+  const profile = mentorData.value
+  if (!profile || profile.status !== 'APPROVED') return null
+  return profile
+})
+
+const mentorAvailabilityLabel = computed(() => {
+  const availability = approvedMentor.value?.availability || {}
+  const days = Array.isArray(availability.days) ? availability.days.map(dayLabel) : []
+  const periods = Array.isArray(availability.periods) ? availability.periods.map(periodLabel) : []
+
+  const left = days.length ? days.join(', ') : 'dias a combinar'
+  const right = periods.length ? periods.join(', ') : 'horários a combinar'
+
+  return `${left} · ${right}`
+})
+
 // ==========================================
 // FUNÇÕES AUXILIARES
 // ==========================================
@@ -282,6 +457,45 @@ function getTagColor(index: number) {
     case 2: return 'bg-[#faf5ff] text-[#9333ea] border-[#e9d5ff]' // Roxo
     default: return 'bg-[#f0faf7] text-[#079272] border-[#c5e8df]' // Padrão seConecta
   }
+}
+
+
+function mentorTypeLabel(type?: string) {
+  return {
+    PEER: 'Mentor estudante',
+    AMBASSADOR: 'Embaixador',
+    VERIFIED: 'Mentor verificado'
+  }[type || ''] || 'Mentor'
+}
+
+function mentorLevelLabel(level?: string) {
+  return {
+    BEGINNER_GUIDE: 'Guia de iniciantes',
+    EXPERIENCED: 'Experiente',
+    ADVANCED: 'Avançado',
+    SPECIALIST: 'Especialista'
+  }[level || ''] || 'Mentor'
+}
+
+function dayLabel(day?: string) {
+  return {
+    MONDAY: 'seg',
+    TUESDAY: 'ter',
+    WEDNESDAY: 'qua',
+    THURSDAY: 'qui',
+    FRIDAY: 'sex',
+    SATURDAY: 'sáb',
+    SUNDAY: 'dom'
+  }[day || ''] || day || ''
+}
+
+function periodLabel(period?: string) {
+  return {
+    MORNING: 'manhã',
+    AFTERNOON: 'tarde',
+    NIGHT: 'noite',
+    WEEKENDS: 'fins de semana'
+  }[period || ''] || period || ''
 }
 
 function formatDate(d?: string) {

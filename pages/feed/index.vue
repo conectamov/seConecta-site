@@ -138,9 +138,12 @@ const feedTitle = computed(() => {
       </svg>
     </button>
 
-    <section class="relative overflow-hidden py-16 px-8 bg-none">
-      <div class="absolute rounded-full blur-[60px] opacity-10 pointer-events-none w-[300px] h-[300px] top-[5%] right-[5%] bg-[#079272] max-sm:hidden"></div>
-      <div class="absolute rounded-full blur-[60px] opacity-10 pointer-events-none w-[200px] h-[200px] bottom-[10%] right-[25%] bg-[#2464E8] max-sm:hidden"></div>
+    <section class="relative overflow-hidden py-16 px-8 bg-gradient-to-br from-[#D0FAFE] via-[#F8FFFC] to-[#8DE5BF]">
+      <div class="absolute inset-0 opacity-40 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,rgba(7,146,114,0.18),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(36,100,232,0.14),transparent_30%),radial-gradient(circle_at_70%_80%,rgba(141,229,191,0.35),transparent_34%)]"></div>
+
+      <div class="absolute rounded-full blur-[70px] opacity-20 pointer-events-none w-[320px] h-[320px] top-[5%] right-[5%] bg-[#079272] max-sm:hidden"></div>
+      <div class="absolute rounded-full blur-[70px] opacity-20 pointer-events-none w-[240px] h-[240px] bottom-[8%] right-[28%] bg-[#2464E8] max-sm:hidden"></div>
+
 
       <div class="relative z-10 max-w-[900px] mx-auto w-full text-center md:text-left">
         <div data-aos="fade-up" class="flex items-center justify-center md:justify-start gap-2 text-[0.7rem] font-medium tracking-[0.14em] uppercase mb-6">
