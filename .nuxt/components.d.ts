@@ -22,6 +22,7 @@ export const MentorProfileModal: typeof import("../components/MentorProfileModal
 export const OlympiadDetailsModal: typeof import("../components/OlympiadDetailsModal.vue")['default']
 export const OpportunityDetailsModal: typeof import("../components/OpportunityDetailsModal.vue")['default']
 export const OpportunityRadarCalendarPanel: typeof import("../components/OpportunityRadarCalendarPanel.vue")['default']
+export const PromoPostModal: typeof import("../components/PromoPostModal.vue")['default']
 export const TeamMember: typeof import("../components/TeamMember.vue")['default']
 export const TurmaDetailsModal: typeof import("../components/TurmaDetailsModal.vue")['default']
 export const TurmaEnrollmentModal: typeof import("../components/TurmaEnrollmentModal.vue")['default']
@@ -82,6 +83,7 @@ export const LazyMentorProfileModal: LazyComponent<typeof import("../components/
 export const LazyOlympiadDetailsModal: LazyComponent<typeof import("../components/OlympiadDetailsModal.vue")['default']>
 export const LazyOpportunityDetailsModal: LazyComponent<typeof import("../components/OpportunityDetailsModal.vue")['default']>
 export const LazyOpportunityRadarCalendarPanel: LazyComponent<typeof import("../components/OpportunityRadarCalendarPanel.vue")['default']>
+export const LazyPromoPostModal: LazyComponent<typeof import("../components/PromoPostModal.vue")['default']>
 export const LazyTeamMember: LazyComponent<typeof import("../components/TeamMember.vue")['default']>
 export const LazyTurmaDetailsModal: LazyComponent<typeof import("../components/TurmaDetailsModal.vue")['default']>
 export const LazyTurmaEnrollmentModal: LazyComponent<typeof import("../components/TurmaEnrollmentModal.vue")['default']>

@@ -1,1 +1,1 @@
-export { default } from "file:///home/marzeero/Downloads/seConecta-site/node_modules/@nuxt/vite-builder/dist/vite-node-entry.mjs"
+export { default } from "file:///home/marzeero/Documentos/seConecta-site/node_modules/@nuxt/vite-builder/dist/vite-node-entry.mjs"

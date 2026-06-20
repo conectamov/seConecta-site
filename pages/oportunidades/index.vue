@@ -2085,7 +2085,6 @@ const showCategorySections = computed(() => categorySections.value.length > 0)
         </div>
       </main>
     </div>
-
   <OpportunityDetailsModal
     v-if="selectedItem"
     :key="selectedItem.id ?? selectedItem.slug"

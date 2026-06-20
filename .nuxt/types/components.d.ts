@@ -22,6 +22,7 @@ interface _GlobalComponents {
   OlympiadDetailsModal: typeof import("../../components/OlympiadDetailsModal.vue")['default']
   OpportunityDetailsModal: typeof import("../../components/OpportunityDetailsModal.vue")['default']
   OpportunityRadarCalendarPanel: typeof import("../../components/OpportunityRadarCalendarPanel.vue")['default']
+  PromoPostModal: typeof import("../../components/PromoPostModal.vue")['default']
   TeamMember: typeof import("../../components/TeamMember.vue")['default']
   TurmaDetailsModal: typeof import("../../components/TurmaDetailsModal.vue")['default']
   TurmaEnrollmentModal: typeof import("../../components/TurmaEnrollmentModal.vue")['default']
@@ -82,6 +83,7 @@ interface _GlobalComponents {
   LazyOlympiadDetailsModal: LazyComponent<typeof import("../../components/OlympiadDetailsModal.vue")['default']>
   LazyOpportunityDetailsModal: LazyComponent<typeof import("../../components/OpportunityDetailsModal.vue")['default']>
   LazyOpportunityRadarCalendarPanel: LazyComponent<typeof import("../../components/OpportunityRadarCalendarPanel.vue")['default']>
+  LazyPromoPostModal: LazyComponent<typeof import("../../components/PromoPostModal.vue")['default']>
   LazyTeamMember: LazyComponent<typeof import("../../components/TeamMember.vue")['default']>
   LazyTurmaDetailsModal: LazyComponent<typeof import("../../components/TurmaDetailsModal.vue")['default']>
   LazyTurmaEnrollmentModal: LazyComponent<typeof import("../../components/TurmaEnrollmentModal.vue")['default']>
