@@ -1,187 +1,110 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, CircleCheck, LoaderCircle, LockKeyhole, MessageCircle, Smartphone, X } from "lucide-react";
-import { createContext, FormEvent, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, LoaderCircle, LockKeyhole, MessageCircle, UserRound, X } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { studentApiEnabled } from "@/services/feature-flags";
+import { apiRequest, SeConectaApiError } from "@/services/seconecta-browser-api";
+import type { StudentProfileApi, WhatsAppChallengeApi } from "@/types/seconecta-api";
 
-export type AuthenticationReason = "saveOpportunity" | "journey" | "reminders" | "aiMemory" | "community" | "settings";
-export type AuthenticationProviderId = "whatsapp" | "google";
-
-type ConnectedAccount = { connected: boolean; identifier?: string };
-type AuthenticationSession = {
-  authenticated: boolean;
-  primaryProvider?: AuthenticationProviderId;
-  connectedAccounts: Record<AuthenticationProviderId, ConnectedAccount>;
-};
-
-type AuthenticationContextValue = {
-  ready: boolean;
-  isAuthenticated: boolean;
-  session: AuthenticationSession;
-  openAuthentication: (reason: AuthenticationReason, onAuthenticated?: () => void, preferredProvider?: AuthenticationProviderId) => void;
-  connectAccount: (provider: AuthenticationProviderId) => void;
-  logout: () => void;
-};
-
-const SESSION_KEY = "seconecta:auth-session";
-const KNOWN_IDENTITIES_KEY = "seconecta:known-identities";
-const emptySession: AuthenticationSession = { authenticated: false, connectedAccounts: { whatsapp: { connected: false }, google: { connected: false } } };
+export type AuthenticationSession = { studentId: string; name: string; profilePictureUrl: string | null } | null;
+type AuthenticationContextValue = { ready: boolean; isAuthenticated: boolean; session: AuthenticationSession; openAuthentication: () => void; refreshSession: () => Promise<AuthenticationSession>; logout: () => Promise<void> };
 const AuthenticationContext = createContext<AuthenticationContextValue | null>(null);
 
-type ModalStage = "choice" | "phone" | "waiting" | "google" | "success";
+function toSession(profile: StudentProfileApi): NonNullable<AuthenticationSession> {
+  return { studentId: profile.studentId, name: profile.fullName?.trim() || "Estudante", profilePictureUrl: profile.profilePictureUrl };
+}
 
-function readKnownIdentities() {
-  try {
-    return JSON.parse(window.localStorage.getItem(KNOWN_IDENTITIES_KEY) ?? "[]") as string[];
-  } catch {
-    return [];
+function friendlyError(error: unknown) {
+  if (error instanceof SeConectaApiError) {
+    if (error.status === 429) return "Muitas tentativas. Aguarde um pouco antes de pedir outro código.";
+    if (error.status === 502 || error.status === 503) return "Não consegui enviar o código agora. Verifique o WhatsApp e tente novamente em instantes.";
+    if (error.status === 400) return "Esse código expirou ou não está correto. Peça um novo código.";
   }
+  return "Não consegui concluir o acesso agora. Tente novamente.";
 }
 
-function identityKey(provider: AuthenticationProviderId, identifier: string) {
-  return `${provider}:${identifier}`;
-}
-
-function isKnownIdentity(provider: AuthenticationProviderId, identifier: string) {
-  const known = readKnownIdentities();
-  return known.includes(identityKey(provider, identifier)) || (provider === "whatsapp" && known.includes(identifier));
-}
-
-function readSession() {
-  try {
-    const stored = window.localStorage.getItem(SESSION_KEY);
-    return stored ? { ...emptySession, ...JSON.parse(stored) as AuthenticationSession } : emptySession;
-  } catch {
-    return emptySession;
-  }
-}
-
-function reasonBenefit(reason: AuthenticationReason) {
-  const copy: Record<AuthenticationReason, string> = {
-    saveOpportunity: "Salve esta oportunidade, acompanhe prazos e continue sua preparação em qualquer dispositivo.",
-    journey: "Acompanhe oportunidades, progresso, lembretes e notificações em um só lugar.",
-    reminders: "Receba avisos importantes antes que um prazo termine.",
-    aiMemory: "Permita que seu Coach lembre seu contexto e continue a orientação depois.",
-    community: "Preserve suas perguntas, respostas e conexões com outros estudantes.",
-    settings: "Conecte outra forma de acesso à mesma Jornada.",
-  };
-  return copy[reason];
-}
-
-function GoogleMark() {
-  return <span className="grid size-6 place-items-center rounded-full bg-white text-sm font-bold shadow-sm"><i className="not-italic text-[#4285f4]">G</i></span>;
-}
-
-function AuthModal({ open, reason, preferredProvider, linkingAccount, onClose, onAuthenticated }: { open: boolean; reason: AuthenticationReason; preferredProvider: AuthenticationProviderId | null; linkingAccount: boolean; onClose: () => void; onAuthenticated: (provider: AuthenticationProviderId, identifier: string, returning: boolean) => void }) {
-  const [stage, setStage] = useState<ModalStage>("choice");
+function AuthModal({ open, onClose, onAuthenticated }: { open: boolean; onClose: () => void; onAuthenticated: (session: NonNullable<AuthenticationSession>) => void }) {
+  const [step, setStep] = useState<"phone" | "code" | "name">("phone");
   const [phone, setPhone] = useState("");
-  const [returning, setReturning] = useState(false);
-  const [completedProvider, setCompletedProvider] = useState<AuthenticationProviderId>("whatsapp");
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [challengeId, setChallengeId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!open) return;
-    setPhone("");
-    setReturning(false);
-    setStage(preferredProvider === "whatsapp" ? "phone" : preferredProvider === "google" ? "google" : "choice");
-  }, [preferredProvider, open]);
+    setStep("phone"); setPhone(""); setCode(""); setName(""); setChallengeId(""); setError(""); setBusy(false);
+  }, [open]);
 
-  useEffect(() => {
-    if (!open || stage !== "google") return;
-    const identifier = "conta-google@mock.seconecta";
-    const timeout = window.setTimeout(() => complete("google", identifier, isKnownIdentity("google", identifier)), 1350);
-    return () => window.clearTimeout(timeout);
-  }, [open, stage]);
-
-  const complete = (provider: AuthenticationProviderId, identifier: string, isReturning: boolean) => {
-    setCompletedProvider(provider);
-    setReturning(isReturning);
-    setStage("success");
-    window.setTimeout(() => onAuthenticated(provider, identifier, isReturning), 1250);
-  };
-
-  const submitPhone = (event: FormEvent<HTMLFormElement>) => {
+  const requestCode = async (event: React.FormEvent) => {
     event.preventDefault();
-    const normalized = phone.replace(/\D/g, "");
-    if (normalized.length < 10) return;
-    setStage("waiting");
-    window.setTimeout(() => complete("whatsapp", normalized, isKnownIdentity("whatsapp", normalized)), 1850);
+    if (phone.replace(/\D/g, "").length < 10) return setError("Digite seu WhatsApp com DDD.");
+    setBusy(true); setError("");
+    try {
+      const challenge = await apiRequest<WhatsAppChallengeApi>("student-auth/whatsapp/challenge", { method: "POST", body: JSON.stringify({ phone }) });
+      setChallengeId(challenge.challenge_id); setStep("code");
+    } catch (nextError) { setError(friendlyError(nextError)); }
+    finally { setBusy(false); }
   };
 
-  return <AnimatePresence>{open && <motion.div className="fixed inset-0 z-[1200] grid place-items-center bg-[#14221d]/45 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => event.currentTarget === event.target && onClose()}>
-    <motion.section role="dialog" aria-modal="true" aria-labelledby="authentication-title" className="relative w-full max-w-[470px] overflow-hidden rounded-[28px] border border-white/70 bg-[#fbfcfa] shadow-[0_30px_95px_rgba(17,39,30,.25)]" initial={{ opacity: 0, y: 18, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: .985 }} transition={{ duration: .22 }}>
-      <header className="flex h-16 items-center justify-between border-b border-[#e1e7e3] px-6"><span className="text-[10px] font-bold uppercase tracking-[.14em] text-[#078166]">seConecta</span><button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#66736d] hover:bg-[#edf2ef]" aria-label="Fechar"><X size={17} /></button></header>
-      <AnimatePresence mode="wait" initial={false}>
-        {stage === "choice" && <motion.div className="p-7 sm:p-9" key="choice" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}><span className="grid size-11 place-items-center rounded-2xl bg-[#e9f7f1] text-[#078166]"><LockKeyhole size={20} /></span><h2 id="authentication-title" className="mt-6 text-[28px] font-semibold tracking-[-.05em] text-[#17372b]">Salvar minha jornada</h2><p className="mt-3 text-[12px] leading-6 text-[#66736d]">Continue exatamente de onde parou e acompanhe suas oportunidades em qualquer dispositivo.</p><p className="mt-3 rounded-xl bg-[#f0f5f2] px-3 py-2.5 text-[10px] leading-5 text-[#52615a]">{reasonBenefit(reason)}</p><div className="mt-7 grid gap-2.5"><button type="button" onClick={() => setStage("phone")} className="flex min-h-13 items-center gap-3 rounded-[15px] bg-[#079272] px-4 text-[11px] font-semibold shadow-[0_10px_24px_rgba(7,146,114,.17)]" style={{ color: "#fff" }}><span className="grid size-8 place-items-center rounded-xl bg-white/12"><MessageCircle size={17} /></span>Continuar com WhatsApp <ArrowRight size={14} className="ml-auto" /></button><button type="button" onClick={() => setStage("google")} className="flex min-h-13 items-center gap-3 rounded-[15px] border border-[#d8e0dc] bg-white px-4 text-[11px] font-semibold text-[#365247] hover:bg-[#f5f8f6]"><GoogleMark />Continuar com Google <ArrowRight size={14} className="ml-auto" /></button></div><p className="mt-5 text-center text-[9px] leading-5 text-[#818c86]">Você poderá conectar os dois métodos depois.</p><p className="mt-2 flex items-center justify-center gap-1.5 text-[8px] text-[#98a19d]"><LockKeyhole size={10} />Sem senha. Seus dados locais serão preservados.</p></motion.div>}
+  const verifyCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!/^\d{6}$/.test(code)) return setError("Digite os 6 números enviados pelo WhatsApp.");
+    setBusy(true); setError("");
+    try {
+      await apiRequest<{ authenticated: true }>("student-auth/whatsapp/verify", { method: "POST", body: JSON.stringify({ challenge_id: challengeId, code }) });
+      const profile = await apiRequest<StudentProfileApi>("students/me/profile");
+      if (!profile.fullName) setStep("name"); else onAuthenticated(toSession(profile));
+    } catch (nextError) { setError(friendlyError(nextError)); }
+    finally { setBusy(false); }
+  };
 
-        {stage === "phone" && <motion.div className="p-7 sm:p-9" key="phone" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}><button type="button" onClick={() => preferredProvider ? onClose() : setStage("choice")} className="inline-flex items-center gap-1 text-[9px] font-semibold text-[#748079]"><ArrowLeft size={12} />Voltar</button><span className="mt-6 grid size-11 place-items-center rounded-2xl bg-[#e9f7f1] text-[#078166]"><Smartphone size={20} /></span><h2 id="authentication-title" className="mt-5 text-[25px] font-semibold tracking-[-.045em] text-[#17372b]">Confirmar pelo WhatsApp</h2><p className="mt-3 text-[11px] leading-6 text-[#66736d]">Vamos enviar uma mensagem no WhatsApp para confirmar sua identidade. Você não precisará criar uma senha.</p><form onSubmit={submitPhone} className="mt-6"><label className="text-[9px] font-semibold text-[#52615a]" htmlFor="authentication-phone">Número com DDD</label><div className="mt-2 flex h-12 items-center rounded-[14px] border border-[#d3ddd8] bg-white px-3 focus-within:border-[#079272] focus-within:ring-2 focus-within:ring-[#079272]/10"><span className="border-r border-[#e0e5e2] pr-3 text-[10px] font-semibold text-[#52615a]">+55</span><input id="authentication-phone" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="(11) 99999-9999" className="min-w-0 flex-1 border-0 bg-transparent px-3 text-[12px] text-[#29493c] outline-none" autoFocus /></div><button type="submit" disabled={phone.replace(/\D/g, "").length < 10} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#079272] text-[11px] font-semibold disabled:opacity-35" style={{ color: "#fff" }}>Enviar confirmação <ArrowRight size={14} /></button></form><p className="mt-4 text-center text-[8px] leading-4 text-[#909994]">Usaremos este número apenas para identidade, lembretes e conversas que você ativar.</p></motion.div>}
+  const saveName = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (name.trim().length < 2) return setError("Conte como podemos chamar você.");
+    setBusy(true); setError("");
+    try {
+      const profile = await apiRequest<StudentProfileApi>("students/me/profile", { method: "PATCH", body: JSON.stringify({ fullName: name.trim() }) });
+      onAuthenticated(toSession(profile));
+    } catch (nextError) { setError(friendlyError(nextError)); }
+    finally { setBusy(false); }
+  };
 
-        {stage === "waiting" && <motion.div className="flex min-h-[390px] flex-col items-center justify-center p-8 text-center" key="waiting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><motion.span className="relative grid size-16 place-items-center rounded-full bg-[#e9f7f1] text-[#078166]" animate={{ scale: [1, 1.04, 1] }} transition={{ duration: 1.5, repeat: Infinity }}><MessageCircle size={25} /><motion.i className="absolute inset-[-7px] rounded-full border-2 border-[#079272]/20 border-t-[#079272]" animate={{ rotate: 360 }} transition={{ duration: 1.1, repeat: Infinity, ease: "linear" }} /></motion.span><h2 id="authentication-title" className="mt-7 text-[24px] font-semibold tracking-[-.04em] text-[#17372b]">Aguardando confirmação...</h2><p className="mt-3 max-w-xs text-[11px] leading-6 text-[#66736d]">Abra a mensagem enviada no WhatsApp e confirme que é você. Esta tela continuará automaticamente.</p><span className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#f0f4f2] px-4 py-2 text-[8px] font-medium text-[#748079]"><LoaderCircle size={12} className="animate-spin" />Verificando com segurança</span></motion.div>}
-
-        {stage === "google" && <motion.div className="flex min-h-[390px] flex-col items-center justify-center p-8 text-center" key="google" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><motion.span animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 1.2, repeat: Infinity }}><GoogleMark /></motion.span><h2 id="authentication-title" className="mt-6 text-[23px] font-semibold tracking-[-.04em] text-[#17372b]">Abrindo o Google...</h2><p className="mt-3 text-[11px] leading-6 text-[#66736d]">Conclua a confirmação na janela segura do Google.</p><LoaderCircle size={18} className="mt-6 animate-spin text-[#078166]" /></motion.div>}
-
-        {stage === "success" && <motion.div className="flex min-h-[390px] flex-col items-center justify-center p-8 text-center" key="success" initial={{ opacity: 0, scale: .98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}><motion.span className="grid size-16 place-items-center rounded-full bg-[#e7f7ef] text-[#078166]" initial={{ scale: .65 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 260, damping: 18 }}><CircleCheck size={29} /></motion.span><h2 id="authentication-title" className="mt-7 text-[25px] font-semibold tracking-[-.045em] text-[#17372b]">{linkingAccount ? "Conta conectada." : returning ? "Bem-vindo de volta." : "Jornada salva."}</h2><p className="mt-3 max-w-xs text-[11px] leading-6 text-[#66736d]">{returning ? "Suas recomendações, oportunidades e contexto foram restaurados." : linkingAccount ? `${completedProvider === "whatsapp" ? "WhatsApp" : "Google"} agora leva você à mesma Jornada.` : "Seu progresso local está conectado e pronto para continuar em qualquer dispositivo."}</p><span className="mt-5 inline-flex items-center gap-2 text-[9px] font-semibold text-[#078166]"><Check size={13} />Continuando de onde você parou</span></motion.div>}
-      </AnimatePresence>
+  const submit = step === "phone" ? requestCode : step === "code" ? verifyCode : saveName;
+  return <AnimatePresence>{open && <motion.div className="fixed inset-0 z-[1200] grid place-items-center bg-[#10251e]/60 p-4 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <motion.section role="dialog" aria-modal="true" aria-labelledby="auth-title" className="w-full max-w-[450px] rounded-[26px] border border-white/70 bg-[#fbfcfa] p-6 shadow-[0_30px_95px_rgba(17,39,30,.25)] sm:p-8" initial={{ opacity: 0, y: 16, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: .985 }}>
+      <div className="flex items-center justify-between"><span className="grid size-11 place-items-center rounded-2xl bg-[#e9f7f1] text-[#078166]">{step === "name" ? <UserRound size={19} /> : <MessageCircle size={19} />}</span><button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-full text-[#6f7c75] hover:bg-[#eef2ef]" aria-label="Fechar"><X size={17} /></button></div>
+      <h2 id="auth-title" className="mt-6 text-[28px] font-semibold tracking-[-.05em] text-[#17372b]">{step === "phone" ? "Entre com seu WhatsApp" : step === "code" ? "Confira suas mensagens" : "Como podemos chamar você?"}</h2>
+      <p className="mt-2 text-[11px] leading-5 text-[#68766f]">{step === "phone" ? "Você receberá um código pelo seConecta. É a mesma conta usada nas conversas e na sua Jornada." : step === "code" ? `Enviamos um código para ${phone}. Ele expira em 10 minutos.` : "Seu nome deixa as recomendações e conversas mais pessoais."}</p>
+      <form onSubmit={submit} className="mt-6 grid gap-4">
+        {step === "phone" && <label className="grid gap-1.5 text-[9px] font-semibold text-[#52615a]">WhatsApp<input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" autoComplete="tel" autoFocus className="h-12 rounded-[14px] border border-[#d3ddd8] bg-white px-4 text-[12px] outline-none focus:border-[#079272]" placeholder="(11) 99999-9999" /></label>}
+        {step === "code" && <label className="grid gap-1.5 text-[9px] font-semibold text-[#52615a]">Código de 6 números<input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" autoFocus className="h-12 rounded-[14px] border border-[#d3ddd8] bg-white px-4 text-center text-lg tracking-[.35em] outline-none focus:border-[#079272]" placeholder="000000" /></label>}
+        {step === "name" && <label className="grid gap-1.5 text-[9px] font-semibold text-[#52615a]">Seu nome<input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" autoFocus className="h-12 rounded-[14px] border border-[#d3ddd8] bg-white px-4 text-[12px] outline-none focus:border-[#079272]" placeholder="Como podemos chamar você?" /></label>}
+        {error && <p role="alert" className="rounded-xl bg-[#fff0ed] px-3 py-2.5 text-[9px] font-medium text-[#a84d35]">{error}</p>}
+        <button type="submit" disabled={busy} className="mt-1 flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#079272] text-[11px] font-semibold text-white disabled:opacity-50">{busy ? <><LoaderCircle size={15} className="animate-spin" />Aguarde...</> : <>{step === "phone" ? "Receber código" : step === "code" ? "Confirmar acesso" : "Continuar"}<ArrowRight size={14} /></>}</button>
+        {step === "code" && <button type="button" onClick={() => { setStep("phone"); setCode(""); setError(""); }} className="text-[9px] font-semibold text-[#65736c]">Usar outro número</button>}
+      </form>
+      <p className="mt-5 flex items-center justify-center gap-1.5 text-center text-[8px] leading-4 text-[#909994]"><LockKeyhole size={11} />O código confirma que esse WhatsApp pertence a você.</p>
     </motion.section>
   </motion.div>}</AnimatePresence>;
 }
 
 export function AuthenticationProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<AuthenticationSession>(emptySession);
   const [ready, setReady] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [reason, setReason] = useState<AuthenticationReason>("journey");
-  const [preferredProvider, setPreferredProvider] = useState<AuthenticationProviderId | null>(null);
-  const [linkingAccount, setLinkingAccount] = useState(false);
-  const continuationRef = useRef<(() => void) | undefined>(undefined);
-
-  useEffect(() => { setSession(readSession()); setReady(true); }, []);
-
-  const openAuthentication = (nextReason: AuthenticationReason, onAuthenticated?: () => void, preferredProvider?: AuthenticationProviderId) => {
-    if (session.authenticated && !preferredProvider) { onAuthenticated?.(); return; }
-    continuationRef.current = onAuthenticated;
-    setReason(nextReason);
-    setPreferredProvider(preferredProvider ?? null);
-    setLinkingAccount(false);
-    setModalOpen(true);
-  };
-
-  const finishAuthentication = (provider: AuthenticationProviderId, identifier: string) => {
-    const next: AuthenticationSession = { authenticated: true, primaryProvider: session.primaryProvider ?? provider, connectedAccounts: { ...session.connectedAccounts, [provider]: { connected: true, identifier } } };
-    setSession(next);
-    window.localStorage.setItem(SESSION_KEY, JSON.stringify(next));
-    const known = readKnownIdentities();
-    window.localStorage.setItem(KNOWN_IDENTITIES_KEY, JSON.stringify([...new Set([...known, identityKey(provider, identifier)])]));
-    setModalOpen(false);
-    setPreferredProvider(null);
-    setLinkingAccount(false);
-    const continuation = continuationRef.current;
-    continuationRef.current = undefined;
-    window.setTimeout(() => continuation?.(), 80);
-  };
-
-  const value = useMemo<AuthenticationContextValue>(() => ({
-    ready,
-    isAuthenticated: session.authenticated,
-    session,
-    openAuthentication,
-    connectAccount: (provider) => {
-      setReason("settings");
-      setPreferredProvider(provider);
-      setLinkingAccount(true);
-      continuationRef.current = undefined;
-      setModalOpen(true);
-    },
-    logout: () => {
-      setSession(emptySession);
-      setModalOpen(false);
-      setPreferredProvider(null);
-      setLinkingAccount(false);
-      continuationRef.current = undefined;
-      window.localStorage.removeItem(SESSION_KEY);
-    },
-  }), [ready, session]);
-
-  return <AuthenticationContext.Provider value={value}>{children}<AuthModal open={modalOpen} reason={reason} preferredProvider={preferredProvider} linkingAccount={linkingAccount} onClose={() => { setModalOpen(false); continuationRef.current = undefined; setPreferredProvider(null); setLinkingAccount(false); }} onAuthenticated={(provider, identifier) => finishAuthentication(provider, identifier)} /></AuthenticationContext.Provider>;
+  const [session, setSession] = useState<AuthenticationSession>(null);
+  const [open, setOpen] = useState(false);
+  const refreshSession = useCallback(async (): Promise<AuthenticationSession> => {
+    if (!studentApiEnabled) { setSession(null); return null; }
+    try { const next = toSession(await apiRequest<StudentProfileApi>("students/me/profile")); setSession(next); return next; }
+    catch { setSession(null); return null; }
+  }, []);
+  useEffect(() => { refreshSession().finally(() => setReady(true)); }, [refreshSession]);
+  const authenticate = (next: NonNullable<AuthenticationSession>) => { setSession(next); setOpen(false); window.dispatchEvent(new CustomEvent("seconecta:authenticated")); };
+  const logout = async () => { await apiRequest<{ ok: true }>("session/logout", { method: "POST", body: "{}" }).catch(() => null); setSession(null); window.dispatchEvent(new CustomEvent("seconecta:logged-out")); };
+  const value = useMemo(() => ({ ready, session, isAuthenticated: Boolean(session), openAuthentication: () => setOpen(true), refreshSession, logout }), [ready, refreshSession, session]);
+  return <AuthenticationContext.Provider value={value}>{children}<AuthModal open={open} onClose={() => setOpen(false)} onAuthenticated={authenticate} /></AuthenticationContext.Provider>;
 }
 
 export function useAuthentication() {

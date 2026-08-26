@@ -27,265 +27,18 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent as
 import { SiteHeader } from "@/components/site-header";
 import { OpportunityWorkspaceNav } from "@/components/opportunity-workspace-nav";
 import { useOpportunityJourney } from "@/components/opportunity-journey-provider";
+import { useOpportunityCatalog } from "@/components/opportunity-catalog-provider";
 import { OpportunityShareModal, type ShareableOpportunity } from "@/components/opportunity-share-modal";
+import { whatsappCommunityUrl } from "@/components/whatsapp-help-link";
 import { SelectBox } from "@/components/ui/select-box";
 import { useJourneyOnboarding } from "@/hooks/use-journey-onboarding";
-import { getOpportunityDetail } from "@/data/opportunity-details";
-import { getOpportunityCanonicalPath } from "@/services/opportunity-seo-service";
+import { useStudentRecommendations } from "@/hooks/use-student-recommendations";
+import type { Opportunity } from "@/types/opportunity-catalog";
 import type { OnboardingProfile } from "@/types/onboarding";
 import type { OpportunityJourney } from "@/types/opportunity-journey";
+import type { RecommendationItemApi } from "@/types/seconecta-api";
 import { getTaxonomyFromSearch, OPPORTUNITY_TYPES, THEMES, type OpportunityType, type Theme } from "@/types/taxonomy";
 import "./opportunities.css";
-
-type Opportunity = {
-  id: number;
-  title: string;
-  organization: string;
-  description: string;
-  category: string;
-  area: string;
-  deadline: string;
-  deadlineGroup: "Hoje" | "Esta semana" | "Este mês" | "Depois";
-  daysLeft: number;
-  difficulty: string;
-  competition: string;
-  location: string;
-  format: string;
-  time: string;
-  level: string;
-  language: string;
-  fee: string;
-  added: number;
-  popularity: number;
-  accent: "green" | "purple" | "blue" | "orange";
-};
-
-type OpportunityMetadata = {
-  applicationStatus: "open" | "endingSoon" | "openingSoon" | "evergreen" | "closed";
-  funding: "free" | "fullScholarship" | "partialScholarship";
-  educationLevels: string[];
-  themes: Theme[];
-  opportunityTypes: OpportunityType[];
-  location: "Brasil" | "Internacional";
-  duration: "upToWeek" | "oneToFourWeeks" | "oneToThreeMonths" | "overThreeMonths";
-  competition: "veryCompetitive" | "competitive" | "accessible" | "unknown";
-  language: "Português" | "Inglês" | "Espanhol" | "Outros";
-  editorialPick?: boolean;
-  openingForecast?: string;
-};
-
-const opportunities: Opportunity[] = [
-  {
-    id: 1,
-    title: "Programa de Verão em Inteligência Artificial",
-    organization: "Instituto de Computação Aplicada",
-    description: "Quatro semanas criando projetos de IA com pesquisadores e estudantes de todo o Brasil.",
-    category: "Inteligência Artificial",
-    area: "Tecnologia",
-    deadline: "21 jul",
-    deadlineGroup: "Esta semana",
-    daysLeft: 5,
-    difficulty: "Intermediário",
-    competition: "Alta",
-    location: "São Paulo, SP",
-    format: "Híbrido",
-    time: "6h por semana",
-    level: "Ensino médio",
-    language: "Português",
-    fee: "Gratuito",
-    added: 3,
-    popularity: 98,
-    accent: "purple",
-  },
-  {
-    id: 2,
-    title: "Olimpíada Brasileira de Matemática — 2ª fase",
-    organization: "OBMEP",
-    description: "A maior olimpíada científica do país, com bolsas de iniciação científica para medalhistas.",
-    category: "Olimpíadas",
-    area: "Matemática",
-    deadline: "16 jul",
-    deadlineGroup: "Hoje",
-    daysLeft: 0,
-    difficulty: "Avançado",
-    competition: "Alta",
-    location: "Brasil",
-    format: "Presencial",
-    time: "3h de prova",
-    level: "Fundamental e médio",
-    language: "Português",
-    fee: "Gratuito",
-    added: 8,
-    popularity: 100,
-    accent: "orange",
-  },
-  {
-    id: 3,
-    title: "Iniciação Científica Júnior em Biotecnologia",
-    organization: "Laboratório Horizonte",
-    description: "Participe de uma equipe de pesquisa e desenvolva seu primeiro projeto científico com mentoria.",
-    category: "Pesquisa",
-    area: "Ciências",
-    deadline: "31 jul",
-    deadlineGroup: "Este mês",
-    daysLeft: 15,
-    difficulty: "Iniciante",
-    competition: "Média",
-    location: "Campinas, SP",
-    format: "Presencial",
-    time: "8h por semana",
-    level: "Ensino médio",
-    language: "Português",
-    fee: "Gratuito",
-    added: 1,
-    popularity: 91,
-    accent: "green",
-  },
-  {
-    id: 4,
-    title: "Bolsa Jovens Talentos em Tecnologia",
-    organization: "Fundação Pró-Futuro",
-    description: "Bolsa integral para formação em programação, produto e carreira durante seis meses.",
-    category: "Bolsas",
-    area: "Programação",
-    deadline: "28 jul",
-    deadlineGroup: "Este mês",
-    daysLeft: 12,
-    difficulty: "Iniciante",
-    competition: "Média",
-    location: "Brasil",
-    format: "Online",
-    time: "5h por semana",
-    level: "Ensino médio",
-    language: "Português",
-    fee: "Gratuito",
-    added: 5,
-    popularity: 95,
-    accent: "blue",
-  },
-  {
-    id: 5,
-    title: "Desafio Nacional de Soluções Climáticas",
-    organization: "Impacta Jovem",
-    description: "Transforme uma ideia de impacto ambiental em uma solução apresentada a especialistas.",
-    category: "Competições",
-    area: "Empreendedorismo",
-    deadline: "19 jul",
-    deadlineGroup: "Esta semana",
-    daysLeft: 3,
-    difficulty: "Intermediário",
-    competition: "Média",
-    location: "Brasil",
-    format: "Online",
-    time: "4 semanas",
-    level: "Ensino médio e superior",
-    language: "Português",
-    fee: "Gratuito",
-    added: 2,
-    popularity: 87,
-    accent: "green",
-  },
-  {
-    id: 6,
-    title: "Summer School de Ciência de Dados",
-    organization: "Universidade Atlântica",
-    description: "Uma experiência internacional para aprender ciência de dados e conhecer um novo ecossistema.",
-    category: "Programas de verão",
-    area: "Tecnologia",
-    deadline: "10 ago",
-    deadlineGroup: "Depois",
-    daysLeft: 25,
-    difficulty: "Intermediário",
-    competition: "Alta",
-    location: "Lisboa, Portugal",
-    format: "Presencial",
-    time: "3 semanas",
-    level: "Ensino médio e superior",
-    language: "Inglês",
-    fee: "Bolsa disponível",
-    added: 7,
-    popularity: 93,
-    accent: "purple",
-  },
-  {
-    id: 7,
-    title: "Maratona Brasileira de Programação Júnior",
-    organization: "Sociedade Brasileira de Computação",
-    description: "Resolva problemas em equipe e conheça estudantes que também amam construir com tecnologia.",
-    category: "Competições",
-    area: "Programação",
-    deadline: "24 jul",
-    deadlineGroup: "Este mês",
-    daysLeft: 8,
-    difficulty: "Intermediário",
-    competition: "Alta",
-    location: "Brasil",
-    format: "Híbrido",
-    time: "1 dia",
-    level: "Ensino médio",
-    language: "Português",
-    fee: "Gratuito",
-    added: 4,
-    popularity: 96,
-    accent: "blue",
-  },
-  {
-    id: 8,
-    title: "Programa Jovens Empreendedores",
-    organization: "Instituto Geração",
-    description: "Desenvolva uma ideia do zero com oficinas, mentores e uma comunidade de jovens criadores.",
-    category: "Empreendedorismo",
-    area: "Empreendedorismo",
-    deadline: "18 ago",
-    deadlineGroup: "Depois",
-    daysLeft: 33,
-    difficulty: "Iniciante",
-    competition: "Baixa",
-    location: "Brasil",
-    format: "Online",
-    time: "3h por semana",
-    level: "Ensino médio",
-    language: "Português",
-    fee: "Gratuito",
-    added: 0,
-    popularity: 82,
-    accent: "orange",
-  },
-  {
-    id: 9,
-    title: "Mentoria para Bolsas Internacionais",
-    organization: "Pontes Educação",
-    description: "Prepare sua candidatura com estudantes brasileiros que já conquistaram bolsas no exterior.",
-    category: "Bolsas",
-    area: "Intercâmbios",
-    deadline: "30 ago",
-    deadlineGroup: "Depois",
-    daysLeft: 45,
-    difficulty: "Intermediário",
-    competition: "Média",
-    location: "Global",
-    format: "Online",
-    time: "2h por semana",
-    level: "Ensino médio e superior",
-    language: "Português",
-    fee: "Gratuito",
-    added: 6,
-    popularity: 89,
-    accent: "purple",
-  },
-];
-
-const opportunityMetadata: Record<number, OpportunityMetadata> = {
-  1: { applicationStatus: "endingSoon", funding: "free", educationLevels: ["Ensino Médio"], themes: ["Inteligência Artificial", "Ciências da Computação"], opportunityTypes: ["Programa de Verão"], location: "Brasil", duration: "oneToFourWeeks", competition: "veryCompetitive", language: "Português", editorialPick: true },
-  2: { applicationStatus: "closed", funding: "free", educationLevels: ["Ensino Fundamental", "Ensino Médio"], themes: ["Matemática"], opportunityTypes: ["Olimpíada"], location: "Brasil", duration: "upToWeek", competition: "veryCompetitive", language: "Português" },
-  3: { applicationStatus: "open", funding: "free", educationLevels: ["Ensino Médio"], themes: ["Biologia"], opportunityTypes: ["Pesquisa"], location: "Brasil", duration: "oneToThreeMonths", competition: "competitive", language: "Português" },
-  4: { applicationStatus: "open", funding: "fullScholarship", educationLevels: ["Ensino Médio", "Técnico"], themes: ["Ciências da Computação", "Inteligência Artificial"], opportunityTypes: ["Bolsa"], location: "Brasil", duration: "overThreeMonths", competition: "competitive", language: "Português" },
-  5: { applicationStatus: "endingSoon", funding: "free", educationLevels: ["Ensino Médio", "Graduação"], themes: ["Meio Ambiente", "Empreendedorismo"], opportunityTypes: ["Competição"], location: "Brasil", duration: "oneToFourWeeks", competition: "competitive", language: "Português" },
-  6: { applicationStatus: "openingSoon", funding: "partialScholarship", educationLevels: ["Ensino Médio", "Graduação"], themes: ["Inteligência Artificial", "Ciências da Computação"], opportunityTypes: ["Programa de Verão"], location: "Internacional", duration: "oneToFourWeeks", competition: "veryCompetitive", language: "Inglês", openingForecast: "Inscrições previstas para agosto" },
-  7: { applicationStatus: "open", funding: "free", educationLevels: ["Ensino Médio"], themes: ["Ciências da Computação"], opportunityTypes: ["Competição"], location: "Brasil", duration: "upToWeek", competition: "veryCompetitive", language: "Português" },
-  8: { applicationStatus: "evergreen", funding: "free", educationLevels: ["Ensino Médio"], themes: ["Empreendedorismo"], opportunityTypes: ["Mentoria"], location: "Brasil", duration: "oneToThreeMonths", competition: "accessible", language: "Português" },
-  9: { applicationStatus: "open", funding: "free", educationLevels: ["Ensino Médio", "Graduação"], themes: ["Economia"], opportunityTypes: ["Mentoria", "Bolsa"], location: "Internacional", duration: "oneToThreeMonths", competition: "competitive", language: "Português" },
-};
 
 const quickInterests = [
   "pesquisa em IA",
@@ -308,20 +61,7 @@ const categoryShelves = [
 
 function getOpportunityTypeScore(type: string, profile: OnboardingProfile | null) {
   if (!profile) return 0;
-  let score = profile.opportunityTypes.includes(type as OpportunityType) ? 100 : 0;
-  const goalTypes: Record<string, string[]> = {
-    STUDY_ABROAD: ["Bolsa", "Programa de Verão", "Mentoria"],
-    OLYMPIADS: ["Olimpíada", "Competição"],
-    RESEARCH: ["Pesquisa", "Mentoria"],
-    TECHNOLOGY: ["Hackathon", "Competição", "Programa de Verão"],
-    CAREER: ["Bolsa", "Mentoria", "Voluntariado"],
-    EXPLORING: [],
-  };
-  if (goalTypes[profile.primaryGoal].includes(type)) score += 20;
-  if (type === "Olimpíada" && profile.previousExperiences.includes("OLYMPIADS")) score += 8;
-  if (type === "Pesquisa" && profile.previousExperiences.includes("RESEARCH")) score += 8;
-  if (type === "Hackathon" && profile.previousExperiences.includes("HACKATHONS")) score += 8;
-  return score;
+  return profile.opportunityTypes.includes(type as OpportunityType) ? 100 : 0;
 }
 
 function OpportunityCard({
@@ -330,6 +70,8 @@ function OpportunityCard({
   onStartJourney,
   onRemoveJourney,
   onShare,
+  recommendation,
+  onRecommendationEvent,
   compact = false,
 }: {
   opportunity: Opportunity;
@@ -337,21 +79,36 @@ function OpportunityCard({
   onStartJourney: (opportunity: Opportunity) => void;
   onRemoveJourney: (opportunityId: number) => void;
   onShare: (opportunity: ShareableOpportunity) => void;
+  recommendation?: RecommendationItemApi;
+  onRecommendationEvent?: (eventType: "IMPRESSION" | "OPEN", item: RecommendationItemApi) => void;
   compact?: boolean;
 }) {
+  const { opportunityMetadata } = useOpportunityCatalog();
+  const cardRef = useRef<HTMLElement | null>(null);
   const metadata = opportunityMetadata[opportunity.id];
-  const fundingLabel = { free: "Gratuito", fullScholarship: "Bolsa integral", partialScholarship: "Bolsa parcial" }[metadata.funding];
+  useEffect(() => {
+    const target = cardRef.current;
+    if (!target || !recommendation || !onRecommendationEvent) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.5) { onRecommendationEvent("IMPRESSION", recommendation); observer.disconnect(); }
+    }, { threshold: 0.5 });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [onRecommendationEvent, recommendation]);
+  const fundingLabel = { free: "Gratuito", fullScholarship: "Bolsa integral", partialScholarship: "Bolsa parcial", unknown: "Consulte os custos" }[metadata.funding];
   const deadline = (() => {
     if (metadata.applicationStatus === "openingSoon") return { label: metadata.openingForecast ?? "Abre em breve", tone: "is-opening" };
     if (metadata.applicationStatus === "evergreen") return { label: "Inscrições abertas", tone: "is-evergreen" };
     if (metadata.applicationStatus === "closed") return { label: "Inscrições encerradas", tone: "is-closed" };
+    if (metadata.applicationStatus === "unknown") return { label: "Prazo a confirmar", tone: "is-closed" };
     if (opportunity.daysLeft === 0) return { label: "Encerra hoje", tone: "is-today" };
-    if (opportunity.daysLeft <= 7) return { label: `Fecha em ${opportunity.daysLeft} dias`, tone: "is-urgent" };
+    if (opportunity.daysLeft <= 7) return { label: opportunity.daysLeft === 1 ? "Fecha em 1 dia" : `Fecha em ${opportunity.daysLeft} dias`, tone: "is-urgent" };
     return { label: `Até ${opportunity.deadline}`, tone: "" };
   })();
 
   return (
     <motion.article
+      ref={cardRef}
       layout
       className={`opportunity-card opportunity-card--${opportunity.accent} ${compact ? "opportunity-card--compact" : ""}`}
       whileHover={{ y: -5 }}
@@ -398,7 +155,7 @@ function OpportunityCard({
           <CalendarDays size={15} />
           <span>{deadline.label}</span>
         </div>
-        <Link className="card-open-button" href={getOpportunityDetail(opportunity.id) ? getOpportunityCanonicalPath(getOpportunityDetail(opportunity.id)!) : `/explorar/${opportunity.id}`} aria-label={`Ver detalhes de ${opportunity.title}`}>
+        <Link className="card-open-button" href={`/oportunidades/${opportunity.slug ?? opportunity.id}`} onClick={() => recommendation && onRecommendationEvent?.("OPEN", recommendation)} aria-label={`Ver detalhes de ${opportunity.title}`}>
           Ver oportunidade <ArrowRight size={16} />
         </Link>
       </div>
@@ -440,6 +197,8 @@ function FilterContent({ formatAccess, setFormatAccess, educationLevels, setEduc
 export default function OpportunitiesPage() {
   const { profile, startOnboarding } = useJourneyOnboarding();
   const { journeys, startJourney, removeJourney } = useOpportunityJourney();
+  const { opportunities, opportunityMetadata, ready: catalogReady, error: catalogError } = useOpportunityCatalog();
+  const recommendations = useStudentRecommendations();
   const [query, setQuery] = useState("");
   const [intent, setIntent] = useState("");
   const [sort, setSort] = useState("recommended");
@@ -464,6 +223,11 @@ export default function OpportunitiesPage() {
   const saved = useMemo(() => journeys.map((journey) => journey.opportunityId), [journeys]);
 
   useEffect(() => {
+    const initialQuery = new URLSearchParams(window.location.search).get("busca");
+    if (initialQuery) setQuery(initialQuery);
+  }, []);
+
+  useEffect(() => {
     if (profile?.themes[0]) setIntent(profile.themes[0]);
   }, [profile]);
 
@@ -482,34 +246,24 @@ export default function OpportunitiesPage() {
     const ranked = categoryShelves.map((category, index) => ({ ...category, index, score: getOpportunityTypeScore(category.label, profile) })).sort((a, b) => b.score - a.score || a.index - b.index);
     return ranked;
   }, [profile]);
-  const primaryGoal = profile?.primaryGoal;
-  const primaryGoalTerms = {
-    STUDY_ABROAD: ["intercâmbio", "portugal", "global", "internacional"],
-    OLYMPIADS: ["olimpíada", "competições", "matemática"],
-    RESEARCH: ["pesquisa", "científica", "ciências", "laboratório"],
-    TECHNOLOGY: ["tecnologia", "programação", "inteligência artificial", "ciência de dados", "hackathon"],
-    CAREER: ["bolsa", "carreira", "formação", "estágio"],
-    EXPLORING: [],
-  }[primaryGoal ?? "EXPLORING"];
-  const matchesPrimaryGoal = (item: Opportunity) => {
-    const metadata = opportunityMetadata[item.id];
-    const content = `${item.title} ${item.organization} ${item.category} ${item.area} ${item.description} ${item.location} ${metadata.themes.join(" ")} ${metadata.opportunityTypes.join(" ")}`.toLowerCase();
-    return primaryGoalTerms.some((term) => content.includes(term));
-  };
   const matchesPersonalization = (item: Opportunity) => {
     const metadata = opportunityMetadata[item.id];
-    return metadata.themes.some((theme) => profileThemes.includes(theme)) || metadata.opportunityTypes.some((type) => profile?.opportunityTypes.includes(type)) || metadata.themes.includes(normalizedIntent as Theme) || metadata.opportunityTypes.includes(normalizedIntent as OpportunityType);
+    return metadata.themes.some((theme) => profileThemes.includes(theme as Theme)) || metadata.opportunityTypes.some((type) => profile?.opportunityTypes.includes(type as OpportunityType)) || metadata.themes.includes(normalizedIntent as Theme) || metadata.opportunityTypes.includes(normalizedIntent as OpportunityType);
   };
   const recommended = useMemo(() => {
+    if (recommendations.enabled) {
+      const itemsById = new Map((recommendations.result?.items ?? []).map((item) => [item.opportunity_id, item]));
+      return opportunities.filter((item) => itemsById.has(item.id) && !saved.includes(item.id)).map((opportunity) => ({ opportunity, recommendation: itemsById.get(opportunity.id) }));
+    }
     if (!profile) return [];
-    const goalMatches = primaryGoalTerms.length ? opportunities.filter(matchesPrimaryGoal) : [];
     const preferenceMatches = opportunities.filter(matchesPersonalization);
     const savedOpportunityIds = new Set(saved);
-    return [...goalMatches, ...preferenceMatches, ...opportunities]
+    return [...preferenceMatches, ...opportunities]
       .filter((item, index, items) => items.indexOf(item) === index)
       .filter((item) => !savedOpportunityIds.has(item.id))
-      .slice(0, 3);
-  }, [normalizedIntent, primaryGoal, primaryGoalTerms, profile, profileThemes, profile?.opportunityTypes, saved]);
+      .slice(0, 3)
+      .map((opportunity) => ({ opportunity, recommendation: undefined }));
+  }, [normalizedIntent, opportunities, profile, profileThemes, profile?.opportunityTypes, recommendations.enabled, recommendations.result, saved]);
 
   const searchContext = useMemo(() => {
     if (!query.trim()) return [];
@@ -553,11 +307,10 @@ export default function OpportunitiesPage() {
       if (sort === "deadline") return a.daysLeft - b.daysLeft;
       if (sort === "popular") return b.popularity - a.popularity;
       const score = (item: Opportunity) => item.popularity +
-        (matchesPrimaryGoal(item) ? 1000 : 0) +
         (matchesPersonalization(item) ? 200 : 0);
       return score(b) - score(a);
     });
-  }, [applicationStatuses, competitionLevels, durations, educationLevels, formatAccess, languages, locations, normalizedIntent, primaryGoal, primaryGoalTerms, query, selectedOpportunityTypes, selectedThemes, sort]);
+  }, [applicationStatuses, competitionLevels, durations, educationLevels, formatAccess, languages, locations, normalizedIntent, profile, profileThemes, query, selectedOpportunityTypes, selectedThemes, sort]);
 
   useEffect(() => {
     const target = loadMoreRef.current;
@@ -639,6 +392,9 @@ export default function OpportunitiesPage() {
     setQuery("");
   };
 
+  if (!catalogReady) return <><SiteHeader /><main className="opportunities-page"><OpportunityWorkspaceNav active="explore" /><div className="explore-shell py-20"><div className="h-48 animate-pulse rounded-[24px] bg-[#e5ece8]" /></div></main></>;
+  if (catalogError) return <><SiteHeader /><main className="opportunities-page"><OpportunityWorkspaceNav active="explore" /><div className="explore-shell py-20 text-center"><h1 className="text-2xl font-semibold">Catálogo temporariamente indisponível</h1><p className="mt-3 text-sm text-[#66736d]">{catalogError}</p><button className="mt-6 rounded-full bg-[#079272] px-5 py-3 text-sm font-semibold text-white" type="button" onClick={() => window.location.reload()}>Tentar novamente</button></div></main></>;
+
   return (
     <>
       <SiteHeader />
@@ -667,7 +423,7 @@ export default function OpportunitiesPage() {
       </section>
 
       <div className="explore-shell explore-content">
-        <section className="recommendation-section section-block" aria-labelledby="recommended-title">
+        {(profile || recommendations.enabled) && <section className="recommendation-section section-block" aria-labelledby="recommended-title">
           <div className="section-heading">
             <div>
               <h2 id="recommended-title">Recomendado para você</h2>
@@ -677,23 +433,23 @@ export default function OpportunitiesPage() {
               Ver todas <ArrowRight size={16} />
             </button>
           </div>
-          {profile ? <>
+          <>
             <div className="recommendation-context">
               <div className="recommendation-info-wrap">
                 <button type="button" onClick={() => setRecommendationInfoOpen((open) => !open)} aria-expanded={recommendationInfoOpen}>Como funciona?</button>
                 <AnimatePresence initial={false}>{recommendationInfoOpen && <motion.div className="recommendation-info-popover" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}>
                   <strong>Como selecionamos essas oportunidades</strong>
-                  <p>Consideramos seus interesses, objetivos atuais, momento acadêmico, prazos e a relevância de cada oportunidade.</p>
-                  <span>As recomendações melhoram conforme você utiliza a plataforma.</span>
+                  <p>Consideramos sua série, os assuntos escolhidos, os prazos e a relevância de cada oportunidade.</p>
+                  <span>Você pode ajustar esses interesses quando quiser.</span>
                   <button type="button" onClick={startOnboarding}>Atualizar preferências</button>
                 </motion.div>}</AnimatePresence>
               </div>
             </div>
-            {recommended.length > 0 ? <div className="recommendation-grid">
-              {recommended.map((item) => <OpportunityCard key={item.id} opportunity={item} journey={journeys.find((journey) => journey.opportunityId === item.id)} onStartJourney={startJourney} onRemoveJourney={removeJourney} onShare={setShareOpportunity} compact />)}
-            </div> : <div className="personalization-empty"><span><Check size={18} /></span><div><h3>Suas recomendações atuais já estão salvas.</h3><p>Novas oportunidades aparecerão aqui quando entrarem no catálogo ou suas preferências mudarem.</p></div><button type="button" onClick={() => document.getElementById("all-opportunities")?.scrollIntoView({ behavior: "smooth" })}>Explorar catálogo <ArrowRight size={16} /></button></div>}
-          </> : <div className="personalization-empty"><span><Sparkles size={18} /></span><div><h3>Recomendações personalizadas</h3><p>Complete sua jornada em menos de 30 segundos para receber oportunidades selecionadas para você.</p></div><button type="button" onClick={startOnboarding}>Começar minha jornada <ArrowRight size={16} /></button></div>}
-        </section>
+            {!recommendations.ready && recommendations.enabled ? <div className="h-36 animate-pulse rounded-[24px] bg-[#e5ece8]" /> : recommended.length > 0 ? <div className="recommendation-grid">
+              {recommended.map(({ opportunity: item, recommendation }) => <OpportunityCard key={item.id} opportunity={item} recommendation={recommendation} onRecommendationEvent={recommendations.record} journey={journeys.find((journey) => journey.opportunityId === item.id)} onStartJourney={startJourney} onRemoveJourney={removeJourney} onShare={setShareOpportunity} compact />)}
+            </div> : <div className="personalization-empty"><span><Check size={18} /></span><div><h3>{recommendations.error ?? "Ainda não há novas recomendações para mostrar."}</h3><p>Explore o catálogo enquanto a seConecta aprende com suas preferências e sua Jornada.</p></div><button type="button" onClick={() => document.getElementById("all-opportunities")?.scrollIntoView({ behavior: "smooth" })}>Explorar catálogo <ArrowRight size={16} /></button></div>}
+          </>
+        </section>}
 
         <section className="section-block category-section" aria-labelledby="categories-title">
           <div className="section-heading">
@@ -703,13 +459,13 @@ export default function OpportunitiesPage() {
             <span className="drag-hint">Arraste para explorar <ArrowRight size={15} /></span>
           </div>
           <div className="category-rail" ref={categoryRailRef} onMouseDown={startCategoryRailDrag}>
-            <motion.button type="button" className="category-card category-card--recommended" onClick={exploreRecommendedCategories} whileHover={{ y: -4 }}>
+            {profile && <motion.button type="button" className="category-card category-card--recommended" onClick={exploreRecommendedCategories} whileHover={{ y: -4 }}>
               <span className="category-icon"><Sparkles size={20} /></span>
               <span className="category-count">Seleção personalizada</span>
               <strong>Recomendadas</strong>
               <small>{profile ? "Tipos que combinam com sua jornada." : "Uma seleção para começar a explorar."}</small>
               <span className="category-arrow"><ArrowRight size={17} /></span>
-            </motion.button>
+            </motion.button>}
             {orderedCategoryShelves.map(({ label, icon: Icon, tone, copy }) => (
               <motion.button
                 type="button"
@@ -719,7 +475,7 @@ export default function OpportunitiesPage() {
                 whileHover={{ y: -4 }}
               >
                 <span className="category-icon"><Icon size={20} /></span>
-                <span className="category-count">{opportunities.filter((item) => opportunityMetadata[item.id].opportunityTypes.includes(label as OpportunityType)).length || 12}+ oportunidades</span>
+                <span className="category-count">{(() => { const count = opportunities.filter((item) => opportunityMetadata[item.id].opportunityTypes.includes(label as OpportunityType)).length; return `${count} ${count === 1 ? "oportunidade" : "oportunidades"}`; })()}</span>
                 <strong>{label}</strong>
                 <small>{copy}</small>
                 <span className="category-arrow"><ArrowRight size={17} /></span>
@@ -822,7 +578,7 @@ export default function OpportunitiesPage() {
         <div className="explore-shell">
           <Link href="/" className="site-brand" aria-label="seConecta, página inicial"><span>se</span>Conecta<i /></Link>
           <p>Oportunidades certas. No momento certo.</p>
-          <div><Link href="/sobre">Sobre</Link><Link href="/privacidade">Privacidade</Link><Link href="/">Voltar ao início</Link></div>
+          <div><Link href="/jornada">Minha Jornada</Link><a href={whatsappCommunityUrl} target="_blank" rel="noopener noreferrer">WhatsApp</a><Link href="/">Voltar ao início</Link></div>
         </div>
       </footer>
 

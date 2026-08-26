@@ -74,6 +74,7 @@ export type OpportunityJourney = {
     position?: number;
     total?: number;
   };
+  version?: number;
 };
 
 export type RecommendationFeedbackScore = -1 | 0 | 1;

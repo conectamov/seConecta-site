@@ -36,7 +36,6 @@ import {
   getJourneyProgressLabel,
 } from "@/components/opportunity-detail/application-progress";
 import { OpportunityGuide } from "@/components/opportunity-detail/opportunity-guide";
-import { OpportunityHelpLayer } from "@/components/opportunity-detail/opportunity-help-layer";
 import { OpportunityMaterialsPanel } from "@/components/opportunity-detail/opportunity-materials-panel";
 import { OpportunityObjectiveSelector } from "@/components/opportunity-objective-selector";
 import { SidebarCTA, type SidebarCTAUserState } from "@/components/opportunity-detail/sidebar-cta";
@@ -44,8 +43,8 @@ import { OpportunityTimeline as OpportunityCycleTimeline } from "@/components/op
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { getOpportunityDetail, type OpportunityDetail } from "@/data/opportunity-details";
-import { generateOpportunityFaqs, getOpportunityCanonicalPath } from "@/services/opportunity-seo-service";
+import { getOpportunityCanonicalPath } from "@/services/opportunity-seo-service";
+import type { OpportunityDetail } from "@/types/opportunity-detail";
 import type { OpportunityGuideDocument } from "@/types/opportunity-knowledge-hub";
 
 const reveal = {
@@ -55,9 +54,8 @@ const reveal = {
   transition: { duration: .45, ease: "easeOut" as const },
 };
 
-function opportunityHref(opportunityId: number) {
-  const opportunity = getOpportunityDetail(opportunityId);
-  return opportunity ? getOpportunityCanonicalPath(opportunity) : `/explorar/${opportunityId}`;
+function opportunityHref(opportunity: OpportunityDetail["similar"][number]) {
+  return opportunity.slug ? `/oportunidades/${opportunity.slug}` : `/explorar/${opportunity.id}`;
 }
 
 function SectionHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description?: string }) {
@@ -266,7 +264,7 @@ export function SimilarOpportunities({ opportunities }: { opportunities: Opportu
   return <motion.section {...reveal} className="py-24">
     <div className="mx-auto w-[min(1160px,calc(100%-48px))]">
       <SectionHeading eyebrow="Continue explorando" title="Se esta oportunidade chamou sua atenção..." description="Estas opções compartilham temas, nível de ensino ou formato — não são recomendações aleatórias." />
-      <div className="grid gap-4 md:grid-cols-3">{opportunities.map((item) => <Link href={opportunityHref(item.id)} className="group rounded-[22px] border border-[#dfe5e1] bg-white p-6 no-underline transition-all hover:-translate-y-1 hover:border-[#079272]/25 hover:shadow-[0_18px_40px_rgba(28,54,43,.07)]" key={item.id}><span className="text-[10px] font-bold uppercase tracking-[.1em] text-[#7967d8]">{item.type}</span><h3 className="mt-4 min-h-14 text-lg font-semibold leading-6 tracking-[-.035em] text-[#1c372c]">{item.title}</h3><p className="mt-4 text-xs leading-5 text-[#69756f]">{item.fit}</p><div className="mt-6 flex items-center justify-between border-t border-[#e7ebe8] pt-4 text-[10px] font-semibold text-[#52615a]"><span>{item.deadline}</span><ArrowRight className="transition-transform group-hover:translate-x-1" size={16} /></div></Link>)}</div>
+      <div className="grid gap-4 md:grid-cols-3">{opportunities.map((item) => <Link href={opportunityHref(item)} className="group rounded-[22px] border border-[#dfe5e1] bg-white p-6 no-underline transition-all hover:-translate-y-1 hover:border-[#079272]/25 hover:shadow-[0_18px_40px_rgba(28,54,43,.07)]" key={item.id}><span className="text-[10px] font-bold uppercase tracking-[.1em] text-[#7967d8]">{item.type}</span><h3 className="mt-4 min-h-14 text-lg font-semibold leading-6 tracking-[-.035em] text-[#1c372c]">{item.title}</h3><p className="mt-4 text-xs leading-5 text-[#69756f]">{item.fit}</p><div className="mt-6 flex items-center justify-between border-t border-[#e7ebe8] pt-4 text-[10px] font-semibold text-[#52615a]"><span>{item.deadline}</span><ArrowRight className="transition-transform group-hover:translate-x-1" size={16} /></div></Link>)}</div>
     </div>
   </motion.section>;
 }
@@ -411,7 +409,7 @@ export function RelatedOpportunitiesSection({ opportunity }: { opportunity: Oppo
   return <section className="border-t border-[#dfe5e1] bg-[#f4f7f5] py-16 md:py-20">
     <div className="mx-auto w-[min(1160px,calc(100%-48px))]">
       <div className="mb-7 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><span className="text-[10px] font-bold uppercase tracking-[.14em] text-[#079272]">Continue explorando</span><h2 className="mt-2 text-[clamp(1.7rem,3vw,2.35rem)] font-semibold tracking-[-.045em] text-[#1c372c]">Oportunidades relacionadas</h2><p className="mt-2 text-xs leading-6 text-[#69756f]">Caminhos que compartilham temas, momento ou formato com esta oportunidade.</p></div><Link href="/explorar" className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#056e57] no-underline hover:text-[#079272]">Explorar todas <ArrowRight size={15} /></Link></div>
-      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{opportunity.similar.map((item) => <Link href={opportunityHref(item.id)} className="group flex min-h-52 w-[min(290px,78vw)] shrink-0 snap-start flex-col rounded-[21px] border border-[#dfe5e1] bg-white p-5 no-underline shadow-[0_10px_28px_rgba(28,54,43,.045)] transition-transform hover:-translate-y-1" key={item.id}><span className="text-[9px] font-bold uppercase tracking-[.1em] text-[#7967d8]">{item.type}</span><h3 className="mt-4 text-base font-semibold leading-6 tracking-[-.03em] text-[#1c372c]">{item.title}</h3><p className="mt-3 text-[10px] leading-5 text-[#69756f]">{item.fit}</p><div className="mt-auto flex items-center justify-between border-t border-[#e7ebe8] pt-4 text-[10px] font-semibold text-[#52615a]"><span>{item.deadline}</span><ArrowRight className="transition-transform group-hover:translate-x-1" size={15} /></div></Link>)}</div>
+      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{opportunity.similar.map((item) => <Link href={opportunityHref(item)} className="group flex min-h-52 w-[min(290px,78vw)] shrink-0 snap-start flex-col rounded-[21px] border border-[#dfe5e1] bg-white p-5 no-underline shadow-[0_10px_28px_rgba(28,54,43,.045)] transition-transform hover:-translate-y-1" key={item.id}><span className="text-[9px] font-bold uppercase tracking-[.1em] text-[#7967d8]">{item.type}</span><h3 className="mt-4 text-base font-semibold leading-6 tracking-[-.03em] text-[#1c372c]">{item.title}</h3><p className="mt-3 text-[10px] leading-5 text-[#69756f]">{item.fit}</p><div className="mt-auto flex items-center justify-between border-t border-[#e7ebe8] pt-4 text-[10px] font-semibold text-[#52615a]"><span>{item.deadline}</span><ArrowRight className="transition-transform group-hover:translate-x-1" size={15} /></div></Link>)}</div>
     </div>
   </section>;
 }
@@ -426,26 +424,6 @@ function OpportunityBreadcrumbs({ opportunity }: { opportunity: OpportunityDetai
       <li className="truncate font-semibold text-[#456156]" aria-current="page"><Link href={getOpportunityCanonicalPath(opportunity)} className="no-underline">{opportunity.title}</Link></li>
     </ol>
   </nav>;
-}
-
-function OpportunityFaqSection({ opportunity }: { opportunity: OpportunityDetail }) {
-  const faqs = generateOpportunityFaqs(opportunity);
-  if (faqs.length === 0) return null;
-  const sourceLabels = { official: "Informação oficial", community: "Dúvida da comunidade", "ai-summary": "Resumo seConecta" };
-
-  return <section className="border-t border-[#dfe5e1] bg-white py-16 md:py-20" aria-labelledby="opportunity-faq-title">
-    <div className="mx-auto w-[min(920px,calc(100%-48px))]">
-      <span className="text-[10px] font-bold uppercase tracking-[.14em] text-[#079272]">Dúvidas frequentes</span>
-      <h2 id="opportunity-faq-title" className="mt-2 text-[clamp(1.8rem,4vw,2.6rem)] font-semibold tracking-[-.05em] text-[#1c372c]">O que você precisa saber.</h2>
-      <p className="mt-3 max-w-2xl text-xs leading-6 text-[#69756f]">Respostas organizadas a partir das informações da oportunidade, dúvidas recorrentes da comunidade e resumos da seConecta.</p>
-      <div className="mt-8 divide-y divide-[#e4e9e6] border-y border-[#dfe5e1]">
-        {faqs.map((faq) => <details className="group py-5" key={faq.question}>
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-[13px] font-semibold text-[#29493c] marker:content-none"><span>{faq.question}</span><span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#edf5f1] text-base font-normal text-[#078166] transition-transform group-open:rotate-45">+</span></summary>
-          <div className="mt-4 max-w-3xl pr-10"><p className="text-[11px] leading-6 text-[#607068]">{faq.answer}</p><span className="mt-3 inline-flex rounded-full bg-[#f1f4f2] px-2.5 py-1 text-[7px] font-bold uppercase tracking-[.08em] text-[#7d8882]">{sourceLabels[faq.source]}</span></div>
-        </details>)}
-      </div>
-    </div>
-  </section>;
 }
 
 export function FinalDecisionCTA({ opportunity }: { opportunity: OpportunityDetail }) {
@@ -513,10 +491,8 @@ export function OpportunityDetailPage({ opportunity, guideDocument }: { opportun
     <OpportunityBreadcrumbs opportunity={opportunity} />
     <OpportunityHero opportunity={opportunity} />
     <OpportunityWorkspace opportunity={opportunity} guideDocument={guideDocument} />
-    <OpportunityHelpLayer opportunity={opportunity} guideDocument={guideDocument} />
-    <OpportunityFaqSection opportunity={opportunity} />
-    <RelatedOpportunitiesSection opportunity={opportunity} />
-    <footer className="py-10 text-center text-[10px] text-[#7d8781]">Informações simuladas para prototipação · Confirme os detalhes no site oficial da organização.</footer>
+    {opportunity.similar.length > 0 && <RelatedOpportunitiesSection opportunity={opportunity} />}
+    <footer className="py-10 text-center text-[10px] text-[#7d8781]">As informações são revisadas pela seConecta. Confirme regras e datas no site oficial da organização.</footer>
     <MobileActionBar opportunity={opportunity} />
   </main>;
 }

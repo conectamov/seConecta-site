@@ -1,29 +1,19 @@
 import type { MetadataRoute } from "next";
-import { opportunityIds, getOpportunityDetail } from "@/data/opportunity-details";
-import { learnGoals } from "@/data/learn-content";
-import { getOpportunityCanonicalUrl, SITE_URL } from "@/services/opportunity-seo-service";
+import { getCanonicalCatalog } from "@/services/opportunity-catalog-service";
+import { SITE_URL } from "@/services/opportunity-seo-service";
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const opportunityPages = opportunityIds.flatMap((id) => {
-    const opportunity = getOpportunityDetail(id);
-    return opportunity ? [{
-      url: getOpportunityCanonicalUrl(opportunity),
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const catalog = await getCanonicalCatalog().catch(() => ({ data: [], count: 0 }));
+  const opportunityPages = catalog.data.map((opportunity) => ({
+      url: `${SITE_URL}/oportunidades/${opportunity.slug ?? opportunity.id}`,
       lastModified: new Date(),
       changeFrequency: "daily" as const,
       priority: 0.9,
-    }] : [];
-  });
+    }));
 
   return [
     { url: SITE_URL, lastModified: new Date(), changeFrequency: "weekly", priority: 1 },
     { url: `${SITE_URL}/explorar`, lastModified: new Date(), changeFrequency: "daily", priority: 0.9 },
-    { url: `${SITE_URL}/aprender`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.85 },
-    ...learnGoals.map((goal) => ({
-      url: `${SITE_URL}/aprender/${goal.slug}`,
-      lastModified: new Date(),
-      changeFrequency: "weekly" as const,
-      priority: 0.75,
-    })),
     ...opportunityPages,
   ];
 }

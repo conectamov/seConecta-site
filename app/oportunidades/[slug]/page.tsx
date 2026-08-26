@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { OpportunityDetailPage } from "@/components/opportunity-detail/opportunity-detail-page";
-import { getOpportunityDetailBySlug, opportunitySlugs } from "@/data/opportunity-details";
-import { loadOpportunityGuide } from "@/services/opportunity-guide-markdown-service";
+import { loadCanonicalOpportunity } from "@/services/opportunity-catalog-service";
 import { generateOpportunityJsonLd, generateOpportunityMetadata, serializeJsonLd } from "@/services/opportunity-seo-service";
 
 type OpportunityPageProps = {
@@ -12,20 +11,22 @@ type OpportunityPageProps = {
 export const revalidate = 3600;
 
 export function generateStaticParams() {
-  return opportunitySlugs.map((slug) => ({ slug }));
+  return [];
 }
 
 export async function generateMetadata({ params }: OpportunityPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const opportunity = getOpportunityDetailBySlug(slug);
-  return opportunity ? generateOpportunityMetadata(opportunity) : {};
+  try {
+    const result = await loadCanonicalOpportunity(slug);
+    return result ? generateOpportunityMetadata(result.opportunity) : {};
+  } catch { return {}; }
 }
 
 export default async function OpportunityPage({ params }: OpportunityPageProps) {
   const { slug } = await params;
-  const opportunity = getOpportunityDetailBySlug(slug);
-  if (!opportunity) notFound();
-  const guideDocument = await loadOpportunityGuide(opportunity);
+  const result = await loadCanonicalOpportunity(slug);
+  if (!result) notFound();
+  const { opportunity, guide: guideDocument } = result;
   const jsonLd = generateOpportunityJsonLd(opportunity);
 
   return <>

@@ -2,7 +2,7 @@
 
 import { ArrowRight, Check, CheckCircle2, Circle, Clock3, ExternalLink, GraduationCap, ListChecks, XCircle } from "lucide-react";
 import Link from "next/link";
-import type { OpportunityDetail } from "@/data/opportunity-details";
+import type { OpportunityDetail } from "@/types/opportunity-detail";
 import {
   APPLICATION_CONFIRM_SUBMISSION_ID,
   APPLICATION_REQUIREMENTS_ID,

@@ -1,59 +1,37 @@
-import { getOpportunityDetail, opportunityIds } from "@/data/opportunity-details";
+import { apiRequest } from "@/services/seconecta-browser-api";
 import type { OnboardingProfile } from "@/types/onboarding";
+import type { OpportunityCatalogListApi } from "@/types/seconecta-api";
 
 export type OnboardingRecommendationSummary = {
   compatibleOpportunities: number;
-  recommendedPaths: number;
   openOpportunities: number;
-  connectedGoals: number;
-  source: "backend" | "local-fallback";
+  selectedSubjects: number;
+  catalogSize: number;
+  source: "catalog" | "unavailable";
 };
 
-type RecommendationBackendResponse = Partial<Omit<OnboardingRecommendationSummary, "source">>;
-
-function localFallback(profile: OnboardingProfile): OnboardingRecommendationSummary {
-  const opportunities = opportunityIds.map((id) => getOpportunityDetail(id)).filter(Boolean);
-  const matching = opportunities.filter((opportunity) => {
-    if (!opportunity) return false;
-    const searchable = `${opportunity.type} ${opportunity.title} ${opportunity.summary}`.toLocaleLowerCase("pt-BR");
-    return profile.themes.some((theme) => searchable.includes(theme.toLocaleLowerCase("pt-BR")))
-      || profile.opportunityTypes.some((type) => searchable.includes(type.toLocaleLowerCase("pt-BR")));
-  });
-  const compatible = matching.length || opportunities.length;
-  const open = matching.filter((opportunity) => opportunity?.applicationStatus === "open").length
-    || opportunities.filter((opportunity) => opportunity?.applicationStatus === "open").length;
-
-  return {
-    compatibleOpportunities: compatible,
-    recommendedPaths: Math.max(1, Math.min(3, profile.goals?.length ?? 1)),
-    openOpportunities: open,
-    connectedGoals: Math.max(1, profile.goals?.length ?? 1),
-    source: "local-fallback",
-  };
-}
-
 export async function getOnboardingRecommendationSummary(profile: OnboardingProfile): Promise<OnboardingRecommendationSummary> {
-  const endpoint = process.env.NEXT_PUBLIC_ONBOARDING_RECOMMENDATIONS_ENDPOINT;
-  if (!endpoint) return localFallback(profile);
-
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(profile),
-      signal: AbortSignal.timeout(2200),
-    });
-    if (!response.ok) throw new Error("Recommendation endpoint unavailable");
-    const data = await response.json() as RecommendationBackendResponse;
-    const fallback = localFallback(profile);
+    const result = await apiRequest<OpportunityCatalogListApi>("catalog/opportunities?limit=100");
+    const profileSubjects = new Set<string>(profile.subjects);
+    const compatible = result.data.filter((opportunity) =>
+      opportunity.subjects.some((subject) => profileSubjects.has(subject))
+      || opportunity.goals.includes(profile.primary_goal),
+    );
     return {
-      compatibleOpportunities: data.compatibleOpportunities ?? fallback.compatibleOpportunities,
-      recommendedPaths: data.recommendedPaths ?? fallback.recommendedPaths,
-      openOpportunities: data.openOpportunities ?? fallback.openOpportunities,
-      connectedGoals: data.connectedGoals ?? fallback.connectedGoals,
-      source: "backend",
+      compatibleOpportunities: compatible.length,
+      openOpportunities: compatible.filter((opportunity) => opportunity.applicationStatus === "open").length,
+      selectedSubjects: profile.subjects.length,
+      catalogSize: result.count,
+      source: "catalog",
     };
   } catch {
-    return localFallback(profile);
+    return {
+      compatibleOpportunities: 0,
+      openOpportunities: 0,
+      selectedSubjects: profile.subjects.length,
+      catalogSize: 0,
+      source: "unavailable",
+    };
   }
 }

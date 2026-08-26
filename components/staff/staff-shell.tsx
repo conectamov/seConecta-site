@@ -21,7 +21,7 @@ export function StaffShell({ me, children }: { me: StaffMe; children: React.Reac
   return <div className="staff-app">
     <aside className="staff-sidebar">
       <Link href="/staff" className="staff-brand">se<span>Conecta</span><small>Equipe</small></Link>
-      <nav>{links.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={pathname === href || (href !== "/staff" && pathname.startsWith(href)) ? "active" : ""}><Icon size={18} />{label}</Link>)}</nav>
+      <nav>{links.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={pathname === href || (href !== "/staff" && pathname?.startsWith(href)) ? "active" : ""}><Icon size={18} />{label}</Link>)}</nav>
       <div className="staff-account"><div><strong>{me.full_name || me.email}</strong><span>{me.staff_role === "ADMIN" ? "Administrador" : "Curador"}</span></div><button onClick={logout} aria-label="Sair"><LogOut size={18} /></button></div>
     </aside>
     <main className="staff-main">{children}</main>

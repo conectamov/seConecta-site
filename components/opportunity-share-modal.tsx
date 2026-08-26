@@ -4,13 +4,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy, Linkedin, Mail, MessageCircle, Send, Share2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { getOpportunityDetail } from "@/data/opportunity-details";
-import { getOpportunityCanonicalPath } from "@/services/opportunity-seo-service";
 
 export type ShareableOpportunity = {
   id: number;
   title: string;
   organization: string;
+  slug?: string | null;
 };
 
 type OpportunityShareModalProps = {
@@ -36,8 +35,7 @@ export function OpportunityShareModal({ opportunity, onClose }: OpportunityShare
     };
   }, [onClose, opportunity]);
 
-  const opportunityDetail = opportunity ? getOpportunityDetail(opportunity.id) : null;
-  const shareUrl = opportunity && origin ? `${origin}${opportunityDetail ? getOpportunityCanonicalPath(opportunityDetail) : `/explorar/${opportunity.id}`}` : "";
+  const shareUrl = opportunity && origin ? `${origin}/oportunidades/${opportunity.slug ?? opportunity.id}` : "";
   const message = useMemo(() => opportunity
     ? `Encontrei esta oportunidade na seConecta e lembrei de você: ${opportunity.title}, da ${opportunity.organization}.`
     : "", [opportunity]);

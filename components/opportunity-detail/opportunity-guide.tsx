@@ -1,10 +1,8 @@
 "use client";
 
-import { BookOpen, Check, Clock3, ExternalLink, PencilLine } from "lucide-react";
+import { BookOpen, Check, Clock3, ExternalLink } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useEffect, useState } from "react";
-import { OpportunityGuideEditor } from "@/components/opportunity-detail/opportunity-guide-editor";
 import type { OpportunityGuideDocument } from "@/types/opportunity-knowledge-hub";
 
 function youtubeEmbed(url: string) {
@@ -80,46 +78,7 @@ function GuideMarkdown({ markdown }: { markdown: string }) {
   return <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{markdown}</ReactMarkdown>;
 }
 
-type StoredGuideDraft = {
-  markdown: string;
-  savedAt: string;
-};
-
-export function OpportunityGuide({ document, canEdit = true }: { document: OpportunityGuideDocument; canEdit?: boolean }) {
-  const storageKey = `seconecta:opportunity-guide-draft:${document.slug}`;
-  const [markdown, setMarkdown] = useState(document.markdown);
-  const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [editorOpen, setEditorOpen] = useState(false);
-
-  useEffect(() => {
-    setMarkdown(document.markdown);
-    setSavedAt(null);
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-      if (!stored) return;
-      const draft = JSON.parse(stored) as StoredGuideDraft;
-      if (typeof draft.markdown === "string") {
-        setMarkdown(draft.markdown);
-        setSavedAt(draft.savedAt);
-      }
-    } catch {
-      // A malformed local draft should never prevent the official guide from loading.
-    }
-  }, [document.markdown, storageKey]);
-
-  const save = (nextMarkdown: string) => {
-    const timestamp = new Date().toISOString();
-    setMarkdown(nextMarkdown);
-    setSavedAt(timestamp);
-    window.localStorage.setItem(storageKey, JSON.stringify({ markdown: nextMarkdown, savedAt: timestamp } satisfies StoredGuideDraft));
-  };
-
-  const reset = () => {
-    window.localStorage.removeItem(storageKey);
-    setMarkdown(document.markdown);
-    setSavedAt(null);
-  };
-
+export function OpportunityGuide({ document }: { document: OpportunityGuideDocument }) {
   return (
     <article className="mx-auto max-w-[760px]">
       <header className="border-b border-[#dce4e0] pb-8">
@@ -129,28 +88,18 @@ export function OpportunityGuide({ document, canEdit = true }: { document: Oppor
             <span className="size-1 rounded-full bg-[#c4cec9]" />
             <span className="inline-flex items-center gap-1.5"><Clock3 size={12} />{document.readTime}</span>
           </div>
-          {canEdit && <button type="button" onClick={() => setEditorOpen(true)} className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full border border-[#cfdad5] bg-white px-3.5 text-[9px] font-semibold text-[#52675e] transition hover:border-[#9fc7b8] hover:text-[#078166]"><PencilLine size={12} />Editar guia</button>}
         </div>
         <h1 className="mt-5 text-[clamp(2rem,5vw,3.25rem)] font-semibold leading-[1.05] tracking-[-.055em] text-[#17372b]">{document.title}</h1>
         <p className="mt-5 max-w-2xl text-[14px] leading-7 text-[#5d6d65]">{document.summary}</p>
         <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[9px] text-[#87928c]">
           <span>Curadoria seConecta</span>
-          <span className="inline-flex items-center gap-1.5"><Check size={11} className="text-[#078166]" />{savedAt ? "Editado neste navegador" : document.updatedAt}</span>
+          <span className="inline-flex items-center gap-1.5"><Check size={11} className="text-[#078166]" />{document.updatedAt}</span>
         </div>
       </header>
 
       <div className="py-8">
-        <GuideMarkdown markdown={markdown} />
+        <GuideMarkdown markdown={document.markdown} />
       </div>
-      <OpportunityGuideEditor
-        open={editorOpen}
-        title={document.title}
-        initialMarkdown={markdown}
-        onClose={() => setEditorOpen(false)}
-        onSave={save}
-        onReset={reset}
-        renderPreview={(draft) => <GuideMarkdown markdown={draft} />}
-      />
     </article>
   );
 }

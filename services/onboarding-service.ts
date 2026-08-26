@@ -1,107 +1,110 @@
-import type { OnboardingAnswers } from "@/data/onboarding-flow";
-import type { Experience, NotificationPreference, OnboardingProfile, PreferredChannel, PrimaryGoal } from "@/types/onboarding";
+import type {
+  BackendUserPreferencesPayload,
+  EducationLevel,
+  OnboardingExperienceLevel,
+  OnboardingPrimaryGoal,
+  OnboardingProfile,
+  OnboardingSubject,
+} from "@/types/onboarding";
 import type { OpportunityType, Theme } from "@/types/taxonomy";
+import { apiRequest } from "@/services/seconecta-browser-api";
+import type { StudentPreferencesApi } from "@/types/seconecta-api";
 
 const STORAGE_KEY = "seconecta:onboarding-profile";
 
-const subjectThemeMap: Partial<Record<NonNullable<OnboardingProfile["subjects"]>[number], Theme>> = {
-  COMPUTING: "Ciências da Computação",
-  AI: "Inteligência Artificial",
-  MATHEMATICS: "Matemática",
-  PHYSICS: "Física",
-  CHEMISTRY: "Química",
-  BIOLOGY: "Biologia",
-  ENVIRONMENT: "Meio Ambiente",
-  ECONOMICS: "Economia",
-  BUSINESS: "Empreendedorismo",
-  HISTORY: "História",
-  ARTS_DESIGN: "Artes",
+const subjectThemeMap: Partial<Record<OnboardingSubject, Theme>> = {
+  COMPUTER_SCIENCE: "Ciências da Computação", ARTIFICIAL_INTELLIGENCE: "Inteligência Artificial", MATHEMATICS: "Matemática", PHYSICS: "Física",
+  CHEMISTRY: "Química", BIOLOGY: "Biologia", ENVIRONMENTAL_SCIENCE: "Meio Ambiente", ECONOMICS: "Economia",
+  BUSINESS: "Empreendedorismo", LITERATURE: "Filosofia", HISTORY: "História", ARTS: "Artes",
 };
 
-const activityTypeMap: Partial<Record<NonNullable<OnboardingProfile["activities"]>[number], OpportunityType>> = {
-  OLYMPIADS: "Olimpíada",
-  RESEARCH: "Pesquisa",
-  ENTREPRENEURSHIP: "Competição",
-  LEADERSHIP: "Mentoria",
-  PROJECTS: "Competição",
-  STUDY_ABROAD: "Programa de Verão",
-  SOCIAL_IMPACT: "Voluntariado",
-  COMMUNITIES: "Mentoria",
-  INTERNSHIPS: "Mentoria",
+const educationMap: Record<EducationLevel, string> = {
+  "Ensino Fundamental II": "FUNDAMENTAL_2", "Ensino Médio": "ENSINO_MEDIO_1", Universidade: "UNDERGRADUATE", Outro: "OTHER",
 };
 
-const notificationChannelMap: Record<NotificationPreference, PreferredChannel> = {
-  whatsapp: "WhatsApp",
-  site: "Site",
-  email: "E-mail",
-};
-
-function unique<T>(values: T[]) {
-  return [...new Set(values)];
+function backendEducationLevel(level: EducationLevel, grade: string) {
+  if (level !== "Ensino Médio") return educationMap[level];
+  if (grade.startsWith("2")) return "ENSINO_MEDIO_2";
+  if (grade.startsWith("3")) return "ENSINO_MEDIO_3";
+  return "ENSINO_MEDIO_1";
 }
 
-function derivePrimaryGoal(answers: OnboardingAnswers): PrimaryGoal {
-  if (answers.goals.includes("STUDY_ABROAD")) return "STUDY_ABROAD";
-  if (answers.goals.includes("WIN_MEDALS")) return "OLYMPIADS";
-  if (answers.goals.includes("DO_RESEARCH")) return "RESEARCH";
-  if (answers.goals.some((goal) => goal === "WORK_IN_TECH" || goal === "BUILD_STARTUP")) return "TECHNOLOGY";
-  if (answers.goals.some((goal) => goal === "UNIVERSITY" || goal === "ENTRANCE_EXAMS" || goal === "STRONG_RESUME")) return "CAREER";
-  return "EXPLORING";
+function deriveTypes(subjects: OnboardingSubject[], goal: OnboardingPrimaryGoal): OpportunityType[] {
+  const types: OpportunityType[] = ["Programa de Verão"];
+  if (goal === "OLYMPIAD_TRAINING" || subjects.some((subject) => ["MATHEMATICS", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER_SCIENCE", "ARTIFICIAL_INTELLIGENCE"].includes(subject))) types.push("Olimpíada");
+  if (goal === "RESEARCH" || subjects.some((subject) => ["ARTIFICIAL_INTELLIGENCE", "BIOLOGY", "PHYSICS", "CHEMISTRY", "ENVIRONMENTAL_SCIENCE"].includes(subject))) types.push("Pesquisa");
+  if (goal === "SKILL_BUILDING" || subjects.some((subject) => ["COMPUTER_SCIENCE", "ARTIFICIAL_INTELLIGENCE", "BUSINESS", "ARTS"].includes(subject))) types.push("Hackathon");
+  if (goal === "SOCIAL_IMPACT") types.push("Voluntariado");
+  return [...new Set(types)];
 }
 
-function deriveExperiences(answers: OnboardingAnswers): Experience[] {
-  const experiences: Experience[] = [];
-  if (answers.experience.programming && !["none", "beginner"].includes(answers.experience.programming)) experiences.push("PROGRAMMING_PROJECTS");
-  if (answers.experience.olympiads && answers.experience.olympiads !== "none") experiences.push("OLYMPIADS");
-  if (answers.experience.research && answers.experience.research !== "none") experiences.push("RESEARCH");
-  if (answers.activities.includes("ENTREPRENEURSHIP")) experiences.push("ENTREPRENEURSHIP");
-  if (answers.activities.includes("INTERNSHIPS")) experiences.push("INTERNSHIPS");
-  if (answers.activities.includes("STUDY_ABROAD")) experiences.push("STUDY_ABROAD");
-  if (answers.activities.includes("SOCIAL_IMPACT")) experiences.push("VOLUNTEERING");
-  return experiences.length ? unique(experiences) : ["NONE"];
+type CreateProfileInput = {
+  educationLevel: EducationLevel;
+  current_grade: string;
+  subjects: OnboardingSubject[];
+  primary_goal: OnboardingPrimaryGoal;
+  experience_level: OnboardingExperienceLevel;
+};
+
+type StoredProfile = Partial<OnboardingProfile> & {
+  primaryGoal?: string;
+  previousExperiences?: string[];
+};
+
+function normalizeStoredProfile(stored: StoredProfile): OnboardingProfile | null {
+  if (!stored.educationLevel || !stored.current_grade) return null;
+  const legacySubjects: Record<string, OnboardingSubject> = { COMPUTING: "COMPUTER_SCIENCE", AI: "ARTIFICIAL_INTELLIGENCE", ENVIRONMENT: "ENVIRONMENTAL_SCIENCE", ARTS_DESIGN: "ARTS" };
+  const subjects = (stored.subjects ?? []).map((subject) => legacySubjects[subject] ?? subject).filter((subject): subject is OnboardingSubject => Object.hasOwn(subjectThemeMap, subject));
+  const primaryGoal = stored.primary_goal ?? (stored.primaryGoal === "STUDY_ABROAD" ? "STUDY_ABROAD" : undefined);
+  const experienceLevel = stored.experience_level ?? (stored.previousExperiences?.length ? "INTERMEDIATE" : undefined);
+  return {
+    onboardingVersion: 4,
+    educationLevel: stored.educationLevel,
+    current_grade: stored.current_grade,
+    subjects,
+    primary_goal: primaryGoal ?? "DISCOVER_OPPORTUNITIES",
+    experience_level: experienceLevel ?? "EXPLORING",
+    themes: subjects.map((subject) => subjectThemeMap[subject]).filter((theme): theme is Theme => Boolean(theme)),
+    opportunityTypes: deriveTypes(subjects, primaryGoal ?? "DISCOVER_OPPORTUNITIES"),
+  };
+}
+
+export function toBackendUserPreferences(profile: OnboardingProfile): BackendUserPreferencesPayload {
+  return {
+    profile_type: "STUDENT",
+    education_levels: [backendEducationLevel(profile.educationLevel, profile.current_grade)],
+    current_grade: profile.current_grade,
+    experience_levels: [profile.experience_level],
+    subjects: [...new Set(profile.subjects)],
+    interests: [],
+    goals: [profile.primary_goal],
+    ...(profile.primary_goal === "STUDY_ABROAD" ? { wants_international: true as const } : {}),
+  };
 }
 
 export const onboardingService = {
   load(): OnboardingProfile | null {
     if (typeof window === "undefined") return null;
-
     try {
-      const value = window.localStorage.getItem(STORAGE_KEY);
-      if (!value) return null;
-      const profile = JSON.parse(value) as OnboardingProfile & { interests?: string[] };
-      if (profile.themes && profile.opportunityTypes) return profile;
-
-      const oldInterests = profile.interests ?? [];
-      const themes = oldInterests.map((interest) => ({ IA: "Inteligência Artificial", Programação: "Ciências da Computação", Tecnologia: "Ciências da Computação", Olimpíadas: "Matemática" }[interest] ?? interest)).filter((interest): interest is Theme => ["Inteligência Artificial", "Matemática", "Física", "Química", "Biologia", "Robótica", "Artes", "Empreendedorismo"].includes(interest));
-      const opportunityTypes = oldInterests.map((interest) => ({ Olimpíadas: "Olimpíada", Pesquisa: "Pesquisa", Bolsas: "Bolsa", Intercâmbios: "Programa de Verão" }[interest])).filter((interest): interest is OpportunityType => Boolean(interest));
-      return { ...profile, themes, opportunityTypes };
-    } catch {
-      return null;
-    }
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      return raw ? normalizeStoredProfile(JSON.parse(raw) as StoredProfile) : null;
+    } catch { return null; }
   },
-
-  save(profile: OnboardingProfile) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  save(profile: OnboardingProfile) { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile)); },
+  createProfile(input: CreateProfileInput): OnboardingProfile {
+    return normalizeStoredProfile(input) as OnboardingProfile;
   },
-
-  createProfile(answers: OnboardingAnswers, notificationPreference: NotificationPreference): OnboardingProfile {
-    const themes = unique(answers.subjects.map((subject) => subjectThemeMap[subject]).filter((theme): theme is Theme => Boolean(theme)));
-    const opportunityTypes = unique(answers.activities.map((activity) => activityTypeMap[activity]).filter((type): type is OpportunityType => Boolean(type)));
-    return {
-      onboardingVersion: 2,
-      educationLevel: answers.educationLevel ?? "Outro",
-      current_grade: answers.current_grade ?? undefined,
-      subjects: answers.subjects,
-      activities: answers.activities,
-      goals: answers.goals,
-      experience: answers.experience,
-      school_type: answers.school_type ?? undefined,
-      notification_preference: notificationPreference,
-      themes,
-      opportunityTypes,
-      primaryGoal: derivePrimaryGoal(answers),
-      previousExperiences: deriveExperiences(answers),
-      preferredChannel: notificationChannelMap[notificationPreference],
-    };
+  toBackendPreferences: toBackendUserPreferences,
+  sync(profile: OnboardingProfile) {
+    return apiRequest<StudentPreferencesApi>("students/me/preferences", {
+      method: "PATCH",
+      body: JSON.stringify(toBackendUserPreferences(profile)),
+    });
+  },
+  createWhatsAppHandoff(profile: OnboardingProfile) {
+    return apiRequest<{ whatsapp_url: string }>("student-onboarding/handoffs", {
+      method: "POST",
+      body: JSON.stringify({ preferences: toBackendUserPreferences(profile) }),
+    });
   },
 };
