@@ -1,46 +1,28 @@
 {
-  "name": "seconecta-nuxt",
+  "name": "seconecta-web",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "scripts": {
-    "dev": "nuxt dev",
-    "build": "nuxt build",
-    "generate": "nuxt generate",
-    "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
-    "@pinia/nuxt": "^0.10.1",
-    "aos": "^2.3.4",
-    "axios": "^1.8.4",
-    "dompurify": "^3.4.11",
-    "marked": "^15.0.12",
-    "nuxt": "^3.16.0",
-    "pinia": "^3.0.1",
-    "pnpm": "^10.33.4",
-    "sweetalert2": "^11.15.10",
-    "v-calendar": "^3.1.2"
+    "@radix-ui/react-accordion": "^1.2.11",
+    "framer-motion": "^12.23.6",
+    "lucide-react": "^0.525.0",
+    "next": "^15.3.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
-    "@nuxtjs/tailwindcss": "^6.13.1",
-    "@tailwindcss/typography": "^0.5.16",
-    "@vite-pwa/nuxt": "^0.10.6",
-    "autoprefixer": "^10.4.21",
-    "postcss": "^8.5.3",
-    "tailwindcss": "^3.4.17"
-  },
-  "overrides": {
-    "nanoid": "^3.3.8",
-    "cookie": "^0.7.0",
-    "braces": "^3.0.3",
-    "micromatch": "^4.0.8",
-    "semver": "^7.7.1",
-    "ws": "^8.18.0",
-    "ip": "^2.0.1",
-    "path-to-regexp": "^6.3.0"
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "typescript": "^5.8.3"
   }
 }

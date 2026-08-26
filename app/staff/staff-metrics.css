@@ -1,0 +1,6 @@
+.staff-metric-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.staff-metric-strip > div { display: grid; gap: 3px; border-radius: 13px; padding: 14px; background: #f2f7f4; }
+.staff-metric-strip strong { font-size: 23px; }
+.staff-metric-strip span, .staff-privacy-note { color: #75827c; font-size: 9px; }
+.staff-privacy-note { margin: 14px 0 0; line-height: 1.55; }
+@media (max-width: 600px) { .staff-metric-strip { grid-template-columns: repeat(2, 1fr); } }

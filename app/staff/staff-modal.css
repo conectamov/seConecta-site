@@ -1,0 +1,8 @@
+.staff-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(17,37,29,.48); backdrop-filter: blur(5px); }
+.staff-modal { width: min(500px, 100%); display: grid; gap: 15px; border-radius: 22px; padding: 24px; background: white; box-shadow: 0 28px 80px rgba(10,35,25,.24); }
+.staff-modal header { display: flex; align-items: flex-start; justify-content: space-between; }
+.staff-modal h2 { margin: 5px 0 0; font-size: 23px; }
+.staff-modal header button { border: 0; padding: 4px; background: transparent; color: #6d7973; }
+.staff-modal p { margin: 0; color: #728079; font-size: 11px; line-height: 1.6; }
+.staff-modal label { display: grid; gap: 6px; color: #405249; font-size: 11px; font-weight: 700; }
+.staff-modal input, .staff-modal select, .staff-modal textarea { border: 1px solid #dce3df; border-radius: 11px; padding: 11px 12px; font: inherit; }
