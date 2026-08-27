@@ -22,17 +22,12 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import seconectaLogo from "@/assets/seconecta-logo.png";
 import { useAuthentication } from "@/components/auth/authentication-provider";
 import { ComingSoon } from "@/components/coming-soon";
+import { useOpportunityCatalog } from "@/components/opportunity-catalog-provider";
 import { SiteHeader } from "@/components/site-header";
 import { useJourneyOnboarding } from "@/hooks/use-journey-onboarding";
 import "./landing.css";
 
 const interests = ["Olimpíadas", "Pesquisa", "Bolsas", "Programação", "Ciência", "Tecnologia"];
-
-const opportunities = [
-  { type: "Pesquisa", title: "Jovens Cientistas do Brasil", org: "Programa nacional", date: "24 jul" },
-  { type: "Olimpíada", title: "Olimpíada Brasileira de IA", org: "Online e gratuita", date: "31 jul" },
-  { type: "Bolsa", title: "Jovens Talentos para a Ciência", org: "CAPES", date: "05 ago" },
-];
 
 const faqs = [
   ["O seConecta é gratuito?", "Sim. Descobrir, salvar e receber oportunidades é gratuito."],
@@ -131,12 +126,24 @@ function TrajectorySection() {
 export default function LandingPage() {
   const router = useRouter();
   const { ready: authenticationReady, isAuthenticated } = useAuthentication();
+  const {
+    opportunities: catalogOpportunities,
+    opportunityMetadata,
+    ready: catalogReady,
+    error: catalogError,
+  } = useOpportunityCatalog();
   const [faq, setFaq] = useState<number | null>(0);
   const [sent, setSent] = useState(false);
   const [showNewsletterCue, setShowNewsletterCue] = useState(false);
   const wheelLock = useRef(false);
   const { startOnboarding: start } = useJourneyOnboarding();
   const subscribe = (event: FormEvent) => { event.preventDefault(); setSent(true); };
+  const featuredOpportunities = catalogOpportunities
+    .filter((item) => {
+      const status = opportunityMetadata[item.id]?.applicationStatus;
+      return status === "open" || status === "endingSoon" || status === "evergreen";
+    })
+    .slice(0, 3);
 
   useEffect(() => {
     if (authenticationReady && isAuthenticated) router.replace("/jornada");
@@ -293,7 +300,15 @@ export default function LandingPage() {
     <section className="tl-section tl-snap-section" id="oportunidades"><div className="tl-container">
       <span className="tl-section-count" aria-hidden="true">01 / 02</span>
       <Reveal className="tl-heading tl-heading-row"><div><span className="tl-label">Oportunidades em destaque</span><h2>Seu próximo passo pode estar aqui.</h2><p>Programas selecionados para estudantes que querem aprender, criar e ir além.</p></div><Link href="/explorar">Explorar todas <span>›</span></Link></Reveal>
-      <div className="tl-opportunities">{opportunities.map((item) => <Reveal className="tl-opportunity" key={item.title}><div className="tl-opportunity-top"><span>{item.type}</span><button aria-label="Salvar"><Bookmark size={18} /></button></div><h3>{item.title}</h3><p>{item.org}</p><div><span><Clock3 size={15} /> Inscrições até {item.date}</span><b>›</b></div></Reveal>)}</div>
+      <div className="tl-opportunities">
+        {!catalogReady && <Reveal className="tl-opportunity"><div className="tl-opportunity-top"><span>Catálogo</span></div><h3>Carregando oportunidades...</h3><p>Buscando informações atualizadas.</p></Reveal>}
+        {catalogReady && catalogError && <Reveal className="tl-opportunity"><div className="tl-opportunity-top"><span>Catálogo indisponível</span></div><h3>Não foi possível carregar agora.</h3><p>Tente novamente em alguns instantes.</p><div><Link href="/explorar">Abrir catálogo</Link><b>›</b></div></Reveal>}
+        {catalogReady && !catalogError && featuredOpportunities.length === 0 && <Reveal className="tl-opportunity"><div className="tl-opportunity-top"><span>Catálogo</span></div><h3>Nenhuma oportunidade aberta agora.</h3><p>Veja o catálogo completo e acompanhe as próximas aberturas.</p><div><Link href="/explorar">Abrir catálogo</Link><b>›</b></div></Reveal>}
+        {featuredOpportunities.map((item) => {
+          const href = item.slug ? `/oportunidades/${item.slug}` : "/explorar";
+          return <Reveal className="tl-opportunity" key={item.id}><div className="tl-opportunity-top"><span>{item.category}</span><button aria-label={`Salvar ${item.title}`} onClick={start}><Bookmark size={18} /></button></div><h3><Link href={href}>{item.title}</Link></h3><p>{item.organization}</p><div><span><Clock3 size={15} /> {item.deadline === "Prazo não informado" ? item.deadline : `Prazo ${item.deadline}`}</span><Link href={href} aria-label={`Ver ${item.title}`}>›</Link></div></Reveal>;
+        })}
+      </div>
     </div><div className="tl-deadline"><div className="tl-container tl-deadline-inner"><button className="tl-deadline-discover" type="button" onClick={start}><span>Descubra meu próximo passo</span><b aria-hidden="true">›</b></button></div></div></section>
 
     <TrajectorySection />
