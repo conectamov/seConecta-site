@@ -36,49 +36,6 @@ const faqs = [
   ["Posso mudar meus interesses?", "Sim. Suas preferências podem acompanhar cada nova fase da sua jornada."],
 ];
 
-const trajectories = [
-  {
-    category: "🧠 IA",
-    headline: "Da escola pública à pesquisa em IA.",
-    name: "Luiza Mendes",
-    location: "Salvador · Escola pública",
-    steps: ["Clube de Ciência", "Olimpíada Brasileira de IA", "Jovens Cientistas", "Pesquisa aplicada"],
-    quote: "Eu achava que pesquisa era só para gênios.",
-    image: "/trajectory-luiza.png",
-    tone: "blue",
-  },
-  {
-    category: "🏆 Matemática",
-    headline: "Como a OBMEP abriu a primeira porta.",
-    name: "Gabriel Nunes",
-    location: "Belém · Ensino médio",
-    steps: ["OBMEP", "PIC", "Iniciação Científica", "Mentoria olímpica"],
-    quote: "A OBMEP foi a primeira porta que se abriu.",
-    image: "/trajectory-gabriel.png",
-    tone: "gold",
-  },
-  {
-    category: "💻 Programação",
-    headline: "Do primeiro código ao hackathon.",
-    name: "Isadora Lima",
-    location: "Recife · Ensino médio",
-    steps: ["Curso gratuito", "Primeiro projeto", "Hackathon", "Bolsa em tecnologia"],
-    quote: "Foi quando encontrei pessoas parecidas comigo.",
-    image: "/trajectory-isadora.png",
-    tone: "cyan",
-  },
-  {
-    category: "🔬 Pesquisa",
-    headline: "Da curiosidade ao laboratório.",
-    name: "Rafael Costa",
-    location: "Manaus · Escola pública",
-    steps: ["Feira de Ciências", "Mentoria", "Laboratório", "Jovens Cientistas"],
-    quote: "Passei meses sem saber que essa oportunidade existia.",
-    image: "/trajectory-rafael.png",
-    tone: "green",
-  },
-];
-
 function Brand() {
   return <Link href="#inicio" className="tl-brand" aria-label="seConecta, início"><span>se</span>Conecta<i /></Link>;
 }
@@ -91,34 +48,15 @@ function Reveal({ children, className = "" }: { children: React.ReactNode; class
   return <motion.div className={className} initial={{ opacity: 0, y: 18 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: .5, ease: "easeOut" }}>{children}</motion.div>;
 }
 
-function TrajectoryTimeline({ steps }: { steps: string[] }) {
-  return <ol className="tl-trajectory-timeline" aria-label="Etapas da trajetória">
-    {steps.map((step, index) => <li key={step}><span className="tl-trajectory-point">{String(index + 1).padStart(2, "0")}</span><span>{step}</span></li>)}
-  </ol>;
-}
-
-function TrajectoryCard({ trajectory, index, decorative = false }: { trajectory: typeof trajectories[number]; index: number; decorative?: boolean }) {
-  return <motion.article className={`tl-trajectory-card tone-${trajectory.tone}`} aria-hidden={decorative} whileHover={{ y: -7 }} transition={{ duration: .25, ease: "easeOut" }}>
-    <span className="tl-trajectory-category">{trajectory.category}</span>
-    <h3 className="tl-trajectory-headline">{trajectory.headline}</h3>
-    <div className="tl-trajectory-person"><div className="tl-trajectory-portrait"><img src={trajectory.image} alt={`Retrato de ${trajectory.name}`} /></div><div><h3>{trajectory.name}</h3><p>{trajectory.location}</p></div></div>
-    <TrajectoryTimeline steps={trajectory.steps} />
-    <p className="tl-trajectory-quote">“{trajectory.quote}”</p>
-    <Link className="tl-trajectory-link" href={`/historias#${trajectory.name.toLowerCase().replaceAll(" ", "-")}`} tabIndex={decorative ? -1 : undefined}>Conhecer trajetória <ArrowRight size={15} /></Link>
-  </motion.article>;
-}
-
 function TrajectorySection() {
   return <section className="tl-section tl-trajectories relative" id="historias">
-    <ComingSoon className="min-h-[560px]">
-    <div className="tl-container">
-      <Reveal className="tl-trajectories-heading"><div><span className="tl-label">Histórias reais</span><h2>Trajetórias que inspiram.</h2><p>Aprenda com estudantes que percorreram caminhos parecidos com o seu.</p></div><Link href="/historias">Ver todas <ArrowRight size={16} /></Link></Reveal>
-    </div>
-    <div className="tl-trajectory-rail" aria-label="Trajetórias de estudantes">
-      <div className="tl-trajectory-track">
-        {[false, true].flatMap((duplicate) => trajectories.map((trajectory, index) => <TrajectoryCard trajectory={trajectory} index={index} decorative={duplicate} key={`${duplicate}-${trajectory.name}`} />))}
+    <ComingSoon
+      className="min-h-[360px]"
+      message="Trajetórias verificadas de estudantes estarão disponíveis em breve."
+    >
+      <div className="tl-container">
+        <Reveal className="tl-trajectories-heading"><div><span className="tl-label">Histórias reais</span><h2>Trajetórias que inspiram.</h2><p>Em breve, você poderá aprender com estudantes que percorreram caminhos parecidos com o seu.</p></div></Reveal>
       </div>
-    </div>
     </ComingSoon>
   </section>;
 }
