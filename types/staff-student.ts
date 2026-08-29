@@ -1,5 +1,14 @@
 export type StaffRole = "CURATOR" | "ADMIN" | null;
 
+export type PaginatedAdminResponse<T> = {
+  data: T[];
+  count: number;
+  total: number;
+  offset: number;
+  limit: number;
+  has_next: boolean;
+};
+
 export type AdminAccount = {
   id: string;
   email: string;
@@ -24,7 +33,9 @@ export type AdminStudentListItem = {
   identities: { provider: string; subject: string; verified_at?: string }[];
   legacy_links: { type: string; user_id: string | null; bot_user_answer_id: number | null }[];
   website_accounts?: { id: string; email: string; is_active: boolean }[];
+  access_mode: "WHATSAPP_ONLY" | "WEBSITE_ONLY" | "MULTICHANNEL" | "NO_ACTIVE_ACCESS";
   onboarding_complete?: boolean;
+  recommendation_profile_status: "READY" | "PENDING";
   recent_activity?: { opportunity_relationships: number; last_behavior_at: string | null };
   created_at?: string;
   updated_at: string;

@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Copy, KeyRound, ShieldCheck } from "lucide-react";
+import { Activity, ArrowLeft, CheckCircle2, Copy, Globe2, KeyRound, ShieldCheck, Smartphone, Sparkles, Target, UserRound } from "lucide-react";
 import type { AdminAccount, StudentAdminActivity, StudentAdminAudit, StudentAdminDetail } from "@/types/staff-student";
 
 type Tab = "overview" | "profile" | "recommendation" | "activity" | "metadata";
@@ -22,11 +22,43 @@ function text(value: unknown) { return typeof value === "string" ? value : ""; }
 function bool(value: unknown) { return Boolean(value); }
 function list(value: unknown) { return Array.isArray(value) ? value.map(String) : []; }
 function dateValue(value: unknown) { return typeof value === "string" && value ? value.slice(0, 10) : ""; }
-function formatDate(value: unknown) { return typeof value === "string" && value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Não registrado"; }
+function record(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
+function formatDate(value: unknown) {
+  if (typeof value !== "string" || !value) return "Não registrado";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Não registrado" : new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+function formatRelativeDate(value: unknown) {
+  if (typeof value !== "string" || !value) return "Não registrado";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Não registrado";
+  const days = Math.round((date.getTime() - Date.now()) / 86_400_000);
+  if (Math.abs(days) > 30) return formatDate(value);
+  return new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" }).format(days, "day");
+}
+function formatPhone(value: unknown) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length === 13 && digits.startsWith("55")) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`;
+  if (digits.length === 12 && digits.startsWith("55")) return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 8)}-${digits.slice(8)}`;
+  return value ? String(value) : "Não conectado";
+}
+const technicalLabels: Record<string, string> = { student_id: "Student ID", identity_id: "Identity ID", provider_subject: "Identificador do provedor", verification_source: "Origem da verificação", verified_at: "Verificado em", created_at: "Criado em", updated_at: "Atualizado em", last_inbound_at: "Última mensagem recebida", proactive_messages_enabled: "Mensagens proativas", normalization_status: "Normalização", taxonomy_version: "Versão da taxonomia", source: "Origem", status: "Status", dimension: "Dimensão", canonical_value: "Valor canônico", raw_value: "Valor original" };
+function fieldLabel(key: string) { return technicalLabels[key] || key.replaceAll("_", " "); }
+function formatFieldValue(key: string, value: unknown) {
+  if (typeof value === "boolean") return value ? "Ativado" : "Desativado";
+  if (/(?:_at|date)$/.test(key)) return formatDate(value);
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "Nenhum";
+  if (value && typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+}
 
-function FieldList({ values }: { values: Record<string, unknown>[] }) {
+function FieldList({ values, expanded = false }: { values: Record<string, unknown>[]; expanded?: boolean }) {
   if (!values.length) return <p className="staff-empty compact">Nenhum registro.</p>;
-  return <div className="student-record-list">{values.map((value, index) => <article key={String(value.id || index)}><dl>{Object.entries(value).filter(([key, item]) => item !== null && item !== "" && !["metadata_json", "payload"].includes(key)).slice(0, 8).map(([key, item]) => <div key={key}><dt>{key.replaceAll("_", " ")}</dt><dd>{typeof item === "object" ? JSON.stringify(item) : String(item)}</dd></div>)}</dl></article>)}</div>;
+  return <div className="student-record-list">{values.map((value, index) => <article key={String(value.id || index)}><dl>{Object.entries(value).filter(([key, item]) => item !== null && item !== "" && !["metadata_json", "payload", "feature_values"].includes(key)).slice(0, expanded ? undefined : 8).map(([key, item]) => <div key={key}><dt>{fieldLabel(key)}</dt><dd>{formatFieldValue(key, item)}</dd></div>)}</dl></article>)}</div>;
+}
+
+function InfoList({ items }: { items: { label: string; value: string; hint?: string }[] }) {
+  return <dl className="student-human-list">{items.map(item => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}<small>{item.hint}</small></dd></div>)}</dl>;
 }
 
 export function StudentWorkspace({ initialDetail, activity, audit }: { initialDetail: StudentAdminDetail; activity: StudentAdminActivity; audit: StudentAdminAudit }) {
@@ -40,8 +72,8 @@ export function StudentWorkspace({ initialDetail, activity, audit }: { initialDe
   const preferences: Record<string, unknown> = detail.preferences ?? {};
   const displayName = text(profile.full_name) || "Student sem nome";
 
-  async function run(action: () => Promise<void>, success: string) {
-    try { setError(""); setMessage(""); await action(); setMessage(success); }
+  async function run(action: () => Promise<void>, success: string | (() => string)) {
+    try { setError(""); setMessage(""); await action(); setMessage(typeof success === "function" ? success() : success); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Falha na alteração"); }
   }
 
@@ -72,6 +104,7 @@ export function StudentWorkspace({ initialDetail, activity, audit }: { initialDe
   async function savePreferences(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    let savedEmbeddingStatus = "PENDING";
     await run(async () => {
       const updated = await mutate(`students/${detail.student.id}/preferences`, "PATCH", {
         preferences: {
@@ -92,8 +125,9 @@ export function StudentWorkspace({ initialDetail, activity, audit }: { initialDe
         reason,
         expected_updated_at: text(preferences.updated_at) || text(detail.student.updated_at),
       });
+      savedEmbeddingStatus = text(updated.embedding_status) || "PENDING";
       setDetail(current => ({ ...current, preferences: updated }));
-    }, "Preferências canônicas atualizadas.");
+    }, () => savedEmbeddingStatus === "READY" ? "Preferências canônicas atualizadas. O embedding já está pronto para as próximas recomendações." : "Preferências canônicas atualizadas. O embedding ficou pendente, mas o perfil estruturado já será usado nas próximas recomendações.");
   }
 
   async function saveAccount(event: FormEvent<HTMLFormElement>, account: AdminAccount) {
@@ -121,22 +155,38 @@ export function StudentWorkspace({ initialDetail, activity, audit }: { initialDe
   }
 
   const context = useMemo(() => detail.recommendation_context ? JSON.stringify(detail.recommendation_context, null, 2) : "Sem contexto gerado.", [detail.recommendation_context]);
+  const whatsappIdentity = detail.identities.find(item => text(item.provider) === "WHATSAPP");
+  const whatsappChannel = detail.channels.find(item => text(item.channel) === "WHATSAPP" && text(item.status) !== "REVOKED");
+  const hasWebsite = detail.accounts.length > 0;
+  const accessLabel = whatsappIdentity && hasWebsite ? "Site + WhatsApp" : whatsappIdentity ? "Só WhatsApp" : hasWebsite ? "Só site" : "Sem acesso ativo";
+  const educationLevel = list(preferences.education_levels)[0];
+  const goal = list(preferences.goals)[0];
+  const goalContext = record(preferences.goal_context);
+  const confirmedObservations = detail.observations.filter(item => text(item.status) === "CONFIRMED").length;
+  const inferredObservations = detail.observations.filter(item => text(item.status) === "INFERRED").length;
+  const latestRun = record(detail.latest_recommendation.run);
+  const stateLabels: Record<string, string> = { saved: "Salvas", interested: "Com interesse", preparing: "Preparando", applying: "Aplicando", applied: "Aplicadas", completed: "Concluídas", dismissed: "Dispensadas", following: "Acompanhando" };
+  const taxonomyLabel = (group: Record<string, string>, value: string) => group[value] || value || "Não informado";
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Visão geral" }, { id: "profile", label: "Perfil e acesso" }, { id: "recommendation", label: "Recomendações" }, { id: "activity", label: "Jornada e atividade" }, { id: "metadata", label: "Metadados e auditoria" },
   ];
 
   return <div className="staff-page student-workspace">
     <Link href="/staff/usuarios" className="student-back"><ArrowLeft size={15} /> Pessoas e acessos</Link>
-    <header className="staff-page-header compact"><div><span className="staff-eyebrow">Student canônico</span><h1>{displayName}</h1><p>{detail.student.id} · criado em {formatDate(detail.student.created_at)}</p></div><span className={`status-pill ${String(detail.student.status).toLowerCase()}`}>{String(detail.student.status)}</span></header>
+    <header className="staff-page-header compact"><div><span className="staff-eyebrow">Student canônico</span><h1>{displayName}</h1><p>{accessLabel} · perfil criado em {formatDate(detail.student.created_at)}</p></div><span className={`status-pill ${String(detail.student.status).toLowerCase()}`}>{String(detail.student.status) === "ACTIVE" ? "Ativo" : String(detail.student.status) === "DISABLED" ? "Desativado" : "Mesclado"}</span></header>
     <nav className="student-workspace-tabs" aria-label="Informações do Student">{tabs.map(item => <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>{item.label}</button>)}</nav>
     {(message || error) && <div className={`student-workspace-notice ${error ? "error" : ""}`}>{error || message}</div>}
     <label className="student-admin-reason">Motivo das alterações<input value={reason} onChange={event => setReason(event.target.value)} /></label>
 
-    {tab === "overview" && <div className="student-overview-grid">
-      <section className="staff-editor-section"><header><span className="staff-eyebrow">Identidade</span><h2>Canais e autenticação</h2></header><FieldList values={detail.identities} /><FieldList values={detail.channels} />{detail.accounts.length === 0 && <p className="student-auth-note">Autenticação por WhatsApp · sem conta de e-mail/senha.</p>}</section>
-      <section className="staff-editor-section"><header><span className="staff-eyebrow">Jornada</span><h2>{detail.journey_summary.total} oportunidades relacionadas</h2></header><div className="student-summary-pills">{Object.entries(detail.journey_summary.by_state).map(([state, count]) => <span key={state}>{state}: <b>{count}</b></span>)}</div><p>Última atividade: {formatDate(detail.journey_summary.last_activity_at)}</p></section>
-      <section className="staff-editor-section"><header><span className="staff-eyebrow">Onboarding</span><h2>{detail.preferences ? "Perfil de recomendação disponível" : "Onboarding ainda incompleto"}</h2></header><p>Taxonomia v{detail.taxonomy.taxonomy_version} · embedding {text(preferences.embedding_status) || "não criado"}</p><p>{detail.observations.length} observações preservadas entre confirmações e inferências.</p></section>
-      <section className="staff-editor-section"><header><span className="staff-eyebrow">Conta</span><h2>{detail.accounts.length ? `${detail.accounts.length} conta(s) vinculada(s)` : "WhatsApp-only"}</h2></header>{detail.accounts.map(account => <p key={account.id}>{account.email} · {account.staff_role || "Regular"}</p>)}</section>
+    {tab === "overview" && <div className="student-overview-stack">
+      <section className="student-overview-hero"><div><span className="staff-eyebrow">Resumo</span><h2>{detail.preferences ? "Perfil pronto para personalização" : "Onboarding ainda incompleto"}</h2><p>Uma única identidade de recomendação, independentemente do canal usado pelo estudante.</p></div><div className="student-hero-facts"><span><Globe2 size={15} />{accessLabel}</span><span><Activity size={15} />{formatRelativeDate(detail.journey_summary.last_activity_at || whatsappChannel?.last_inbound_at)}</span><span><Sparkles size={15} />{text(preferences.embedding_status) === "READY" ? "Embedding pronto" : "Embedding pendente"}</span></div></section>
+      <div className="student-overview-grid humanized">
+        <section className="staff-editor-section"><header><UserRound size={19} /><div><span className="staff-eyebrow">Dados do estudante</span><h2>Perfil declarado</h2></div></header><InfoList items={[{ label: "Nome", value: displayName }, { label: "Etapa educacional", value: taxonomyLabel(detail.taxonomy.education_levels, educationLevel) }, { label: "Série atual", value: text(preferences.current_grade) || "Não informada" }, { label: "Escola ou organização", value: text(profile.organization) || "Não informada" }, { label: "Localização", value: text(profile.location) || "Não informada" }]} /></section>
+        <section className="staff-editor-section"><header><Smartphone size={19} /><div><span className="staff-eyebrow">Acessos conectados</span><h2>{accessLabel}</h2></div></header><div className="student-access-cards">{whatsappIdentity && <article><b>WhatsApp</b><strong>{formatPhone(whatsappIdentity.provider_subject)}</strong><span>{text(whatsappChannel?.status) === "ACTIVE" ? "Canal ativo" : "Identidade verificada"} · última mensagem {formatRelativeDate(whatsappChannel?.last_inbound_at)}</span><small>Mensagens proativas: {bool(whatsappChannel?.proactive_messages_enabled) ? "ativadas" : "desativadas"}</small></article>}{detail.accounts.map(account => <article key={account.id}><b>Site</b><strong>{account.email}</strong><span>{account.is_active ? "Conta ativa" : "Conta desativada"}</span><small>Senha: {account.password_change_required ? "troca obrigatória" : "configurada"}</small></article>)}{!whatsappIdentity && !detail.accounts.length && <p className="staff-empty compact">Nenhum acesso ativo conectado.</p>}</div></section>
+        <section className="staff-editor-section recommendation-profile-card"><header><Target size={19} /><div><span className="staff-eyebrow">Perfil de recomendação</span><h2>{goal ? taxonomyLabel(detail.taxonomy.primary_goals, goal) : "Objetivo ainda não informado"}</h2></div></header>{detail.preferences ? <><div className="student-preference-groups"><div><span>Matérias</span><p>{list(preferences.subjects).map(item => taxonomyLabel(detail.taxonomy.subjects, item)).join(" · ") || "Não informadas"}</p></div><div><span>Contexto do objetivo</span><p>{taxonomyLabel(detail.taxonomy.goal_stages, text(goalContext.stage))}</p></div><div><span>Atividades e interesses</span><p>{list(preferences.activities).join(" · ") || "Não informados"}</p></div><div><span>Preferências práticas</span><p>{[["prefers_free", "Gratuitas"], ["prefers_online", "Online"], ["accepts_english", "Aceita inglês"], ["wants_international", "Internacionais"]].filter(([key]) => bool(preferences[key])).map(([, label]) => label).join(" · ") || "Nenhuma marcada"}</p></div></div><footer><span>{confirmedObservations} sinais confirmados</span><span>{inferredObservations} inferências</span><span>Taxonomia v{detail.taxonomy.taxonomy_version}</span></footer></> : <p className="student-overview-empty">Este Student ainda não concluiu o contexto mínimo para recomendações personalizadas.</p>}</section>
+        <section className="staff-editor-section"><header><Activity size={19} /><div><span className="staff-eyebrow">Jornada</span><h2>{detail.journey_summary.total} oportunidades relacionadas</h2></div></header>{detail.journey_summary.total ? <><div className="student-journey-metrics">{Object.entries(detail.journey_summary.by_state).map(([state, count]) => <div key={state}><b>{count}</b><span>{stateLabels[state] || state}</span></div>)}</div><p>Última movimentação {formatRelativeDate(detail.journey_summary.last_activity_at)}.</p></> : <p className="student-overview-empty">Ainda não salvou, acompanhou ou iniciou nenhuma oportunidade.</p>}</section>
+        <section className="staff-editor-section recommendation-signals-card"><header><Sparkles size={19} /><div><span className="staff-eyebrow">Sinais e recomendações</span><h2>{latestRun.created_at ? "Recomendador já executado" : "Sem recomendações registradas"}</h2></div></header>{latestRun.created_at ? <InfoList items={[{ label: "Última execução", value: formatDate(latestRun.created_at), hint: text(latestRun.surface) ? `Canal: ${text(latestRun.surface)}` : undefined }, { label: "Versão do algoritmo", value: text(latestRun.algorithm_version) || "Não registrada" }, { label: "Oportunidades exibidas", value: String(detail.latest_recommendation.impressions.length) }, { label: "Contexto", value: `Schema v${String(latestRun.context_schema_version || "—")}` }]} /> : <p className="student-overview-empty">Quando uma recomendação for gerada, esta área mostrará o canal, a versão e os resultados apresentados.</p>}<div className="student-learning-note"><b>Aprendizado comportamental ainda não altera o ranking.</b><span>As interações estão sendo preservadas como sinais para a evolução futura; hoje, as próximas recomendações usam o perfil canônico acima.</span></div></section>
+      </div>
     </div>}
 
     {tab === "profile" && <div className="student-editor-stack">
@@ -154,6 +204,6 @@ export function StudentWorkspace({ initialDetail, activity, audit }: { initialDe
 
     {tab === "activity" && <div className="student-editor-stack"><section className="staff-editor-section"><header><span className="staff-eyebrow">Jornada</span><h2>Oportunidades acompanhadas</h2></header><FieldList values={activity.journeys} /></section><section className="staff-editor-section"><header><span className="staff-eyebrow">Comportamento</span><h2>Eventos recentes</h2></header><FieldList values={[...activity.behavior_events, ...activity.journey_events]} /></section><section className="staff-editor-section"><header><span className="staff-eyebrow">Feedback explícito</span><h2>Respostas às recomendações</h2></header><FieldList values={activity.feedback} /></section></div>}
 
-    {tab === "metadata" && <div className="student-editor-stack"><section className="staff-editor-section"><header><span className="staff-eyebrow">Compatibilidade</span><h2>Vínculos e metadados</h2></header><FieldList values={detail.legacy_links} /><pre className="student-json">{JSON.stringify({ student: detail.student, preferences: detail.preferences ? { normalization_status: detail.preferences.normalization_status, taxonomy_version: detail.preferences.taxonomy_version, preference_schema_version: detail.preferences.preference_schema_version, preference_provenance: detail.preferences.preference_provenance } : null }, null, 2)}</pre></section><section className="staff-editor-section"><header><span className="staff-eyebrow">Auditoria imutável</span><h2>Alterações administrativas</h2></header><FieldList values={audit.data} /></section></div>}
+    {tab === "metadata" && <div className="student-editor-stack"><section className="staff-editor-section"><header><span className="staff-eyebrow">Identidades técnicas</span><h2>Canais, provedores e vínculos</h2><p>Dados de diagnóstico preservados fora da visão operacional principal.</p></header><details className="student-technical-details"><summary>Identidades verificadas</summary><FieldList values={detail.identities} expanded /></details><details className="student-technical-details"><summary>Canais de entrega</summary><FieldList values={detail.channels} expanded /></details><details className="student-technical-details"><summary>Vínculos legados</summary><FieldList values={detail.legacy_links} expanded /></details><details className="student-technical-details"><summary>Estado técnico do perfil</summary><FieldList values={[{ student_id: detail.student.id, created_at: detail.student.created_at, updated_at: detail.student.updated_at, normalization_status: detail.preferences?.normalization_status, taxonomy_version: detail.preferences?.taxonomy_version, preference_schema_version: detail.preferences?.preference_schema_version, preference_provenance: detail.preferences?.preference_provenance }]} expanded /></details></section><section className="staff-editor-section"><header><span className="staff-eyebrow">Auditoria imutável</span><h2>Alterações administrativas</h2></header><FieldList values={audit.data} expanded /></section></div>}
   </div>;
 }
