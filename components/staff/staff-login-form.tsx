@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export function StaffLoginForm() {
   const router = useRouter();
@@ -20,7 +21,7 @@ export function StaffLoginForm() {
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      setError(body.detail ?? "Não foi possível entrar.");
+      setError(body.detail === "PASSWORD_CHANGE_REQUIRED" ? "Sua conta exige a troca da senha temporária antes de entrar." : body.detail ?? "Não foi possível entrar.");
       setPending(false);
       return;
     }
@@ -32,7 +33,7 @@ export function StaffLoginForm() {
     <div><span className="staff-eyebrow">Espaço da equipe</span><h1>Curadoria seConecta</h1><p>Entre com a conta que recebeu acesso de administrador ou curador.</p></div>
     <label>E-mail<input name="email" type="email" required autoComplete="username" /></label>
     <label>Senha<input name="password" type="password" required autoComplete="current-password" /></label>
-    {error && <p className="staff-form-error" role="alert">{error}</p>}
+    {error && <p className="staff-form-error" role="alert">{error} {error.includes("temporária") && <Link href="/trocar-senha-temporaria">Trocar agora</Link>}</p>}
     <button className="staff-primary-button" disabled={pending}>{pending ? "Entrando…" : "Entrar com segurança"}</button>
   </form>;
 }

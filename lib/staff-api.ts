@@ -18,6 +18,10 @@ export function curationWorkflowEnabled(): boolean {
   return process.env.CURATION_WORKFLOW_ENABLED === "true";
 }
 
+export function staffUserWorkspaceV2Enabled(): boolean {
+  return process.env.STAFF_USER_WORKSPACE_V2_ENABLED === "true";
+}
+
 export async function staffApi<T>(path: string, init?: RequestInit): Promise<T> {
   const token = (await cookies()).get(STAFF_COOKIE)?.value;
   if (!token) throw new Error("STAFF_UNAUTHENTICATED");
@@ -45,6 +49,7 @@ export async function backendStaffLogin(email: string, password: string) {
     body: JSON.stringify({ email, password }),
     cache: "no-store",
   });
+  if (response.status === 409) throw new Error("PASSWORD_CHANGE_REQUIRED");
   if (!response.ok) throw new Error("Credenciais inválidas ou acesso staff desativado.");
   return response.json() as Promise<{ access_token: string }>;
 }
