@@ -381,6 +381,23 @@ export function StudentWorkspace({
   };
   const taxonomyLabel = (group: Record<string, string>, value: string) =>
     group[value] || value || "Não informado";
+  const gradeLabels: Record<string, string> = {
+    GRADE_6: "6º ano do Ensino Fundamental",
+    GRADE_7: "7º ano do Ensino Fundamental",
+    GRADE_8: "8º ano do Ensino Fundamental",
+    GRADE_9: "9º ano do Ensino Fundamental",
+    HIGH_SCHOOL_1: "1º ano do Ensino Médio",
+    HIGH_SCHOOL_2: "2º ano do Ensino Médio",
+    HIGH_SCHOOL_3: "3º ano do Ensino Médio",
+    GAP_YEAR: "Ensino Médio concluído ou gap year",
+    UNIVERSITY: "Universidade",
+    OTHER: "Outro",
+  };
+  const gradeLabel = (value: string) =>
+    gradeLabels[value] ||
+    detail.taxonomy.education_levels[value] ||
+    value.replaceAll("_", " ").toLocaleLowerCase("pt-BR") ||
+    "Não informada";
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Visão geral" },
     { id: "profile", label: "Perfil e acesso" },
@@ -496,10 +513,7 @@ export function StudentWorkspace({
                   },
                   {
                     label: "Série atual",
-                    value: taxonomyLabel(
-                      detail.taxonomy.education_levels,
-                      text(preferences.current_grade),
-                    ),
+                    value: gradeLabel(text(preferences.current_grade)),
                   },
                   {
                     label: "Escola ou organização",
@@ -972,8 +986,7 @@ export function StudentWorkspace({
                   defaultValue={text(
                     (
                       preferences.goal_context as
-                        | Record<string, unknown>
-                        | undefined
+                        Record<string, unknown> | undefined
                     )?.stage,
                   )}
                 >
