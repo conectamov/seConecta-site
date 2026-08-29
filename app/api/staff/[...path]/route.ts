@@ -16,7 +16,12 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
     return NextResponse.json(data);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha na API staff";
-    const status = message.includes("STAFF_UNAUTHENTICATED") || message.includes("_401") || message.includes("_403") ? 401 : 502;
+    const backendStatus = Number(message.match(/STAFF_API_(\d{3})/)?.[1]);
+    const status = message.includes("STAFF_UNAUTHENTICATED")
+      ? 401
+      : Number.isInteger(backendStatus)
+        ? backendStatus
+        : 502;
     return NextResponse.json({ detail: message }, { status });
   }
 }

@@ -17,6 +17,8 @@ export async function POST(request: Request) {
     });
     return response;
   } catch (error) {
-    return NextResponse.json({ detail: error instanceof Error ? error.message : "Falha ao entrar" }, { status: 401 });
+    const message = error instanceof Error ? error.message : "Falha ao entrar";
+    if (message === "PASSWORD_CHANGE_REQUIRED") return NextResponse.json({ detail: message }, { status: 409 });
+    return NextResponse.json({ detail: message }, { status: 401 });
   }
 }
