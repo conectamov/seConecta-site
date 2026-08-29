@@ -17,6 +17,8 @@ describe("canonical Student administration UX", () => {
     expect(list).toContain('WHATSAPP_ONLY: "Só WhatsApp"');
     expect(list).toContain('WEBSITE_ONLY: "Só site"');
     expect(list).toContain('MULTICHANNEL: "Site + WhatsApp"');
+    expect(list).toContain("function resolveAccessMode");
+    expect(list).toContain("function normalizePage");
   });
 
   it("keeps technical identifiers outside the human overview", () => {

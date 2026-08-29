@@ -31,24 +31,45 @@ export type AdminStudentListItem = {
   full_name: string | null;
   organization: string | null;
   identities: { provider: string; subject: string; verified_at?: string }[];
-  legacy_links: { type: string; user_id: string | null; bot_user_answer_id: number | null }[];
+  legacy_links: {
+    type: string;
+    user_id: string | null;
+    bot_user_answer_id: number | null;
+  }[];
   website_accounts?: { id: string; email: string; is_active: boolean }[];
-  access_mode: "WHATSAPP_ONLY" | "WEBSITE_ONLY" | "MULTICHANNEL" | "NO_ACTIVE_ACCESS";
+  access_mode?:
+    | "WHATSAPP_ONLY"
+    | "WEBSITE_ONLY"
+    | "MULTICHANNEL"
+    | "NO_ACTIVE_ACCESS";
   onboarding_complete?: boolean;
-  recommendation_profile_status: "READY" | "PENDING";
-  recent_activity?: { opportunity_relationships: number; last_behavior_at: string | null };
+  recommendation_profile_status?: "READY" | "PENDING";
+  recent_activity?: {
+    opportunity_relationships: number;
+    last_behavior_at: string | null;
+  };
   created_at?: string;
   updated_at: string;
 };
 
 export type StudentAdminDetail = {
-  student: Record<string, unknown> & { id: string; status: string; created_at: string; updated_at: string };
+  student: Record<string, unknown> & {
+    id: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  };
   profile: (Record<string, unknown> & { updated_at: string }) | null;
   identities: Record<string, unknown>[];
   channels: Record<string, unknown>[];
   accounts: AdminAccount[];
   legacy_links: Record<string, unknown>[];
-  preferences: (Record<string, unknown> & { updated_at: string; embedding_status: string }) | null;
+  preferences:
+    | (Record<string, unknown> & {
+        updated_at: string;
+        embedding_status: string;
+      })
+    | null;
   taxonomy: {
     taxonomy_version: number;
     subjects: Record<string, string>;
@@ -61,8 +82,15 @@ export type StudentAdminDetail = {
   };
   observations: Record<string, unknown>[];
   recommendation_context: Record<string, unknown> | null;
-  latest_recommendation: { run: Record<string, unknown> | null; impressions: Record<string, unknown>[] };
-  journey_summary: { total: number; by_state: Record<string, number>; last_activity_at: string | null };
+  latest_recommendation: {
+    run: Record<string, unknown> | null;
+    impressions: Record<string, unknown>[];
+  };
+  journey_summary: {
+    total: number;
+    by_state: Record<string, number>;
+    last_activity_at: string | null;
+  };
 };
 
 export type StudentAdminActivity = {
