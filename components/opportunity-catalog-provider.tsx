@@ -32,6 +32,14 @@ const subjectLabels: Record<string, string> = {
   HISTORY: "História",
   HUMANITIES: "Humanidades",
   ARTS: "Artes",
+  ASTRONOMY: "Astronomia",
+  LEADERSHIP_IMPACT: "Liderança e impacto",
+  LINGUISTICS: "Linguística",
+  LOGIC: "Lógica",
+  NEUROSCIENCE: "Neurociência",
+  PHILOSOPHY: "Filosofia",
+  PROGRAMMING: "Programação",
+  RESEARCH: "Pesquisa",
 };
 
 const typeLabels: Record<string, string> = {
@@ -78,6 +86,7 @@ function mapStatus(item: OpportunityCatalogItemApi): OpportunityMetadata["applic
   if (item.applicationStatus === "upcoming") return "openingSoon";
   if (item.applicationStatus === "closed") return "closed";
   if (item.applicationStatus === "unknown") return "unknown";
+  if (item.recurrencePattern === "EVERGREEN" || item.recurrencePattern === "ROLLING") return "evergreen";
   return daysUntil(item.applicationsCloseAt) <= 7 ? "endingSoon" : "open";
 }
 
@@ -125,6 +134,10 @@ function mapCatalog(data: OpportunityCatalogItemApi[]) {
       competition: "unknown",
       language: "unknown",
       openingForecast: item.applicationsOpenAt ? `Abre em ${formatDate(item.applicationsOpenAt)}` : undefined,
+      subjects: item.subjects,
+      goals: item.goals,
+      humanVerified: item.humanVerified,
+      deliveryMode: item.deliveryMode,
     };
   }
   return { opportunities, metadata };

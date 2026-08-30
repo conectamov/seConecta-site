@@ -37,4 +37,8 @@ export type OpportunityMetadata = {
   language: "Português" | "Inglês" | "Espanhol" | "Outros" | "unknown";
   editorialPick?: boolean;
   openingForecast?: string;
+  subjects: string[];
+  goals: string[];
+  humanVerified: boolean;
+  deliveryMode: "ONLINE" | "IN_PERSON" | "HYBRID" | "UNKNOWN";
 };
