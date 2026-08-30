@@ -1,14 +1,15 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronLeft, ChevronRight, Compass, Flame, Layers3, Sparkles, Target, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Compass, Flame, Layers3, LoaderCircle, LogIn, MessageCircle, Sparkles, Target, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { educationOptions, experienceOptions, gradeOptions, primaryGoalOptions, subjectOptions } from "@/data/onboarding-flow";
 import { getOnboardingRecommendationSummary, type OnboardingRecommendationSummary } from "@/services/onboarding-recommendation-service";
 import { onboardingService } from "@/services/onboarding-service";
-import { useAuthentication } from "@/components/auth/authentication-provider";
-import { studentApiEnabled } from "@/services/feature-flags";
+import { useAuthentication, type AuthenticationCompletedDetail } from "@/components/auth/authentication-provider";
+import { multichannelActivationEnabled, studentApiEnabled } from "@/services/feature-flags";
+import { getActivationContext, recordActivationEvent } from "@/services/student-activation-service";
 import type { EducationLevel, OnboardingExperienceLevel, OnboardingPrimaryGoal, OnboardingProfile, OnboardingSubject } from "@/types/onboarding";
 
 type JourneyOnboardingContextValue = {
@@ -43,11 +44,14 @@ function answersFromProfile(profile: OnboardingProfile | null): Answers {
 
 function JourneyOnboarding({ open, profile, onClose, onComplete }: { open: boolean; profile: OnboardingProfile | null; onClose: () => void; onComplete: (profile: OnboardingProfile) => void }) {
   const router = useRouter();
+  const { openAuthentication } = useAuthentication();
   const [answers, setAnswers] = useState<Answers>(emptyAnswers);
   const [step, setStep] = useState(0);
   const [phase, setPhase] = useState<Phase>("questions");
   const [loadingStage, setLoadingStage] = useState(0);
   const [results, setResults] = useState<OnboardingRecommendationSummary | null>(null);
+  const [activationBusy, setActivationBusy] = useState<"whatsapp" | "website" | null>(null);
+  const [activationError, setActivationError] = useState("");
   const timers = useRef<number[]>([]);
 
   const clearTimers = useCallback(() => {
@@ -62,6 +66,8 @@ function JourneyOnboarding({ open, profile, onClose, onComplete }: { open: boole
     setPhase("questions");
     setLoadingStage(0);
     setResults(null);
+    setActivationBusy(null);
+    setActivationError("");
     clearTimers();
     const overflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
@@ -69,6 +75,11 @@ function JourneyOnboarding({ open, profile, onClose, onComplete }: { open: boole
     document.addEventListener("keydown", closeOnEscape);
     return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", closeOnEscape); clearTimers(); };
   }, [clearTimers, onClose, open, profile]);
+
+  useEffect(() => {
+    if (phase !== "results" || !multichannelActivationEnabled) return;
+    void recordActivationEvent("ONBOARDING_RESULTS_VIEWED", "onboarding-results:v1");
+  }, [phase]);
 
   const scheduleAdvance = (nextStep: number) => timers.current.push(window.setTimeout(() => setStep(nextStep), 180));
   const gradeChoices = answers.educationLevel === "Ensino Fundamental II" || answers.educationLevel === "Ensino Médio" ? gradeOptions[answers.educationLevel] : [];
@@ -113,7 +124,7 @@ function JourneyOnboarding({ open, profile, onClose, onComplete }: { open: boole
     setPhase("results");
   };
 
-  const finish = () => {
+  const persistProfile = () => {
     if (!answers.educationLevel || !answers.current_grade || !answers.primary_goal || !answers.experience_level || answers.subjects.length === 0) return;
     const nextProfile = onboardingService.createProfile({
       educationLevel: answers.educationLevel,
@@ -124,23 +135,42 @@ function JourneyOnboarding({ open, profile, onClose, onComplete }: { open: boole
     });
     onboardingService.save(nextProfile);
     onComplete(nextProfile);
+    return nextProfile;
+  };
+
+  const finish = () => {
+    if (!persistProfile()) return;
     onClose();
     router.push("/explorar");
   };
 
+  const continueWithoutSaving = () => {
+    void recordActivationEvent("CONTINUED_WITHOUT_SAVING", "continue-without-saving:v1");
+    finish();
+  };
+
+  const continueOnWebsite = () => {
+    const nextProfile = persistProfile();
+    if (!nextProfile) return;
+    setActivationBusy("website");
+    void recordActivationEvent("WEBSITE_AUTH_SELECTED", "website-auth-selected:v1");
+    onClose();
+    openAuthentication({ kind: "persist_onboarding", returnTo: "/explorar" });
+  };
+
   const continueOnWhatsApp = async () => {
-    if (!answers.educationLevel || !answers.current_grade || !answers.primary_goal || !answers.experience_level || answers.subjects.length === 0) return;
-    const nextProfile = onboardingService.createProfile({
-      educationLevel: answers.educationLevel,
-      current_grade: answers.current_grade,
-      subjects: answers.subjects,
-      primary_goal: answers.primary_goal,
-      experience_level: answers.experience_level,
-    });
-    onboardingService.save(nextProfile);
-    onComplete(nextProfile);
-    const handoff = await onboardingService.createWhatsAppHandoff(nextProfile);
-    window.location.assign(handoff.whatsapp_url);
+    const nextProfile = persistProfile();
+    if (!nextProfile) return;
+    setActivationBusy("whatsapp");
+    setActivationError("");
+    await recordActivationEvent("WHATSAPP_SELECTED", "whatsapp-selected:v1");
+    try {
+      const handoff = await onboardingService.createWhatsAppHandoff(nextProfile, getActivationContext());
+      window.location.assign(handoff.whatsapp_url);
+    } catch {
+      setActivationBusy(null);
+      setActivationError("Não consegui abrir o WhatsApp agora. Seu perfil continua salvo neste aparelho; tente novamente.");
+    }
   };
 
   const goBack = () => {
@@ -171,7 +201,7 @@ function JourneyOnboarding({ open, profile, onClose, onComplete }: { open: boole
       <div className="max-h-[calc(100svh-100px)] overflow-y-auto p-6 sm:p-9"><AnimatePresence mode="wait" initial={false}>
         {phase === "questions" && <motion.div key={`question-${step}`} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>{question}</motion.div>}
         {phase === "loading" && <motion.div key="loading" className="flex min-h-[460px] flex-col items-center justify-center text-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><span className="grid size-16 place-items-center rounded-full border border-[#bcd9ce] bg-[#e8f7f1] text-[#078166] shadow-[0_13px_32px_rgba(7,129,102,.12)]"><Compass size={25} /></span><h2 className="mt-6 text-[32px] font-semibold tracking-[-.05em] text-[#17372b]">Analisando seu perfil...</h2><p className="mt-2 text-[11px] text-[#718078]">Estamos organizando oportunidades que combinam com seu momento.</p><div className="mt-7 grid w-full max-w-[410px] gap-2 text-left">{loadingItems.map((item, index) => <motion.div className={`flex min-h-12 items-center gap-3 rounded-[14px] border px-4 ${loadingStage > index ? "border-[#cce0d7] bg-white text-[#29493c]" : loadingStage === index ? "border-[#bdd8cd] bg-white text-[#52615a]" : "border-[#e1e7e3] bg-white/65 text-[#99a29e]"}`} animate={loadingStage === index ? { opacity: [.6, 1, .6] } : undefined} transition={{ repeat: Infinity, duration: 1.1 }} key={item}><span className={`grid size-6 place-items-center rounded-full text-[8px] font-bold ${loadingStage > index ? "bg-[#078166] text-white" : "bg-[#f0f3f1]"}`}>{loadingStage > index ? <Check size={13} /> : index + 1}</span><strong className="text-[10px]">{item}</strong></motion.div>)}</div></motion.div>}
-        {phase === "results" && <motion.div key="results" className="min-h-[460px] text-center" initial={{ opacity: 0, scale: .985 }} animate={{ opacity: 1, scale: 1 }}><span className="relative mx-auto grid size-20 place-items-center rounded-full border-[7px] border-white bg-[#079272] text-white shadow-[0_13px_28px_rgba(7,129,102,.22)]"><Check size={31} /><Sparkles className="absolute -right-5 -top-2 rounded-full bg-[#fff5d9] p-2 text-[#a87716] shadow-md" size={30} /></span><span className="mt-6 block text-[9px] font-bold uppercase tracking-[.13em] text-[#078166]">Sua seleção está pronta</span><h2 className="mx-auto mt-2 text-[clamp(1.9rem,4vw,2.6rem)] font-semibold tracking-[-.05em] text-[#17372b]">Encontramos oportunidades para você!</h2><p className="mx-auto mt-3 max-w-lg text-[11px] leading-6 text-[#718078]">Com base no seu perfil, já organizamos um primeiro ponto de partida.</p><div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4"><ResultMetric icon={Target} value={results?.compatibleOpportunities ?? 0} label="compatíveis agora" /><ResultMetric icon={Flame} value={results?.openOpportunities ?? 0} label="com inscrições abertas" /><ResultMetric icon={Layers3} value={results?.selectedSubjects ?? answers.subjects.length} label="áreas conectadas" /><ResultMetric icon={Compass} value={results?.catalogSize ?? 0} label="oportunidades analisadas" /></div><button type="button" onClick={finish} className="mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#079272] px-6 text-[11px] font-semibold text-white shadow-[0_9px_22px_rgba(7,129,102,.16)]">Continuar no site <ChevronRight size={16} /></button>{studentApiEnabled && <button type="button" onClick={() => void continueOnWhatsApp()} className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#b9d6cb] px-6 text-[10px] font-semibold text-[#078166]">Continuar pelo WhatsApp</button>}</motion.div>}
+        {phase === "results" && <motion.div key="results" className="min-h-[460px] text-center" initial={{ opacity: 0, scale: .985 }} animate={{ opacity: 1, scale: 1 }}><span className="relative mx-auto grid size-20 place-items-center rounded-full border-[7px] border-white bg-[#079272] text-white shadow-[0_13px_28px_rgba(7,129,102,.22)]"><Check size={31} /><Sparkles className="absolute -right-5 -top-2 rounded-full bg-[#fff5d9] p-2 text-[#a87716] shadow-md" size={30} /></span><span className="mt-6 block text-[9px] font-bold uppercase tracking-[.13em] text-[#078166]">Sua seleção está pronta</span><h2 className="mx-auto mt-2 text-[clamp(1.9rem,4vw,2.6rem)] font-semibold tracking-[-.05em] text-[#17372b]">Encontramos oportunidades para você!</h2><p className="mx-auto mt-3 max-w-lg text-[11px] leading-6 text-[#718078]">Com base no seu perfil, já organizamos um primeiro ponto de partida.</p><div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4"><ResultMetric icon={Target} value={results?.compatibleOpportunities ?? 0} label="compatíveis agora" /><ResultMetric icon={Flame} value={results?.openOpportunities ?? 0} label="com inscrições abertas" /><ResultMetric icon={Layers3} value={results?.selectedSubjects ?? answers.subjects.length} label="áreas conectadas" /><ResultMetric icon={Compass} value={results?.catalogSize ?? 0} label="oportunidades analisadas" /></div>{multichannelActivationEnabled && studentApiEnabled ? <><button type="button" onClick={() => void continueOnWhatsApp()} disabled={activationBusy !== null} className="mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#079272] px-6 text-[11px] font-semibold text-white shadow-[0_9px_22px_rgba(7,129,102,.16)] disabled:opacity-55">{activationBusy === "whatsapp" ? <LoaderCircle size={16} className="animate-spin" /> : <MessageCircle size={16} />}Receber oportunidades no WhatsApp</button><button type="button" onClick={continueOnWebsite} disabled={activationBusy !== null} className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#b9d6cb] px-6 text-[10px] font-semibold text-[#078166] disabled:opacity-55"><LogIn size={14} />Salvar meu perfil e continuar no site</button><button type="button" onClick={continueWithoutSaving} disabled={activationBusy !== null} className="mt-3 text-[9px] font-semibold text-[#69766f] underline decoration-[#bdc8c3] underline-offset-4">Continuar sem salvar</button><p className="mx-auto mt-2 max-w-md text-[8px] leading-4 text-[#8a948f]">Sem confirmar seu WhatsApp, este perfil fica apenas neste aparelho e pode ser perdido ao limpar o navegador.</p>{activationError && <p role="alert" className="mx-auto mt-3 max-w-md rounded-xl bg-[#fff0ed] px-3 py-2.5 text-[9px] font-medium text-[#a84d35]">{activationError}</p>}</> : <><button type="button" onClick={finish} className="mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#079272] px-6 text-[11px] font-semibold text-white shadow-[0_9px_22px_rgba(7,129,102,.16)]">Continuar no site <ChevronRight size={16} /></button>{studentApiEnabled && <button type="button" onClick={() => void continueOnWhatsApp()} className="mt-2 inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#b9d6cb] px-6 text-[10px] font-semibold text-[#078166]">Continuar pelo WhatsApp</button>}</>}</motion.div>}
       </AnimatePresence></div>
     </motion.section>
   </motion.div>}</AnimatePresence>;
@@ -187,6 +217,7 @@ function ResultMetric({ icon: Icon, value, label }: { icon: typeof Target; value
 
 export function JourneyOnboardingProvider({ children }: { children: React.ReactNode }) {
   const { session } = useAuthentication();
+  const router = useRouter();
   const [profile, setProfile] = useState<OnboardingProfile | null>(null);
   const [open, setOpen] = useState(false);
   useEffect(() => setProfile(onboardingService.load()), []);
@@ -197,6 +228,24 @@ export function JourneyOnboardingProvider({ children }: { children: React.ReactN
     if (window.localStorage.getItem(syncKey) === profileHash) return;
     onboardingService.sync(profile).then(() => window.localStorage.setItem(syncKey, profileHash)).catch(() => undefined);
   }, [profile, session]);
+  useEffect(() => {
+    const handleAuthenticated = (rawEvent: Event) => {
+      const event = rawEvent as CustomEvent<AuthenticationCompletedDetail>;
+      const intent = event.detail?.intent;
+      if (intent?.kind !== "persist_onboarding") return;
+      const storedProfile = onboardingService.load();
+      if (!storedProfile) {
+        router.push(intent.returnTo);
+        return;
+      }
+      // The existing session-aware effect performs the canonical sync once
+      // and keeps the local profile available if Railway is temporarily down.
+      setProfile(storedProfile);
+      router.push(intent.returnTo);
+    };
+    window.addEventListener("seconecta:authenticated", handleAuthenticated);
+    return () => window.removeEventListener("seconecta:authenticated", handleAuthenticated);
+  }, [router]);
   const updateProfile = (next: OnboardingProfile) => { onboardingService.save(next); setProfile(next); };
   return <JourneyOnboardingContext.Provider value={{ profile, startOnboarding: () => setOpen(true), updateProfile }}>{children}<JourneyOnboarding open={open} profile={profile} onClose={() => setOpen(false)} onComplete={setProfile} /></JourneyOnboardingContext.Provider>;
 }

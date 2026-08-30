@@ -1,11 +1,12 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { BookmarkCheck, X } from "lucide-react";
+import { BookmarkCheck, LogIn, X } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useAuthentication } from "@/components/auth/authentication-provider";
-import { recommendationApiEnabled, studentApiEnabled } from "@/services/feature-flags";
+import { multichannelActivationEnabled, studentApiEnabled } from "@/services/feature-flags";
 import { apiRequest } from "@/services/seconecta-browser-api";
+import { getActivationContext, linkActivationSession, recordActivationEvent } from "@/services/student-activation-service";
 import { createOpportunityJourney, type ApplicationResult, type OpportunityIntent, type OpportunityJourney, type OpportunityObjective, type OpportunityPriority, type RecommendationFeedback, type RecommendationFeedbackScore } from "@/types/opportunity-journey";
 import type { StudentOpportunityRelationshipApi } from "@/types/seconecta-api";
 
@@ -72,12 +73,19 @@ function FeedbackPrompt({ opportunity, onSelect, onClose }: { opportunity: Journ
 }
 
 export function OpportunityJourneyProvider({ children }: { children: React.ReactNode }) {
-  const { ready: authReady, session } = useAuthentication();
+  const { ready: authReady, session, openAuthentication } = useAuthentication();
   const [journeys, setJourneys] = useState<OpportunityJourney[]>([]);
   const [recommendationFeedback, setRecommendationFeedback] = useState<RecommendationFeedback[]>([]);
   const [feedbackOpportunity, setFeedbackOpportunity] = useState<JourneyOpportunityRef | null>(null);
   const [ready, setReady] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [activationNudge, setActivationNudge] = useState(false);
+
+  const dismissActivationNudge = useCallback(() => {
+    const context = getActivationContext();
+    window.localStorage.setItem(`seconecta:activation-nudge:${context.sessionId}`, "dismissed");
+    setActivationNudge(false);
+  }, []);
 
   const replaceRelationship = useCallback((relationship: StudentOpportunityRelationshipApi) => {
     const mapped = fromRelationship(relationship);
@@ -123,7 +131,18 @@ export function OpportunityJourneyProvider({ children }: { children: React.React
     setJourneys((current) => [...current.filter((item) => item.opportunityId !== opportunity.id), optimistic]);
     if (!studentApiEnabled || !session) {
       persistJourneys([...journeys.filter((item) => item.opportunityId !== opportunity.id), optimistic]);
+      if (multichannelActivationEnabled) {
+        const activation = getActivationContext();
+        void recordActivationEvent("FIRST_OPPORTUNITY_SAVED", "first-opportunity-saved:v1", { opportunity_id: opportunity.id });
+        if (!window.localStorage.getItem(`seconecta:activation-nudge:${activation.sessionId}`)) {
+          setActivationNudge(true);
+        }
+      }
       return;
+    }
+    if (multichannelActivationEnabled) {
+      void recordActivationEvent("FIRST_OPPORTUNITY_SAVED", "first-opportunity-saved:v1", { opportunity_id: opportunity.id })
+        .then(linkActivationSession);
     }
     const idempotencyKey = window.crypto.randomUUID();
     apiRequest<StudentOpportunityRelationshipApi>(`students/me/opportunity-relationships/${opportunity.id}`, { method: "PUT", body: JSON.stringify({ modelId: optimistic.modelId, objective, priority, sourceChannel: "website", expectedVersion: existing?.version, idempotencyKey }) })
@@ -202,6 +221,7 @@ export function OpportunityJourneyProvider({ children }: { children: React.React
     {children}
     <FeedbackPrompt opportunity={feedbackOpportunity} onClose={() => setFeedbackOpportunity(null)} onSelect={(score) => feedbackOpportunity && value.updateRecommendationFeedback(feedbackOpportunity.id, score)} />
     <AnimatePresence>{toast && <motion.div className="fixed bottom-5 left-1/2 z-[1400] inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#173b30] px-5 py-3 text-[9px] font-semibold text-white shadow-xl" role="status" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}><BookmarkCheck size={15} />{toast}</motion.div>}</AnimatePresence>
+    <AnimatePresence>{activationNudge && !session && <motion.aside className="fixed bottom-5 left-1/2 z-[1450] w-[min(430px,calc(100%-28px))] -translate-x-1/2 rounded-[20px] border border-[#cfe0d9] bg-white p-4 shadow-[0_18px_55px_rgba(19,52,41,.2)]" role="dialog" aria-label="Salvar sua Jornada" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }}><button type="button" onClick={dismissActivationNudge} className="absolute right-3 top-3 grid size-7 place-items-center rounded-full text-[#75817b] hover:bg-[#eef3f0]" aria-label="Agora não"><X size={14} /></button><div className="pr-8"><strong className="text-[12px] text-[#17372b]">Quer levar esta oportunidade com você?</strong><p className="mt-1 text-[9px] leading-4 text-[#69766f]">Confirme seu WhatsApp para manter seu perfil e sua Jornada mesmo ao trocar de aparelho.</p></div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => { dismissActivationNudge(); void recordActivationEvent("WEBSITE_AUTH_SELECTED", "website-auth-selected-after-save:v1"); openAuthentication({ kind: "persist_onboarding", returnTo: "/explorar" }); }} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-[#079272] px-4 text-[9px] font-semibold text-white"><LogIn size={13} />Salvar com meu WhatsApp</button><button type="button" onClick={dismissActivationNudge} className="min-h-10 rounded-full px-3 text-[9px] font-semibold text-[#65736c]">Agora não</button></div></motion.aside>}</AnimatePresence>
     {!ready && <span className="sr-only" role="status">Sincronizando Jornada</span>}
   </OpportunityJourneyContext.Provider>;
 }

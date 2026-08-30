@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuthentication } from "@/components/auth/authentication-provider";
-import { recommendationApiEnabled } from "@/services/feature-flags";
+import { multichannelActivationEnabled, recommendationApiEnabled } from "@/services/feature-flags";
 import { apiRequest } from "@/services/seconecta-browser-api";
+import { linkActivationSession, recordActivationEvent } from "@/services/student-activation-service";
 import type { RecommendationItemApi, RecommendationResultApi } from "@/types/seconecta-api";
 
 export function useStudentRecommendations() {
@@ -33,6 +34,10 @@ export function useStudentRecommendations() {
       method: "POST",
       body: JSON.stringify({ event_type: eventType, source_channel: "website", idempotency_key: `${eventType.toLowerCase()}:${item.impression_id}`, opportunity_id: item.opportunity_id, recommendation_run_id: result.run_id, impression_id: item.impression_id }),
     }).catch(() => window.sessionStorage.removeItem(storageKey));
+    if (eventType === "OPEN" && multichannelActivationEnabled) {
+      void recordActivationEvent("FIRST_RECOMMENDATION_OPENED", "first-recommendation-opened:v1", { opportunity_id: item.opportunity_id })
+        .then(linkActivationSession);
+    }
   }, [result, session]);
 
   return { enabled: recommendationApiEnabled, result, ready, error, record };
