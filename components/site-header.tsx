@@ -31,7 +31,7 @@ export function SiteHeader() {
         <a href={whatsappCommunityUrl} target="_blank" rel="noopener noreferrer" onClick={closeMenu} className="inline-flex items-center gap-1.5"><MessageCircle size={13} />WhatsApp</a>
       </div>
       <div className="site-header-actions">
-        {!ready ? <span className="site-profile-loading" /> : !session ? <button className="site-cta" type="button" onClick={openAuthentication}><span>Entrar</span><LogIn size={14} /></button> : <div className="relative" ref={profileRef}>
+        {!ready ? <span className="site-profile-loading" /> : !session ? <button className="site-cta" type="button" onClick={() => openAuthentication()}><span>Entrar</span><LogIn size={14} /></button> : <div className="relative" ref={profileRef}>
           <button type="button" onClick={() => setProfileOpen((open) => !open)} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[#d5dfda] bg-white py-1 pl-1.5 pr-3 text-[11px] font-semibold text-[#365247] shadow-[0_5px_16px_rgba(28,54,43,.04)] transition hover:border-[#a8cbbf]" aria-expanded={profileOpen}>
             <span className="grid size-7 place-items-center rounded-full bg-[#e8f6f0] text-[#078166]"><UserRound size={14} /></span><span className="hidden sm:inline">{session.name.split(" ")[0]}</span><ChevronDown size={13} className="hidden sm:block" />
           </button>

@@ -5,10 +5,16 @@ import { ArrowRight, LoaderCircle, LockKeyhole, MessageCircle, UserRound, X } fr
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { studentApiEnabled } from "@/services/feature-flags";
 import { apiRequest, SeConectaApiError } from "@/services/seconecta-browser-api";
+import { completeOtpActivation, linkActivationSession } from "@/services/student-activation-service";
 import type { StudentProfileApi, WhatsAppChallengeApi } from "@/types/seconecta-api";
 
 export type AuthenticationSession = { studentId: string; name: string; profilePictureUrl: string | null } | null;
-type AuthenticationContextValue = { ready: boolean; isAuthenticated: boolean; session: AuthenticationSession; openAuthentication: () => void; refreshSession: () => Promise<AuthenticationSession>; logout: () => Promise<void> };
+export type AuthenticationIntent = {
+  kind: "persist_onboarding";
+  returnTo: string;
+};
+export type AuthenticationCompletedDetail = { intent: AuthenticationIntent | null };
+type AuthenticationContextValue = { ready: boolean; isAuthenticated: boolean; session: AuthenticationSession; openAuthentication: (intent?: AuthenticationIntent) => void; refreshSession: () => Promise<AuthenticationSession>; logout: () => Promise<void> };
 const AuthenticationContext = createContext<AuthenticationContextValue | null>(null);
 
 function toSession(profile: StudentProfileApi): NonNullable<AuthenticationSession> {
@@ -24,7 +30,7 @@ function friendlyError(error: unknown) {
   return "Não consegui concluir o acesso agora. Tente novamente.";
 }
 
-function AuthModal({ open, onClose, onAuthenticated }: { open: boolean; onClose: () => void; onAuthenticated: (session: NonNullable<AuthenticationSession>) => void }) {
+function AuthModal({ open, onClose, onAuthenticated }: { open: boolean; onClose: () => void; onAuthenticated: (session: NonNullable<AuthenticationSession>) => Promise<void> }) {
   const [step, setStep] = useState<"phone" | "code" | "name">("phone");
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -56,7 +62,7 @@ function AuthModal({ open, onClose, onAuthenticated }: { open: boolean; onClose:
     try {
       await apiRequest<{ authenticated: true }>("student-auth/whatsapp/verify", { method: "POST", body: JSON.stringify({ challenge_id: challengeId, code }) });
       const profile = await apiRequest<StudentProfileApi>("students/me/profile");
-      if (!profile.fullName) setStep("name"); else onAuthenticated(toSession(profile));
+      if (!profile.fullName) setStep("name"); else await onAuthenticated(toSession(profile));
     } catch (nextError) { setError(friendlyError(nextError)); }
     finally { setBusy(false); }
   };
@@ -67,7 +73,7 @@ function AuthModal({ open, onClose, onAuthenticated }: { open: boolean; onClose:
     setBusy(true); setError("");
     try {
       const profile = await apiRequest<StudentProfileApi>("students/me/profile", { method: "PATCH", body: JSON.stringify({ fullName: name.trim() }) });
-      onAuthenticated(toSession(profile));
+      await onAuthenticated(toSession(profile));
     } catch (nextError) { setError(friendlyError(nextError)); }
     finally { setBusy(false); }
   };
@@ -95,16 +101,34 @@ export function AuthenticationProvider({ children }: { children: React.ReactNode
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<AuthenticationSession>(null);
   const [open, setOpen] = useState(false);
+  const [intent, setIntent] = useState<AuthenticationIntent | null>(null);
   const refreshSession = useCallback(async (): Promise<AuthenticationSession> => {
     if (!studentApiEnabled) { setSession(null); return null; }
     try { const next = toSession(await apiRequest<StudentProfileApi>("students/me/profile")); setSession(next); return next; }
     catch { setSession(null); return null; }
   }, []);
   useEffect(() => { refreshSession().finally(() => setReady(true)); }, [refreshSession]);
-  const authenticate = (next: NonNullable<AuthenticationSession>) => { setSession(next); setOpen(false); window.dispatchEvent(new CustomEvent("seconecta:authenticated")); };
+  const dispatchAuthenticated = useCallback((nextIntent: AuthenticationIntent | null) => {
+    window.dispatchEvent(new CustomEvent<AuthenticationCompletedDetail>("seconecta:authenticated", { detail: { intent: nextIntent } }));
+  }, []);
+  const authenticate = async (next: NonNullable<AuthenticationSession>) => {
+    setSession(next);
+    await completeOtpActivation();
+    setOpen(false);
+    dispatchAuthenticated(intent);
+    setIntent(null);
+  };
+  const openAuthentication = useCallback((nextIntent?: AuthenticationIntent) => {
+    if (session && nextIntent) {
+      void linkActivationSession().finally(() => dispatchAuthenticated(nextIntent));
+      return;
+    }
+    setIntent(nextIntent ?? null);
+    setOpen(true);
+  }, [dispatchAuthenticated, session]);
   const logout = async () => { await apiRequest<{ ok: true }>("session/logout", { method: "POST", body: "{}" }).catch(() => null); setSession(null); window.dispatchEvent(new CustomEvent("seconecta:logged-out")); };
-  const value = useMemo(() => ({ ready, session, isAuthenticated: Boolean(session), openAuthentication: () => setOpen(true), refreshSession, logout }), [ready, refreshSession, session]);
-  return <AuthenticationContext.Provider value={value}>{children}<AuthModal open={open} onClose={() => setOpen(false)} onAuthenticated={authenticate} /></AuthenticationContext.Provider>;
+  const value = useMemo(() => ({ ready, session, isAuthenticated: Boolean(session), openAuthentication, refreshSession, logout }), [openAuthentication, ready, refreshSession, session]);
+  return <AuthenticationContext.Provider value={value}>{children}<AuthModal open={open} onClose={() => { setOpen(false); setIntent(null); }} onAuthenticated={authenticate} /></AuthenticationContext.Provider>;
 }
 
 export function useAuthentication() {

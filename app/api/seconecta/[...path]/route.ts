@@ -15,14 +15,17 @@ function isAllowed(path: string, method: string) {
     "GET catalog/opportunities", "GET students/me/opportunity-relationships",
     "POST students/me/opportunity-relationships/import", "GET students/me/recommendations",
     "POST students/me/recommendations/events", "POST session/logout",
+    "POST student-activation/events", "POST student-activation/link",
+    "GET student-activation/consents",
   ]);
   if (exact.has(`${method} ${path}`)) return true;
+  if (method === "PUT" && /^student-activation\/consents\/(?:RECOMMENDATIONS|DEADLINE_REMINDERS)$/.test(path)) return true;
   if (method === "GET" && /^catalog\/opportunities\/[^/]+$/.test(path)) return true;
   return /^(GET|PUT|PATCH|POST|DELETE) students\/me\/opportunity-relationships\/\d+(?:\/(?:checklist|official-visit|feedback))?$/.test(`${method} ${path}`);
 }
 
 function requiresSession(path: string) {
-  return (path.startsWith("students/me/") && path !== "students/me/preferences/options") || path.startsWith("student-auth/whatsapp/link/");
+  return (path.startsWith("students/me/") && path !== "students/me/preferences/options") || path.startsWith("student-auth/whatsapp/link/") || (path.startsWith("student-activation/") && path !== "student-activation/events");
 }
 
 async function proxy(request: NextRequest, context: RouteContext) {

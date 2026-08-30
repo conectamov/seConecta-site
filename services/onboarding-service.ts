@@ -9,6 +9,7 @@ import type {
 import type { OpportunityType, Theme } from "@/types/taxonomy";
 import { apiRequest } from "@/services/seconecta-browser-api";
 import type { StudentPreferencesApi } from "@/types/seconecta-api";
+import type { ActivationContext } from "@/services/student-activation-service";
 
 const STORAGE_KEY = "seconecta:onboarding-profile";
 
@@ -101,10 +102,16 @@ export const onboardingService = {
       body: JSON.stringify(toBackendUserPreferences(profile)),
     });
   },
-  createWhatsAppHandoff(profile: OnboardingProfile) {
+  createWhatsAppHandoff(profile: OnboardingProfile, activation?: ActivationContext) {
     return apiRequest<{ whatsapp_url: string }>("student-onboarding/handoffs", {
       method: "POST",
-      body: JSON.stringify({ preferences: toBackendUserPreferences(profile) }),
+      body: JSON.stringify({
+        preferences: toBackendUserPreferences(profile),
+        ...(activation ? {
+          activation_session_id: activation.sessionId,
+          activation_variant: activation.variant,
+        } : {}),
+      }),
     });
   },
 };
