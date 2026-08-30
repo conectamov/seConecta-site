@@ -26,6 +26,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { OpportunityWorkspaceNav } from "@/components/opportunity-workspace-nav";
+import { OpportunityDiscoveryV2 } from "@/components/opportunity-discovery-v2";
 import { useOpportunityJourney } from "@/components/opportunity-journey-provider";
 import { useOpportunityCatalog } from "@/components/opportunity-catalog-provider";
 import { OpportunityShareModal, type ShareableOpportunity } from "@/components/opportunity-share-modal";
@@ -33,6 +34,7 @@ import { whatsappCommunityUrl } from "@/components/whatsapp-help-link";
 import { SelectBox } from "@/components/ui/select-box";
 import { useJourneyOnboarding } from "@/hooks/use-journey-onboarding";
 import { useStudentRecommendations } from "@/hooks/use-student-recommendations";
+import { discoveryV2Enabled } from "@/services/feature-flags";
 import type { Opportunity } from "@/types/opportunity-catalog";
 import type { OnboardingProfile } from "@/types/onboarding";
 import type { OpportunityJourney } from "@/types/opportunity-journey";
@@ -194,7 +196,7 @@ function FilterContent({ formatAccess, setFormatAccess, educationLevels, setEduc
   );
 }
 
-export default function OpportunitiesPage() {
+function LegacyOpportunitiesPage() {
   const { profile, startOnboarding } = useJourneyOnboarding();
   const { journeys, startJourney, removeJourney } = useOpportunityJourney();
   const { opportunities, opportunityMetadata, ready: catalogReady, error: catalogError } = useOpportunityCatalog();
@@ -619,4 +621,8 @@ export default function OpportunitiesPage() {
       <OpportunityShareModal opportunity={shareOpportunity} onClose={() => setShareOpportunity(null)} />
     </>
   );
+}
+
+export default function OpportunitiesPage() {
+  return discoveryV2Enabled ? <OpportunityDiscoveryV2 /> : <LegacyOpportunitiesPage />;
 }
