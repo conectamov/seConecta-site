@@ -1,0 +1,6 @@
+.staff-task-list { display: grid; gap: 7px; }
+.staff-task-list a { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; border: 1px solid #e6ebe8; border-radius: 12px; padding: 12px 14px; color: inherit; text-decoration: none; }
+.staff-task-list a:hover { background: #f7faf8; }
+.staff-task-list a span { display: grid; gap: 3px; }
+.staff-task-list small, .staff-task-list p { color: #7a8780; font-size: 9px; }
+.staff-task-list b { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; background: #eaf7f1; color: #087456; font-size: 10px; }
