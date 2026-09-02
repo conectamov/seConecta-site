@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   Bookmark,
@@ -113,6 +113,7 @@ function DiscoveryCard({
   onRecommendationEvent?: (eventType: "IMPRESSION" | "OPEN", item: RecommendationItemApi) => void;
 }) {
   const cardRef = useRef<HTMLElement | null>(null);
+  const prefersReducedMotion = useReducedMotion();
   const typePresentation = getOpportunityTypePresentation(metadata.typeCode, metadata.opportunityTypes[0] ?? opportunity.category);
   const TypeIcon = typeIcons[typePresentation.icon];
   const actionCue = getOpportunityActionCue(opportunity, metadata);
@@ -131,7 +132,13 @@ function DiscoveryCard({
   }, [onRecommendationEvent, recommendation]);
 
   return (
-    <motion.article ref={cardRef} layout className="discovery-v2-card" whileHover={{ y: -3 }} transition={{ duration: 0.18 }}>
+    <motion.article
+      ref={cardRef}
+      layout={!prefersReducedMotion}
+      className={`discovery-v2-card is-${typePresentation.tone}`}
+      whileHover={prefersReducedMotion ? undefined : { y: -3 }}
+      transition={{ duration: 0.18 }}
+    >
       <Link
         className="discovery-v2-card-link"
         href={`/oportunidades/${opportunity.slug ?? opportunity.id}`}
@@ -146,6 +153,9 @@ function DiscoveryCard({
         <span className={`discovery-v2-action is-${actionCue.tone}`}>
           <CalendarDays size={15} aria-hidden="true" />
           <strong>{actionCue.label}</strong><i>·</i><span>{actionCue.detail}</span>
+        </span>
+        <span className="discovery-v2-open">
+          Ver tudo <ArrowRight size={14} aria-hidden="true" />
         </span>
       </Link>
       <button
