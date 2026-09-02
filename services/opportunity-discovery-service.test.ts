@@ -3,6 +3,7 @@ import {
   emptyDiscoveryFilters,
   filterDiscoveryOpportunities,
   getOpportunityActionCue,
+  getOpportunitySubjectLabels,
   getOpportunityTypePresentation,
   selectAnonymousRecommendations,
   selectApiRecommendations,
@@ -33,6 +34,15 @@ const profile: OnboardingProfile = {
 };
 
 describe("opportunity discovery", () => {
+  it("keeps at most three unique human-readable subject labels", () => {
+    expect(getOpportunitySubjectLabels([])).toEqual([]);
+    expect(getOpportunitySubjectLabels(["Matemática"])).toEqual(["Matemática"]);
+    expect(getOpportunitySubjectLabels(["Matemática", "Física", "Matemática", "Química", "Biologia"]))
+      .toEqual(["Matemática", "Física", "Química"]);
+    expect(getOpportunitySubjectLabels(["MATHEMATICS", "  Física  ", "AI_DATA"]))
+      .toEqual(["Física"]);
+  });
+
   it("does not render anonymous recommendations with fewer than three explicit matches", () => {
     const items = [opportunity(1), opportunity(2), opportunity(3)];
     const byId = { 1: metadata(), 2: metadata(), 3: metadata({ subjects: ["PHYSICS"], goals: ["RESEARCH"] }) };

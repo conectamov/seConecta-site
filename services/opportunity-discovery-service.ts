@@ -45,6 +45,13 @@ export function getOpportunityTypePresentation(typeCode: string, label: string):
   return { label: label || "Oportunidade", ...(typePresentation[typeCode] ?? { icon: "sparkles", tone: "neutral" }) };
 }
 
+export function getOpportunitySubjectLabels(themes: readonly string[]) {
+  return [...new Set(themes
+    .map((theme) => theme.trim())
+    .filter((theme) => theme && !/^[A-Z][A-Z0-9_]*$/.test(theme)))]
+    .slice(0, 3);
+}
+
 export type OpportunityActionCue = {
   label: string;
   detail: string;

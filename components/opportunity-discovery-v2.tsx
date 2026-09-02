@@ -39,6 +39,7 @@ import {
   emptyDiscoveryFilters,
   filterDiscoveryOpportunities,
   getOpportunityActionCue,
+  getOpportunitySubjectLabels,
   getOpportunityTypePresentation,
   selectAnonymousRecommendations,
   selectApiRecommendations,
@@ -117,6 +118,7 @@ function DiscoveryCard({
   const typePresentation = getOpportunityTypePresentation(metadata.typeCode, metadata.opportunityTypes[0] ?? opportunity.category);
   const TypeIcon = typeIcons[typePresentation.icon];
   const actionCue = getOpportunityActionCue(opportunity, metadata);
+  const subjectLabels = getOpportunitySubjectLabels(metadata.themes);
 
   useEffect(() => {
     const target = cardRef.current;
@@ -136,7 +138,6 @@ function DiscoveryCard({
       ref={cardRef}
       layout={!prefersReducedMotion}
       className={`discovery-v2-card is-${typePresentation.tone}`}
-      whileHover={prefersReducedMotion ? undefined : { y: -3 }}
       transition={{ duration: 0.18 }}
     >
       <Link
@@ -150,12 +151,17 @@ function DiscoveryCard({
         </span>
         <h3>{opportunity.title}</h3>
         <p>{opportunity.description}</p>
-        <span className={`discovery-v2-action is-${actionCue.tone}`}>
-          <CalendarDays size={15} aria-hidden="true" />
-          <strong>{actionCue.label}</strong><i>·</i><span>{actionCue.detail}</span>
-        </span>
-        <span className="discovery-v2-open">
-          Ver tudo <ArrowRight size={14} aria-hidden="true" />
+        {subjectLabels.length > 0 && <span className="discovery-v2-subjects" aria-label="Assuntos da oportunidade">
+          {subjectLabels.map((subject) => <span key={subject}>{subject}</span>)}
+        </span>}
+        <span className="discovery-v2-footer">
+          <span className={`discovery-v2-action is-${actionCue.tone}`}>
+            <CalendarDays size={15} aria-hidden="true" />
+            <strong>{actionCue.label}</strong><i>·</i><span>{actionCue.detail}</span>
+          </span>
+          <span className="discovery-v2-open">
+            Ver tudo <ArrowRight size={14} aria-hidden="true" />
+          </span>
         </span>
       </Link>
       <button
