@@ -7,14 +7,23 @@ import {
   CalendarDays,
   Calculator,
   Check,
+  Code2,
   FlaskConical,
   Gift,
   Globe2,
+  GraduationCap,
+  HeartHandshake,
+  Landmark,
   Search,
   SlidersHorizontal,
+  Sparkles,
+  Sun,
   Trophy,
+  UsersRound,
   Wifi,
+  Wrench,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -29,6 +38,8 @@ import {
   countActiveFilters,
   emptyDiscoveryFilters,
   filterDiscoveryOpportunities,
+  getOpportunityActionCue,
+  getOpportunityTypePresentation,
   selectAnonymousRecommendations,
   selectApiRecommendations,
   sortDiscoveryOpportunities,
@@ -62,21 +73,26 @@ const filterLabels: Record<string, string> = {
   closed: "Encerradas",
 };
 
+const typeIcons: Record<ReturnType<typeof getOpportunityTypePresentation>["icon"], LucideIcon> = {
+  trophy: Trophy,
+  flask: FlaskConical,
+  graduation: GraduationCap,
+  sun: Sun,
+  calendar: CalendarDays,
+  users: UsersRound,
+  heart: HeartHandshake,
+  code: Code2,
+  wrench: Wrench,
+  landmark: Landmark,
+  sparkles: Sparkles,
+};
+
 function toggleValue(filters: DiscoveryFilterState, dimension: FilterDimension, value: string) {
   const values = filters[dimension];
   return {
     ...filters,
     [dimension]: values.includes(value) ? values.filter((item) => item !== value) : [...values, value],
   };
-}
-
-function deadlineSignal(opportunity: Opportunity, metadata: OpportunityMetadata) {
-  if (metadata.applicationStatus === "openingSoon") return metadata.openingForecast ?? "Abre em breve";
-  if (metadata.applicationStatus === "evergreen") return "Inscrições contínuas";
-  if (metadata.applicationStatus === "closed") return "Inscrições encerradas";
-  if (metadata.applicationStatus === "unknown") return "Prazo a confirmar";
-  if (opportunity.daysLeft === 0) return "Encerra hoje";
-  return `Até ${opportunity.deadline}`;
 }
 
 function DiscoveryCard({
@@ -97,6 +113,9 @@ function DiscoveryCard({
   onRecommendationEvent?: (eventType: "IMPRESSION" | "OPEN", item: RecommendationItemApi) => void;
 }) {
   const cardRef = useRef<HTMLElement | null>(null);
+  const typePresentation = getOpportunityTypePresentation(metadata.typeCode, metadata.opportunityTypes[0] ?? opportunity.category);
+  const TypeIcon = typeIcons[typePresentation.icon];
+  const actionCue = getOpportunityActionCue(opportunity, metadata);
 
   useEffect(() => {
     const target = cardRef.current;
@@ -119,10 +138,14 @@ function DiscoveryCard({
         onClick={() => recommendation && onRecommendationEvent?.("OPEN", recommendation)}
         aria-label={`Abrir ${opportunity.title}`}
       >
+        <span className={`discovery-v2-type is-${typePresentation.tone}`}>
+          <TypeIcon size={15} aria-hidden="true" /> {typePresentation.label}
+        </span>
         <h3>{opportunity.title}</h3>
         <p>{opportunity.description}</p>
-        <span className={`discovery-v2-deadline is-${metadata.applicationStatus}`}>
-          <CalendarDays size={15} aria-hidden="true" /> {deadlineSignal(opportunity, metadata)}
+        <span className={`discovery-v2-action is-${actionCue.tone}`}>
+          <CalendarDays size={15} aria-hidden="true" />
+          <strong>{actionCue.label}</strong><i>·</i><span>{actionCue.detail}</span>
         </span>
       </Link>
       <button

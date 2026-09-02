@@ -138,6 +138,8 @@ function mapCatalog(data: OpportunityCatalogItemApi[]) {
       goals: item.goals,
       humanVerified: item.humanVerified,
       deliveryMode: item.deliveryMode,
+      typeCode: item.type,
+      actionable: item.actionable,
     };
   }
   return { opportunities, metadata };
