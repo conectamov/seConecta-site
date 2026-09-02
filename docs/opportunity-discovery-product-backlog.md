@@ -9,6 +9,7 @@ Este documento registra decisões deliberadamente adiadas no redesign V2 de `/ex
 - Validar a regra de no mínimo três oportunidades por experimento, sem completar a seção com itens genéricos.
 - Explicar recomendações com razões estruturadas e auditáveis, sem deixar o LLM decidir elegibilidade.
 - Medir qualidade por abertura, save, início de preparação, feedback explícito e aplicação, com proteção contra loops de popularidade.
+- Expor no catálogo público o action mode canônico e personalizado; até lá, os cards usam somente uma orientação temporal determinística baseada em lifecycle, prazo e `actionable`.
 
 ## Qualidade do catálogo
 

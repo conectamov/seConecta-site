@@ -41,4 +41,6 @@ export type OpportunityMetadata = {
   goals: string[];
   humanVerified: boolean;
   deliveryMode: "ONLINE" | "IN_PERSON" | "HYBRID" | "UNKNOWN";
+  typeCode: string;
+  actionable: boolean;
 };

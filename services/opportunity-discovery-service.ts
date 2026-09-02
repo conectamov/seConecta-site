@@ -21,6 +21,55 @@ export const emptyDiscoveryFilters: DiscoveryFilterState = {
   applicationStatuses: [],
 };
 
+export type OpportunityTypePresentation = {
+  label: string;
+  icon: "trophy" | "flask" | "graduation" | "sun" | "calendar" | "users" | "heart" | "code" | "wrench" | "landmark" | "sparkles";
+  tone: "gold" | "mint" | "blue" | "coral" | "lilac" | "violet" | "neutral";
+};
+
+const typePresentation: Record<string, Pick<OpportunityTypePresentation, "icon" | "tone">> = {
+  OLYMPIAD: { icon: "trophy", tone: "gold" },
+  COMPETITION: { icon: "trophy", tone: "gold" },
+  RESEARCH: { icon: "flask", tone: "mint" },
+  SCHOLARSHIP: { icon: "graduation", tone: "blue" },
+  SUMMER_PROGRAM: { icon: "sun", tone: "coral" },
+  EVENT: { icon: "calendar", tone: "coral" },
+  MENTORSHIP: { icon: "users", tone: "lilac" },
+  VOLUNTEERING: { icon: "heart", tone: "lilac" },
+  HACKATHON: { icon: "code", tone: "violet" },
+  WORKSHOP: { icon: "wrench", tone: "violet" },
+  MUN: { icon: "landmark", tone: "violet" },
+};
+
+export function getOpportunityTypePresentation(typeCode: string, label: string): OpportunityTypePresentation {
+  return { label: label || "Oportunidade", ...(typePresentation[typeCode] ?? { icon: "sparkles", tone: "neutral" }) };
+}
+
+export type OpportunityActionCue = {
+  label: string;
+  detail: string;
+  tone: "action" | "urgent" | "prepare" | "explore" | "follow" | "closed";
+};
+
+export function getOpportunityActionCue(opportunity: Opportunity, metadata: OpportunityMetadata): OpportunityActionCue {
+  switch (metadata.applicationStatus) {
+    case "endingSoon":
+      return { label: "Últimos dias", detail: `até ${opportunity.deadline}`, tone: "urgent" };
+    case "open":
+      return metadata.actionable
+        ? { label: "Inscreva-se agora", detail: `até ${opportunity.deadline}`, tone: "action" }
+        : { label: "Veja como participar", detail: `até ${opportunity.deadline}`, tone: "prepare" };
+    case "openingSoon":
+      return { label: "Comece a se preparar", detail: metadata.openingForecast?.toLocaleLowerCase("pt-BR") ?? "abre em breve", tone: "prepare" };
+    case "evergreen":
+      return { label: "Explore no seu ritmo", detail: "inscrições contínuas", tone: "explore" };
+    case "closed":
+      return { label: "Acompanhe o próximo ciclo", detail: "inscrições encerradas", tone: "closed" };
+    default:
+      return { label: "Acompanhe atualizações", detail: "prazo a confirmar", tone: "follow" };
+  }
+}
+
 export function isDiscoveryEligible(metadata: OpportunityMetadata, includeClosed = false) {
   if (!metadata.humanVerified) return false;
   return includeClosed || metadata.applicationStatus !== "closed";

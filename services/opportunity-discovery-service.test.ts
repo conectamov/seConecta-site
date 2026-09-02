@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   emptyDiscoveryFilters,
   filterDiscoveryOpportunities,
+  getOpportunityActionCue,
+  getOpportunityTypePresentation,
   selectAnonymousRecommendations,
   selectApiRecommendations,
   sortDiscoveryOpportunities,
@@ -21,7 +23,7 @@ function metadata(overrides: Partial<OpportunityMetadata> = {}): OpportunityMeta
   return {
     applicationStatus: "open", funding: "free", educationLevels: ["Ensino Médio"], themes: ["Matemática"], opportunityTypes: ["Olimpíada"],
     location: "Brasil", duration: "unknown", competition: "unknown", language: "unknown", subjects: ["MATHEMATICS"], goals: ["OLYMPIAD_TRAINING"],
-    humanVerified: true, deliveryMode: "ONLINE", ...overrides,
+    humanVerified: true, deliveryMode: "ONLINE", typeCode: "OLYMPIAD", actionable: true, ...overrides,
   };
 }
 
@@ -75,5 +77,31 @@ describe("opportunity discovery", () => {
     const byId = { 1: metadata(), 2: metadata({ applicationStatus: "unknown" }), 3: metadata() };
     expect(filterDiscoveryOpportunities(items, byId, emptyDiscoveryFilters, "buscável").map((item) => item.id)).toEqual([1]);
     expect(sortDiscoveryOpportunities([items[1], items[2], items[0]], byId).map((item) => item.id)).toEqual([1, 3, 2]);
+  });
+
+  it("maps every known opportunity family to a joyful icon and color with a neutral fallback", () => {
+    expect(getOpportunityTypePresentation("OLYMPIAD", "Olimpíada")).toEqual({ label: "Olimpíada", icon: "trophy", tone: "gold" });
+    expect(getOpportunityTypePresentation("COMPETITION", "Competição")).toMatchObject({ icon: "trophy", tone: "gold" });
+    expect(getOpportunityTypePresentation("RESEARCH", "Pesquisa")).toMatchObject({ icon: "flask", tone: "mint" });
+    expect(getOpportunityTypePresentation("SCHOLARSHIP", "Bolsa")).toMatchObject({ icon: "graduation", tone: "blue" });
+    expect(getOpportunityTypePresentation("SUMMER_PROGRAM", "Programa de Verão")).toMatchObject({ icon: "sun", tone: "coral" });
+    expect(getOpportunityTypePresentation("EVENT", "Evento")).toMatchObject({ icon: "calendar", tone: "coral" });
+    expect(getOpportunityTypePresentation("MENTORSHIP", "Mentoria")).toMatchObject({ icon: "users", tone: "lilac" });
+    expect(getOpportunityTypePresentation("VOLUNTEERING", "Voluntariado")).toMatchObject({ icon: "heart", tone: "lilac" });
+    expect(getOpportunityTypePresentation("HACKATHON", "Hackathon")).toMatchObject({ icon: "code", tone: "violet" });
+    expect(getOpportunityTypePresentation("WORKSHOP", "Workshop")).toMatchObject({ icon: "wrench", tone: "violet" });
+    expect(getOpportunityTypePresentation("MUN", "Simulação da ONU")).toMatchObject({ icon: "landmark", tone: "violet" });
+    expect(getOpportunityTypePresentation("NEW_TYPE", "Novo tipo")).toEqual({ label: "Novo tipo", icon: "sparkles", tone: "neutral" });
+  });
+
+  it("derives honest action cues only from lifecycle, deadline and actionable", () => {
+    const item = opportunity(1);
+    expect(getOpportunityActionCue(item, metadata())).toMatchObject({ label: "Inscreva-se agora", tone: "action" });
+    expect(getOpportunityActionCue(item, metadata({ actionable: false }))).toMatchObject({ label: "Veja como participar", tone: "prepare" });
+    expect(getOpportunityActionCue(item, metadata({ applicationStatus: "endingSoon" }))).toMatchObject({ label: "Últimos dias", tone: "urgent" });
+    expect(getOpportunityActionCue(item, metadata({ applicationStatus: "openingSoon", openingForecast: "Abre em 15 set." }))).toEqual({ label: "Comece a se preparar", detail: "abre em 15 set.", tone: "prepare" });
+    expect(getOpportunityActionCue(item, metadata({ applicationStatus: "evergreen" }))).toMatchObject({ label: "Explore no seu ritmo", tone: "explore" });
+    expect(getOpportunityActionCue(item, metadata({ applicationStatus: "unknown" }))).toMatchObject({ label: "Acompanhe atualizações", tone: "follow" });
+    expect(getOpportunityActionCue(item, metadata({ applicationStatus: "closed" }))).toMatchObject({ label: "Acompanhe o próximo ciclo", tone: "closed" });
   });
 });
