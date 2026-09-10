@@ -1,4 +1,4 @@
-import type { EducationLevel, OnboardingExperienceLevel, OnboardingPrimaryGoal, OnboardingSubject } from "@/types/onboarding";
+import type { EducationLevel, OnboardingExperienceLevel, OnboardingOpportunityCategory, OnboardingPrimaryGoal, OnboardingSubject } from "@/types/onboarding";
 
 export type OnboardingOption<T extends string = string> = { value: T; title: string; icon?: string; description?: string };
 
@@ -41,10 +41,14 @@ export const primaryGoalOptions: OnboardingOption<OnboardingPrimaryGoal>[] = [
   { value: "DISCOVER_OPPORTUNITIES", title: "Ainda estou explorando", icon: "🧭", description: "Quero conhecer caminhos antes de escolher uma direção." },
 ];
 
+export const opportunityFormatOptions: OnboardingOption<OnboardingOpportunityCategory>[] = [
+  { value: "MENTORSHIP", title: "Mentoria", icon: "🤝", description: "Programas com acompanhamento, orientação ou mentores." },
+];
+
 export const experienceOptions: OnboardingOption<OnboardingExperienceLevel>[] = [
-  { value: "EXPLORING", title: "Estou começando a explorar", icon: "🌱", description: "Ainda estou conhecendo as possibilidades." },
-  { value: "BEGINNER", title: "Já comecei, mas ainda preciso de orientação", icon: "🧭", description: "Tenho interesse e dei meus primeiros passos." },
-  { value: "INTERMEDIATE", title: "Já participei de projetos, programas ou competições", icon: "🛠️", description: "Já transformei interesse em alguma experiência prática." },
-  { value: "ADVANCED", title: "Já tenho resultados relevantes e atuo com autonomia", icon: "⭐", description: "Consigo tocar projetos e candidaturas com independência." },
-  { value: "COMPETITIVE", title: "Já fui premiado ou selecionado em processos muito competitivos", icon: "🏆", description: "Busco oportunidades de alto nível e novos desafios." },
+  { value: "EXPLORING", title: "Estou descobrindo interesses e oportunidades", icon: "🌱", description: "Ainda estou conhecendo as possibilidades." },
+  { value: "BEGINNER", title: "Já sei algumas áreas, mas preciso de orientação", icon: "🧭", description: "Tenho interesse e quero entender meus próximos passos." },
+  { value: "INTERMEDIATE", title: "Já participei de projetos, programas, olimpíadas ou iniciativas", icon: "🛠️", description: "Já transformei interesse em experiência prática." },
+  { value: "ADVANCED", title: "Já tenho experiências e resultados fortes", icon: "⭐", description: "Quero me preparar para oportunidades mais seletivas." },
+  { value: "COMPETITIVE", title: "Já fui premiado ou selecionado", icon: "🏆", description: "Busco desafios de alto nível." },
 ];

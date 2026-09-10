@@ -7,3 +7,4 @@ export const studentApiEnabled = enabled(process.env.NEXT_PUBLIC_SECONNECTA_STUD
 export const recommendationApiEnabled = enabled(process.env.NEXT_PUBLIC_SECONNECTA_RECOMMENDATIONS_ENABLED);
 export const multichannelActivationEnabled = enabled(process.env.NEXT_PUBLIC_SECONNECTA_MULTICHANNEL_ACTIVATION_ENABLED);
 export const discoveryV2Enabled = enabled(process.env.NEXT_PUBLIC_SECONNECTA_DISCOVERY_V2_ENABLED);
+export const onboardingV5Enabled = enabled(process.env.NEXT_PUBLIC_SECONNECTA_ONBOARDING_V5_ENABLED);

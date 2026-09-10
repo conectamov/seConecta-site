@@ -87,7 +87,7 @@ function intersects(left: readonly string[], right: readonly string[]) {
 }
 
 export function matchesExplicitProfile(metadata: OpportunityMetadata, profile: OnboardingProfile) {
-  return intersects(metadata.subjects, profile.subjects) || metadata.goals.includes(profile.primary_goal);
+  return intersects(metadata.subjects, profile.subjects) || intersects(metadata.goals, profile.goals);
 }
 
 export function selectAnonymousRecommendations(

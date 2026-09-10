@@ -14,9 +14,10 @@ export async function getOnboardingRecommendationSummary(profile: OnboardingProf
   try {
     const result = await apiRequest<OpportunityCatalogListApi>("catalog/opportunities?limit=100");
     const profileSubjects = new Set<string>(profile.subjects);
+    const profileGoals = new Set<string>(profile.goals);
     const compatible = result.data.filter((opportunity) =>
       opportunity.subjects.some((subject) => profileSubjects.has(subject))
-      || opportunity.goals.includes(profile.primary_goal),
+      || opportunity.goals.some((goal) => profileGoals.has(goal)),
     );
     return {
       compatibleOpportunities: compatible.length,

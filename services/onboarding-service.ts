@@ -2,6 +2,7 @@ import type {
   BackendUserPreferencesPayload,
   EducationLevel,
   OnboardingExperienceLevel,
+  OnboardingOpportunityCategory,
   OnboardingPrimaryGoal,
   OnboardingProfile,
   OnboardingSubject,
@@ -30,20 +31,23 @@ function backendEducationLevel(level: EducationLevel, grade: string) {
   return "ENSINO_MEDIO_1";
 }
 
-function deriveTypes(subjects: OnboardingSubject[], goal: OnboardingPrimaryGoal): OpportunityType[] {
+function deriveTypes(subjects: OnboardingSubject[], goals: OnboardingPrimaryGoal[], categories: OnboardingOpportunityCategory[]): OpportunityType[] {
   const types: OpportunityType[] = ["Programa de Verão"];
-  if (goal === "OLYMPIAD_TRAINING" || subjects.some((subject) => ["MATHEMATICS", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER_SCIENCE", "ARTIFICIAL_INTELLIGENCE"].includes(subject))) types.push("Olimpíada");
-  if (goal === "RESEARCH" || subjects.some((subject) => ["ARTIFICIAL_INTELLIGENCE", "BIOLOGY", "PHYSICS", "CHEMISTRY", "ENVIRONMENTAL_SCIENCE"].includes(subject))) types.push("Pesquisa");
-  if (goal === "SKILL_BUILDING" || subjects.some((subject) => ["COMPUTER_SCIENCE", "ARTIFICIAL_INTELLIGENCE", "BUSINESS", "ARTS"].includes(subject))) types.push("Hackathon");
-  if (goal === "SOCIAL_IMPACT") types.push("Voluntariado");
+  if (goals.includes("OLYMPIAD_TRAINING") || subjects.some((subject) => ["MATHEMATICS", "PHYSICS", "CHEMISTRY", "BIOLOGY", "COMPUTER_SCIENCE", "ARTIFICIAL_INTELLIGENCE"].includes(subject))) types.push("Olimpíada");
+  if (goals.includes("RESEARCH") || subjects.some((subject) => ["ARTIFICIAL_INTELLIGENCE", "BIOLOGY", "PHYSICS", "CHEMISTRY", "ENVIRONMENTAL_SCIENCE"].includes(subject))) types.push("Pesquisa");
+  if (goals.includes("SKILL_BUILDING") || subjects.some((subject) => ["COMPUTER_SCIENCE", "ARTIFICIAL_INTELLIGENCE", "BUSINESS", "ARTS"].includes(subject))) types.push("Hackathon");
+  if (goals.includes("SOCIAL_IMPACT")) types.push("Voluntariado");
+  if (categories.includes("MENTORSHIP")) types.push("Mentoria");
   return [...new Set(types)];
 }
 
 type CreateProfileInput = {
+  onboardingVersion?: 4 | 5;
   educationLevel: EducationLevel;
   current_grade: string;
   subjects: OnboardingSubject[];
-  primary_goal: OnboardingPrimaryGoal;
+  goals: OnboardingPrimaryGoal[];
+  categories: OnboardingOpportunityCategory[];
   experience_level: OnboardingExperienceLevel;
 };
 
@@ -57,16 +61,20 @@ function normalizeStoredProfile(stored: StoredProfile): OnboardingProfile | null
   const legacySubjects: Record<string, OnboardingSubject> = { COMPUTING: "COMPUTER_SCIENCE", AI: "ARTIFICIAL_INTELLIGENCE", ENVIRONMENT: "ENVIRONMENTAL_SCIENCE", ARTS_DESIGN: "ARTS" };
   const subjects = (stored.subjects ?? []).map((subject) => legacySubjects[subject] ?? subject).filter((subject): subject is OnboardingSubject => Object.hasOwn(subjectThemeMap, subject));
   const primaryGoal = stored.primary_goal ?? (stored.primaryGoal === "STUDY_ABROAD" ? "STUDY_ABROAD" : undefined);
+  const goals = stored.goals?.length ? stored.goals : [primaryGoal ?? "DISCOVER_OPPORTUNITIES"];
+  const categories = stored.categories ?? [];
   const experienceLevel = stored.experience_level ?? (stored.previousExperiences?.length ? "INTERMEDIATE" : undefined);
   return {
-    onboardingVersion: 4,
+    onboardingVersion: stored.onboardingVersion === 5 ? 5 : 4,
     educationLevel: stored.educationLevel,
     current_grade: stored.current_grade,
     subjects,
-    primary_goal: primaryGoal ?? "DISCOVER_OPPORTUNITIES",
+    primary_goal: goals[0],
+    goals,
+    categories,
     experience_level: experienceLevel ?? "EXPLORING",
     themes: subjects.map((subject) => subjectThemeMap[subject]).filter((theme): theme is Theme => Boolean(theme)),
-    opportunityTypes: deriveTypes(subjects, primaryGoal ?? "DISCOVER_OPPORTUNITIES"),
+    opportunityTypes: deriveTypes(subjects, goals, categories),
   };
 }
 
@@ -78,8 +86,9 @@ export function toBackendUserPreferences(profile: OnboardingProfile): BackendUse
     experience_levels: [profile.experience_level],
     subjects: [...new Set(profile.subjects)],
     interests: [],
-    goals: [profile.primary_goal],
-    ...(profile.primary_goal === "STUDY_ABROAD" ? { wants_international: true as const } : {}),
+    goals: [...new Set(profile.goals?.length ? profile.goals : [profile.primary_goal])].slice(0, 3),
+    categories: [...new Set(profile.categories ?? [])],
+    ...((profile.goals ?? [profile.primary_goal]).includes("STUDY_ABROAD") ? { wants_international: true as const } : {}),
   };
 }
 
