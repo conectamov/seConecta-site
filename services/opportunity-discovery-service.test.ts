@@ -29,7 +29,7 @@ function metadata(overrides: Partial<OpportunityMetadata> = {}): OpportunityMeta
 }
 
 const profile: OnboardingProfile = {
-  onboardingVersion: 4, educationLevel: "Ensino Médio", current_grade: "2º ano", subjects: ["MATHEMATICS"], primary_goal: "OLYMPIAD_TRAINING",
+  onboardingVersion: 4, educationLevel: "Ensino Médio", current_grade: "2º ano", subjects: ["MATHEMATICS"], primary_goal: "OLYMPIAD_TRAINING", goals: ["OLYMPIAD_TRAINING"], categories: [],
   experience_level: "BEGINNER", themes: ["Matemática"], opportunityTypes: ["Olimpíada"],
 };
 
