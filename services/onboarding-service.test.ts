@@ -9,6 +9,8 @@ describe("canonical onboarding mapper", () => {
       current_grade: "2º",
       subjects: ["MATHEMATICS", "ARTIFICIAL_INTELLIGENCE", "MATHEMATICS"],
       primary_goal: "STUDY_ABROAD",
+      goals: ["STUDY_ABROAD", "SKILL_BUILDING"],
+      categories: ["MENTORSHIP"],
       experience_level: "BEGINNER",
       themes: ["Matemática", "Inteligência Artificial"],
       opportunityTypes: ["Programa de Verão"],
@@ -19,7 +21,8 @@ describe("canonical onboarding mapper", () => {
       experience_levels: ["BEGINNER"],
       subjects: ["MATHEMATICS", "ARTIFICIAL_INTELLIGENCE"],
       interests: [],
-      goals: ["STUDY_ABROAD"],
+      goals: ["STUDY_ABROAD", "SKILL_BUILDING"],
+      categories: ["MENTORSHIP"],
       wants_international: true,
     });
   });

@@ -55,9 +55,9 @@ type FilterDimension = keyof DiscoveryFilterState;
 
 const discoveryChips = [
   { label: "Matemática", dimension: "themes" as const, value: "Matemática", icon: Calculator, tone: "mint", profileMatch: (profile: OnboardingProfile) => profile.subjects.includes("MATHEMATICS") },
-  { label: "Olimpíadas", dimension: "opportunityTypes" as const, value: "Olimpíada", icon: Trophy, tone: "lilac", profileMatch: (profile: OnboardingProfile) => profile.primary_goal === "OLYMPIAD_TRAINING" },
-  { label: "Internacional", dimension: "locations" as const, value: "Internacional", icon: Globe2, tone: "blue", profileMatch: (profile: OnboardingProfile) => profile.primary_goal === "STUDY_ABROAD" },
-  { label: "Pesquisa", dimension: "opportunityTypes" as const, value: "Pesquisa", icon: FlaskConical, tone: "peach", profileMatch: (profile: OnboardingProfile) => profile.primary_goal === "RESEARCH" },
+  { label: "Olimpíadas", dimension: "opportunityTypes" as const, value: "Olimpíada", icon: Trophy, tone: "lilac", profileMatch: (profile: OnboardingProfile) => profile.goals.includes("OLYMPIAD_TRAINING") },
+  { label: "Internacional", dimension: "locations" as const, value: "Internacional", icon: Globe2, tone: "blue", profileMatch: (profile: OnboardingProfile) => profile.goals.includes("STUDY_ABROAD") },
+  { label: "Pesquisa", dimension: "opportunityTypes" as const, value: "Pesquisa", icon: FlaskConical, tone: "peach", profileMatch: (profile: OnboardingProfile) => profile.goals.includes("RESEARCH") },
   { label: "Gratuitas", dimension: "funding" as const, value: "free", icon: Gift, tone: "yellow", profileMatch: () => false },
   { label: "Online", dimension: "deliveryModes" as const, value: "ONLINE", icon: Wifi, tone: "rose", profileMatch: () => false },
 ];

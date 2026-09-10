@@ -4,13 +4,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, ChevronLeft, ChevronRight, Compass, Flame, Layers3, LoaderCircle, LogIn, MessageCircle, Sparkles, Target, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { educationOptions, experienceOptions, gradeOptions, primaryGoalOptions, subjectOptions } from "@/data/onboarding-flow";
+import { educationOptions, experienceOptions, gradeOptions, opportunityFormatOptions, primaryGoalOptions, subjectOptions } from "@/data/onboarding-flow";
 import { getOnboardingRecommendationSummary, type OnboardingRecommendationSummary } from "@/services/onboarding-recommendation-service";
 import { onboardingService } from "@/services/onboarding-service";
 import { useAuthentication, type AuthenticationCompletedDetail } from "@/components/auth/authentication-provider";
-import { multichannelActivationEnabled, studentApiEnabled } from "@/services/feature-flags";
+import { multichannelActivationEnabled, onboardingV5Enabled, studentApiEnabled } from "@/services/feature-flags";
 import { getActivationContext, recordActivationEvent } from "@/services/student-activation-service";
-import type { EducationLevel, OnboardingExperienceLevel, OnboardingPrimaryGoal, OnboardingProfile, OnboardingSubject } from "@/types/onboarding";
+import type { EducationLevel, OnboardingExperienceLevel, OnboardingOpportunityCategory, OnboardingPrimaryGoal, OnboardingProfile, OnboardingSubject } from "@/types/onboarding";
 
 type JourneyOnboardingContextValue = {
   profile: OnboardingProfile | null;
@@ -22,13 +22,14 @@ type Answers = {
   educationLevel: EducationLevel | null;
   current_grade: string | null;
   subjects: OnboardingSubject[];
-  primary_goal: OnboardingPrimaryGoal | null;
+  goals: OnboardingPrimaryGoal[];
+  categories: OnboardingOpportunityCategory[];
   experience_level: OnboardingExperienceLevel | null;
 };
 
 type Phase = "questions" | "loading" | "results";
 const loadingItems = ["Entendendo seus interesses", "Comparando oportunidades", "Organizando sua seleção", "Quase pronto"];
-const emptyAnswers: Answers = { educationLevel: null, current_grade: null, subjects: [], primary_goal: null, experience_level: null };
+const emptyAnswers: Answers = { educationLevel: null, current_grade: null, subjects: [], goals: [], categories: [], experience_level: null };
 
 export const JourneyOnboardingContext = createContext<JourneyOnboardingContextValue | null>(null);
 
@@ -37,7 +38,8 @@ function answersFromProfile(profile: OnboardingProfile | null): Answers {
     educationLevel: profile.educationLevel,
     current_grade: profile.current_grade,
     subjects: profile.subjects,
-    primary_goal: profile.primary_goal,
+    goals: profile.goals?.length ? profile.goals : [profile.primary_goal],
+    categories: profile.categories ?? [],
     experience_level: profile.experience_level,
   } : emptyAnswers;
 }
@@ -104,17 +106,38 @@ function JourneyOnboarding({ open, profile, onClose, onComplete }: { open: boole
       : current.subjects.length < 5 ? [...current.subjects, subject] : current.subjects,
   }));
 
+  const toggleGoal = (goal: OnboardingPrimaryGoal) => setAnswers((current) => ({
+    ...current,
+    goals: current.goals.includes(goal)
+      ? current.goals.filter((item) => item !== goal)
+      : current.goals.length < 3 ? [...current.goals, goal] : current.goals,
+  }));
+
+  const makePrimaryGoal = (goal: OnboardingPrimaryGoal) => setAnswers((current) => ({
+    ...current,
+    goals: [goal, ...current.goals.filter((item) => item !== goal)],
+  }));
+
+  const toggleCategory = (category: OnboardingOpportunityCategory) => setAnswers((current) => ({
+    ...current,
+    categories: current.categories.includes(category)
+      ? current.categories.filter((item) => item !== category)
+      : [...current.categories, category],
+  }));
+
   const beginPersonalization = async (completedAnswers: Answers) => {
-    if (!completedAnswers.educationLevel || !completedAnswers.current_grade || !completedAnswers.primary_goal || !completedAnswers.experience_level || completedAnswers.subjects.length === 0) return;
+    if (!completedAnswers.educationLevel || !completedAnswers.current_grade || completedAnswers.goals.length === 0 || !completedAnswers.experience_level || completedAnswers.subjects.length === 0) return;
     clearTimers();
     setAnswers(completedAnswers);
     setPhase("loading");
     setLoadingStage(0);
     const nextProfile = onboardingService.createProfile({
+      onboardingVersion: onboardingV5Enabled ? 5 : 4,
       educationLevel: completedAnswers.educationLevel,
       current_grade: completedAnswers.current_grade,
       subjects: completedAnswers.subjects,
-      primary_goal: completedAnswers.primary_goal,
+      goals: completedAnswers.goals,
+      categories: completedAnswers.categories,
       experience_level: completedAnswers.experience_level,
     });
     const summaryPromise = getOnboardingRecommendationSummary(nextProfile);
@@ -125,12 +148,14 @@ function JourneyOnboarding({ open, profile, onClose, onComplete }: { open: boole
   };
 
   const persistProfile = () => {
-    if (!answers.educationLevel || !answers.current_grade || !answers.primary_goal || !answers.experience_level || answers.subjects.length === 0) return;
+    if (!answers.educationLevel || !answers.current_grade || answers.goals.length === 0 || !answers.experience_level || answers.subjects.length === 0) return;
     const nextProfile = onboardingService.createProfile({
+      onboardingVersion: onboardingV5Enabled ? 5 : 4,
       educationLevel: answers.educationLevel,
       current_grade: answers.current_grade,
       subjects: answers.subjects,
-      primary_goal: answers.primary_goal,
+      goals: answers.goals,
+      categories: answers.categories,
       experience_level: answers.experience_level,
     });
     onboardingService.save(nextProfile);
@@ -190,8 +215,16 @@ function JourneyOnboarding({ open, profile, onClose, onComplete }: { open: boole
       <div className="mt-7 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{subjectOptions.map((option) => { const selected = answers.subjects.includes(option.value); return <button type="button" onClick={() => toggleSubject(option.value)} disabled={!selected && answers.subjects.length >= 5} className={`flex min-h-16 items-center gap-3 rounded-[16px] border p-3.5 text-left transition hover:-translate-y-0.5 disabled:opacity-40 ${selected ? "border-[#079272] bg-[#eaf7f1]" : "border-[#dce4e0] bg-white hover:border-[#a9cdbf]"}`} key={option.value}><span className="text-lg">{option.icon}</span><strong className="text-[10px] text-[#29493c]">{option.title}</strong>{selected && <Check size={14} className="ml-auto text-[#079272]" />}</button>; })}</div>
       <div className="mt-7 flex items-center justify-between gap-4 border-t border-[#e3e8e5] pt-5"><span className="text-[9px] font-medium text-[#748079]">{answers.subjects.length} de 5 selecionados</span><button type="button" onClick={() => setStep(2)} disabled={answers.subjects.length === 0} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#079272] px-5 text-[10px] font-semibold text-white disabled:opacity-35">Continuar <ChevronRight size={14} /></button></div>
     </div>;
-    if (step === 2) return <ChoiceScreen kicker="Sua prioridade agora" title="Qual é seu principal interesse agora?" subtitle="Escolha uma direção. Você poderá mudar isso quando quiser." options={primaryGoalOptions} selected={answers.primary_goal} onSelect={(value) => { setAnswers((current) => ({ ...current, primary_goal: value })); scheduleAdvance(3); }} />;
-    return <ChoiceScreen kicker="Ajustando o nível" title="Qual frase melhor descreve sua experiência até aqui?" subtitle="Não existe resposta certa. Isso só ajuda a encontrar oportunidades no nível ideal para você." options={experienceOptions} selected={answers.experience_level} onSelect={(value) => { const next = { ...answers, experience_level: value }; setAnswers(next); timers.current.push(window.setTimeout(() => void beginPersonalization(next), 180)); }} />;
+    if (step === 2 && !onboardingV5Enabled) return <ChoiceScreen kicker="Sua prioridade agora" title="Qual é seu principal interesse agora?" subtitle="Escolha uma direção. Você poderá mudar isso quando quiser." options={primaryGoalOptions} selected={answers.goals[0] ?? null} onSelect={(value) => { setAnswers((current) => ({ ...current, goals: [value] })); scheduleAdvance(3); }} />;
+    if (step === 2) return <div>
+      <span className="text-[9px] font-bold uppercase tracking-[.13em] text-[#078166]">O que você quer fazer avançar</span>
+      <h2 className="mt-2 text-[clamp(1.8rem,4vw,2.6rem)] font-semibold tracking-[-.05em] text-[#17372b]">O que você quer conquistar ou explorar agora?</h2>
+      <p className="mt-2 text-[11px] text-[#68766f]">Escolha até 3 objetivos. O primeiro será sua prioridade e você pode trocá-la.</p>
+      <div className="mt-7 grid gap-2 sm:grid-cols-2">{primaryGoalOptions.map((option) => { const selectedIndex = answers.goals.indexOf(option.value); const selected = selectedIndex >= 0; return <div className={`relative rounded-[16px] border p-3.5 transition ${selected ? "border-[#079272] bg-[#eaf7f1]" : "border-[#dce4e0] bg-white"}`} key={option.value}><button type="button" onClick={() => toggleGoal(option.value)} disabled={!selected && answers.goals.length >= 3} className="flex w-full items-start gap-3 text-left disabled:opacity-40"><span className="text-lg">{option.icon}</span><span><strong className="block text-[10px] text-[#29493c]">{option.title}</strong><small className="mt-1 block text-[8px] leading-4 text-[#708078]">{option.description}</small></span>{selected && <Check size={14} className="ml-auto shrink-0 text-[#079272]" />}</button>{selected && <button type="button" onClick={() => makePrimaryGoal(option.value)} className={`mt-2 rounded-full px-2.5 py-1 text-[8px] font-semibold ${selectedIndex === 0 ? "bg-[#079272] text-white" : "bg-white text-[#557068]"}`}>{selectedIndex === 0 ? "Principal" : "Tornar principal"}</button>}</div>; })}</div>
+      <div className="mt-6 border-t border-[#e3e8e5] pt-5"><strong className="text-[10px] text-[#29493c]">Que tipo de apoio também interessa?</strong><p className="mt-1 text-[9px] text-[#748079]">Opcional. Isso descreve o formato, não seu objetivo.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{opportunityFormatOptions.map((option) => { const selected = answers.categories.includes(option.value); return <button type="button" onClick={() => toggleCategory(option.value)} className={`flex min-h-16 items-center gap-3 rounded-[16px] border p-3.5 text-left ${selected ? "border-[#079272] bg-[#eaf7f1]" : "border-[#dce4e0] bg-white"}`} key={option.value}><span className="text-lg">{option.icon}</span><span><strong className="block text-[10px] text-[#29493c]">{option.title}</strong><small className="mt-1 block text-[8px] text-[#708078]">{option.description}</small></span>{selected && <Check size={14} className="ml-auto text-[#079272]" />}</button>; })}</div></div>
+      <div className="mt-7 flex items-center justify-between gap-4 border-t border-[#e3e8e5] pt-5"><span className="text-[9px] font-medium text-[#748079]">{answers.goals.length} de 3 objetivos</span><button type="button" onClick={() => setStep(3)} disabled={answers.goals.length === 0} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[#079272] px-5 text-[10px] font-semibold text-white disabled:opacity-35">Continuar <ChevronRight size={14} /></button></div>
+    </div>;
+    return <ChoiceScreen kicker="Seu momento hoje" title="Qual frase melhor descreve seu momento atual?" subtitle="Não existe resposta certa. Isso só ajuda a encontrar oportunidades adequadas ao seu momento." options={experienceOptions} selected={answers.experience_level} onSelect={(value) => { const next = { ...answers, experience_level: value }; setAnswers(next); timers.current.push(window.setTimeout(() => void beginPersonalization(next), 180)); }} />;
   }, [answers, gradeChoices, step]);
 
   return <AnimatePresence>{open && <motion.div className="fixed inset-0 z-[4000] grid place-items-center overflow-y-auto bg-[#10251e]/60 p-4 backdrop-blur-sm max-sm:items-end max-sm:p-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
