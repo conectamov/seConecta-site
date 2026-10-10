@@ -1,4 +1,0 @@
-
-import { viteNodeFetch } from "file:///home/marzeero/Documentos/seConecta-site/node_modules/@nuxt/vite-builder/dist/vite-node.mjs"
-export default () => viteNodeFetch.getManifest()
-    
