@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Braces, Check, Circle, ExternalLink, Pencil, Plus, Save, ShieldCheck } from "lucide-react";
 import type { Checklist, StaffOpportunityDetail } from "@/types/staff";
 
@@ -40,26 +40,41 @@ async function mutate(path: string, body: unknown) {
 
 export function OpportunityEditor({ initial, isAdmin }: { initial: StaffOpportunityDetail; isAdmin: boolean }) {
   const [data, setData] = useState(initial);
-  const saves = useRef(Promise.resolve());
-  const lastSaveFailed = useRef(false);
-  const options = initial.field_options;
-  const [removed, setRemoved] = useState(formatValues(initial.removed_values || {}));
+  const options = data.field_options;
+  const [dirty, setDirty] = useState(false);
+  const [formRevision, setFormRevision] = useState(0);
+  const proposedRemovals = formatValues(data.removed_values || {});
+  const hasProposal = Boolean(data.has_proposed_corrections || proposedRemovals);
+  const unsaved = dirty || hasProposal;
   const [view, setView] = useState<"editor" | "json">("editor");
   const showRow = isAdmin && view === "json";
   const [message, setMessage] = useState("");
-  const [pending, setPending] = useState(false);
+  const [operation, setOperation] = useState<"save" | "publish" | "material" | null>(null);
+  const [materialMessage, setMaterialMessage] = useState("");
+  const pending = operation !== null;
   const [selectedStage, setSelectedStage] = useState<1 | 2>(data.curation.stage === 2 ? 2 : 1);
   const checklist: Checklist = selectedStage === 2 ? data.checklists.stage_2 : data.checklists.stage_1;
   const blockers = useMemo(() => checklist.items.filter(item => !item.passed), [checklist]);
 
-  function applyDetail(updated: StaffOpportunityDetail) {
+  useEffect(() => {
+    if (!dirty) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [dirty]);
+
+  function applySavedDetail(updated: StaffOpportunityDetail) {
     setData(current => ({ ...updated, metrics: current.metrics }));
-    const notice = formatValues(updated.removed_values || {});
-    if (notice) setRemoved(notice);
+    setDirty(false);
+    setFormRevision(revision => revision + 1);
   }
 
-  async function persist(form: FormData, quiet = false) {
-    setPending(true); if (!quiet) setMessage("");
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+    const form = new FormData(event.currentTarget);
+    setOperation("save");
+    setMessage("");
     const selected = (name: string) => form.getAll(name).map(String);
     const languages = [...selected("languages"), ...String(form.get("additional_languages") || "").split(/[\s,]+/).filter(Boolean)];
     const primary = String(form.get("category"));
@@ -81,33 +96,60 @@ export function OpportunityEditor({ initial, isAdmin }: { initial: StaffOpportun
       const response = await fetch(`/api/staff/opportunities/${data.opportunity.id}/draft`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const updated = await response.json();
       if (!response.ok) throw new Error(requestError(updated.detail));
-      lastSaveFailed.current = false;
-      applyDetail(updated);
-      setMessage(quiet ? "Alterações salvas automaticamente." : "Rascunho salvo.");
-    } catch (error) { lastSaveFailed.current = true; setMessage(error instanceof Error ? error.message : "Falha ao salvar"); } finally { setPending(false); }
-  }
-
-  function queueSave(form: HTMLFormElement, quiet: boolean) {
-    if (!form.reportValidity()) return;
-    const snapshot = new FormData(form);
-    saves.current = saves.current.then(() => persist(snapshot, quiet));
-  }
-
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    queueSave(event.currentTarget, false);
+      applySavedDetail({ ...updated, has_proposed_corrections: false, removed_values: {} });
+      setMessage("Rascunho salvo.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Falha ao salvar.");
+    } finally {
+      setOperation(null);
+    }
   }
 
   async function publish() {
-    setPending(true); setMessage("");
-    try { await saves.current; if (lastSaveFailed.current) throw new Error("Corrija os campos e salve o rascunho antes de publicar."); const updated = await mutate(`opportunities/${data.opportunity.id}/publish`, { stage: selectedStage }); applyDetail(updated); setMessage(`Stage ${selectedStage} publicado com sucesso.`); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Falha ao publicar"); } finally { setPending(false); }
+    if (unsaved || pending || !checklist.passed) return;
+    setOperation("publish");
+    setMessage("");
+    try {
+      const updated = await mutate(`opportunities/${data.opportunity.id}/publish`, { stage: selectedStage });
+      applySavedDetail(updated);
+      setMessage(`Stage ${selectedStage} publicado com sucesso.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Falha ao publicar.");
+    } finally {
+      setOperation(null);
+    }
   }
 
   async function addMaterial(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = new FormData(event.currentTarget);
-    try { await mutate(`opportunities/${data.opportunity.id}/materials`, { title: form.get("material_title"), url: form.get("material_url"), material_type: form.get("material_type"), reviewed: true, position: data.materials.length }); location.reload(); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Falha ao adicionar material"); }
+    event.preventDefault();
+    if (pending) return;
+    const element = event.currentTarget;
+    const form = new FormData(element);
+    setOperation("material");
+    setMaterialMessage("");
+    const path = `opportunities/${data.opportunity.id}`;
+    try {
+      const material = await mutate(`${path}/materials`, {
+        title: form.get("material_title"), url: form.get("material_url"),
+        material_type: form.get("material_type"), reviewed: true, position: data.materials.length,
+      });
+      element.reset();
+      setData(current => ({ ...current, materials: [...current.materials, material] }));
+      setMaterialMessage("Material adicionado.");
+      // Refresh the publication checks without replacing any unsaved editor fields.
+      try {
+        const response = await fetch(`/api/staff/${path}`, { cache: "no-store" });
+        if (!response.ok) throw new Error();
+        const detail: StaffOpportunityDetail = await response.json();
+        setData(current => ({ ...current, materials: detail.materials, checklists: detail.checklists, preview: detail.preview }));
+      } catch {
+        setMaterialMessage("Material adicionado. Não foi possível atualizar o checklist.");
+      }
+    } catch (error) {
+      setMaterialMessage(error instanceof Error ? error.message : "Falha ao adicionar material.");
+    } finally {
+      setOperation(null);
+    }
   }
 
   const opportunity = data.opportunity;
@@ -124,20 +166,12 @@ export function OpportunityEditor({ initial, isAdmin }: { initial: StaffOpportun
         {isAdmin && <button type="button" className={showRow ? "staff-primary-button" : "staff-secondary-button"} aria-pressed={showRow} onClick={() => setView("json")}><Braces size={16} />Dados em JSON</button>}
         <a className="staff-secondary-button" href={previewHref} target="_blank" rel="noopener noreferrer">Pré-visualizar <ExternalLink size={16} /></a>
       </div>
+      {unsaved && <p className="staff-field-notice" role="status">Há alterações não salvas no editor. {isAdmin ? "O JSON e a pré-visualização mostram a versão salva." : "A pré-visualização mostra a versão salva."}</p>}
       {showRow && <OpportunityRow key={String(opportunity.updated_at)} opportunityId={opportunity.id} />}
       <div hidden={showRow}>
-      {removed && <p className="staff-field-notice" role="status">Valores inválidos removidos deste registro. {removed}</p>}
-      <form onSubmit={save} className="staff-editor-form"
-        onChange={event => {
-          const target = event.target;
-          if (target instanceof HTMLSelectElement || (target instanceof HTMLInputElement && target.type === "checkbox")) queueSave(event.currentTarget, true);
-        }}
-        onBlur={event => {
-          const target = event.target;
-          if (target instanceof HTMLTextAreaElement || (target instanceof HTMLInputElement && target.type !== "checkbox")) {
-            if (target.value !== target.defaultValue) queueSave(event.currentTarget, true);
-          }
-        }}>
+      {hasProposal && <p className="staff-field-notice">O editor propõe correções nos campos deste rascunho. {proposedRemovals && <>Valores a remover: {proposedRemovals}. </>}Revise os campos e salve para aplicar.</p>}
+      <form key={formRevision} onSubmit={save} onChange={() => { setDirty(true); setMessage(""); }}>
+        <fieldset className="staff-editor-form staff-editor-fields" disabled={pending}>
         <EditorSection title="Informação básica" description="Identifique a oportunidade e a organização responsável.">
           <label>Título<input name="title" defaultValue={opportunity.title} maxLength={256} required /></label>
           <label>Organização<input name="organization" defaultValue={opportunity.organization || ""} /></label>
@@ -173,13 +207,14 @@ export function OpportunityEditor({ initial, isAdmin }: { initial: StaffOpportun
         <EditorSection title="Valor editorial" description="Popularidade ajuda a ordenar tarefas. Esta avaliação humana explica por que vale o tempo do estudante.">
           <label>Nota (1–5)<input name="editorial_value_score" type="number" min="1" max="5" defaultValue={String(curation.editorial_value_score ?? "")} /></label><label className="wide">Justificativa<textarea name="editorial_value_reason" rows={3} defaultValue={String(curation.editorial_value_reason || "")} /></label><label className="checkbox wide"><input name="recommendation_enabled" type="checkbox" defaultChecked={Boolean(curation.recommendation_enabled)} /> Permitir recomendação quando todos os outros gates estiverem válidos</label>
         </EditorSection>
-        <div className="staff-save-bar"><span role="status">{message || "Alterações são rascunhos até uma publicação explícita."}</span><button className="staff-primary-button" disabled={pending}><Save size={17} />{pending ? "Salvando…" : "Salvar rascunho"}</button></div>
+        <div className="staff-save-bar"><span role="status">{message || (unsaved ? "Alterações não salvas." : "Rascunho sem alterações pendentes.")}</span><button className="staff-primary-button" disabled={pending}><Save size={17} />{operation === "save" ? "Salvando…" : "Salvar rascunho"}</button></div>
+        </fieldset>
       </form>
-      <section className="staff-panel"><div className="staff-panel-heading"><div><span className="staff-eyebrow">Fontes revisadas</span><h2>Materiais</h2></div></div><div className="material-list">{data.materials.map(material => <a key={material.id} href={material.url} target="_blank"><span><strong>{material.title}</strong><small>{material.material_type} · {material.reviewed ? "revisado" : "pendente"}</small></span><ExternalLink size={16} /></a>)}</div><form className="material-add" onSubmit={addMaterial}><input name="material_title" maxLength={256} placeholder="Nome do material" required /><input name="material_url" type="url" pattern="https?://.+" maxLength={2048} placeholder="https://…" required /><select aria-label="Tipo de material" name="material_type">{Object.entries(options.material_type).map(([code, text]) => <option key={code} value={code}>{text}</option>)}</select><button><Plus size={16} />Adicionar revisado</button></form></section>
+      <section className="staff-panel"><div className="staff-panel-heading"><div><span className="staff-eyebrow">Fontes revisadas</span><h2>Materiais</h2></div></div><div className="material-list">{data.materials.map(material => <a key={material.id} href={material.url} target="_blank"><span><strong>{material.title}</strong><small>{material.material_type} · {material.reviewed ? "revisado" : "pendente"}</small></span><ExternalLink size={16} /></a>)}</div><form className="material-add" onSubmit={addMaterial}><input name="material_title" disabled={operation === "material"} maxLength={256} placeholder="Nome do material" required /><input name="material_url" disabled={operation === "material"} type="url" pattern="https?://.+" maxLength={2048} placeholder="https://…" required /><select aria-label="Tipo de material" name="material_type" disabled={operation === "material"}>{Object.entries(options.material_type).map(([code, text]) => <option key={code} value={code}>{text}</option>)}</select><button disabled={pending}><Plus size={16} />Adicionar revisado</button></form>{materialMessage && <p role="status">{materialMessage}</p>}</section>
       {data.metrics && <section className="staff-panel"><div className="staff-panel-heading"><div><span className="staff-eyebrow">Últimos {data.metrics.period_days} dias</span><h2>Contexto de engajamento</h2></div></div><div className="staff-metric-strip"><div><strong>{data.metrics.impressions}</strong><span>impressões</span></div><div><strong>{data.metrics.unique_opens}</strong><span>aberturas únicas</span></div><div><strong>{data.metrics.unique_saves}</strong><span>salvamentos únicos</span></div><div><strong>{data.metrics.application_starts}</strong><span>candidaturas iniciadas</span></div></div><p className="staff-privacy-note">{data.metrics.privacy_threshold_met ? `Taxa de abertura ${Math.round((data.metrics.open_rate || 0) * 100)}% · taxa de salvamento ${Math.round((data.metrics.save_rate || 0) * 100)}%.` : "As taxas ficam ocultas até existirem 10 estudantes únicos no período. Engajamento prioriza a fila, mas nunca muda Stage ou ranking sozinho."}</p></section>}
     </div>
     </div>
-    {!showRow && <aside className="staff-checklist"><div className="staff-checklist-sticky"><span className="staff-eyebrow">Checklist objetivo</span><h2>Publicar com confiança</h2><div className="stage-switch"><button className={selectedStage === 1 ? "active" : ""} onClick={() => setSelectedStage(1)}>Stage 1</button><button className={selectedStage === 2 ? "active" : ""} onClick={() => setSelectedStage(2)}>Stage 2</button></div><div className="checklist-progress"><strong>{checklist.items.length - blockers.length}/{checklist.items.length}</strong><span>requisitos atendidos</span></div><ul>{checklist.items.map(item => <li className={item.passed ? "passed" : ""} key={item.key}>{item.passed ? <Check size={15} /> : <Circle size={15} />}<span>{item.label}</span></li>)}</ul><div className="action-preview"><span>Modo sugerido ao estudante</span><strong>{data.preview.action_mode.replaceAll("_", " ")}</strong><small>{data.preview.feed_eligible ? "Elegível para distribuição" : `Pausada: ${data.preview.feed_blockers.join(", ")}`}</small></div><button className="staff-primary-button full" disabled={!checklist.passed || pending} onClick={publish}><ShieldCheck size={17} />Publicar Stage {selectedStage}</button><small className="checklist-note">O servidor recalcula tudo antes de publicar. Esta interface nunca transforma um rascunho em publicação sozinha.</small></div></aside>}
+    {!showRow && <aside className="staff-checklist"><div className="staff-checklist-sticky"><span className="staff-eyebrow">Checklist objetivo</span><h2>Publicar com confiança</h2><div className="stage-switch"><button className={selectedStage === 1 ? "active" : ""} onClick={() => setSelectedStage(1)}>Stage 1</button><button className={selectedStage === 2 ? "active" : ""} onClick={() => setSelectedStage(2)}>Stage 2</button></div><div className="checklist-progress"><strong>{checklist.items.length - blockers.length}/{checklist.items.length}</strong><span>requisitos atendidos</span></div><ul>{checklist.items.map(item => <li className={item.passed ? "passed" : ""} key={item.key}>{item.passed ? <Check size={15} /> : <Circle size={15} />}<span>{item.label}</span></li>)}</ul><div className="action-preview"><span>Modo sugerido ao estudante</span><strong>{data.preview.action_mode.replaceAll("_", " ")}</strong><small>{data.preview.feed_eligible ? "Elegível para distribuição" : `Pausada: ${data.preview.feed_blockers.join(", ")}`}</small></div><button className="staff-primary-button full" disabled={!checklist.passed || pending || unsaved} onClick={publish}><ShieldCheck size={17} />Publicar Stage {selectedStage}</button><small className="checklist-note">{unsaved ? "Salve o rascunho para atualizar o checklist e publicar." : "O servidor confere os requisitos ao publicar."}</small></div></aside>}
   </div>;
 }
 

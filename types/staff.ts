@@ -24,6 +24,7 @@ export type Checklist = {
 
 export type StaffOpportunityDetail = {
   field_options: Record<"target_education_levels" | "target_subjects" | "target_goals" | "recommended_experience_levels" | "languages" | "category" | "cost_kind" | "delivery_mode" | "scholarship_availability" | "recurrence_pattern" | "material_type", Record<string, string>>;
+  has_proposed_corrections?: boolean;
   removed_values?: Record<string, unknown[]>;
   opportunity: Record<string, unknown> & { id: number; category: string; categories: string[]; recommended_experience_levels: string[]; approved: boolean; slug?: string | null; title: string; organization?: string; excerpt?: string; description: string; official_site_url?: string; location?: string; cost_kind?: string; delivery_mode?: string; recurrence_pattern?: string; languages?: string[]; preparation_min_days?: number; preparation_max_days?: number; target_subjects?: string[]; target_goals?: string[]; target_education_levels?: string[] };
   curation: Record<string, unknown> & { stage: number; publication_status: string; recommendation_enabled: boolean; editorial_value_score?: number; editorial_value_reason?: string; verified_at?: string; next_review_at?: string };

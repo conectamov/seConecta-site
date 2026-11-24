@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ClipboardCheck, LayoutDashboard, LogOut, Users } from "lucide-react";
+import { ClipboardCheck, LayoutDashboard, LogOut, Settings, Users } from "lucide-react";
 import type { StaffMe } from "@/types/staff";
 
 export function StaffShell({ me, children }: { me: StaffMe; children: React.ReactNode }) {
@@ -11,7 +11,10 @@ export function StaffShell({ me, children }: { me: StaffMe; children: React.Reac
   const links = [
     { href: "/staff", label: "Visão geral", icon: LayoutDashboard },
     { href: "/staff/oportunidades", label: "Oportunidades", icon: ClipboardCheck },
-    ...(me.staff_role === "ADMIN" ? [{ href: "/staff/usuarios", label: "Pessoas e acessos", icon: Users }] : []),
+    ...(me.staff_role === "ADMIN" ? [
+      { href: "/staff/usuarios", label: "Pessoas e acessos", icon: Users },
+      { href: "/staff/configuracoes", label: "Revisão por IA das interpretações", icon: Settings },
+    ] : []),
   ];
   async function logout() {
     await fetch("/api/staff-auth/logout", { method: "POST" });
