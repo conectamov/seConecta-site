@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { curationWorkflowEnabled, staffApi, staffPortalEnabled } from "@/lib/staff-api";
+import { curationWorkflowEnabled, staffApiResponse, staffPortalEnabled } from "@/lib/staff-api";
 
 const ALLOWED_PREFIXES = ["overview", "opportunities", "materials", "tasks", "admin"];
 
@@ -12,8 +12,11 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
   const target = `/staff/${path.map(encodeURIComponent).join("/")}${source.search}`;
   try {
     const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.text();
-    const data = await staffApi<unknown>(target, { method: request.method, body: body || undefined });
-    return NextResponse.json(data);
+    const upstream = await staffApiResponse(target, { method: request.method, body: body || undefined });
+    return new NextResponse(upstream.body, {
+      status: upstream.status,
+      headers: { "Content-Type": "application/json", "Cache-Control": "private, no-store" },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Falha na API staff";
     const backendStatus = Number(message.match(/STAFF_API_(\d{3})/)?.[1]);
@@ -22,6 +25,11 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
       : Number.isInteger(backendStatus)
         ? backendStatus
         : 502;
+    if (status === 422 && (path[0] === "opportunities" || path[0] === "materials")) {
+      try {
+        return NextResponse.json(JSON.parse(message.slice(message.indexOf(":") + 1)), { status });
+      } catch { /* Plain-text upstream response. */ }
+    }
     return NextResponse.json({ detail: message }, { status });
   }
 }

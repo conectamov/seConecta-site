@@ -22,7 +22,7 @@ export function staffUserWorkspaceV2Enabled(): boolean {
   return process.env.STAFF_USER_WORKSPACE_V2_ENABLED === "true";
 }
 
-export async function staffApi<T>(path: string, init?: RequestInit): Promise<T> {
+export async function staffApiResponse(path: string, init?: RequestInit): Promise<Response> {
   const token = (await cookies()).get(STAFF_COOKIE)?.value;
   if (!token) throw new Error("STAFF_UNAUTHENTICATED");
   const response = await fetch(`${apiBase()}/api/v1${path}`, {
@@ -38,6 +38,11 @@ export async function staffApi<T>(path: string, init?: RequestInit): Promise<T> 
     const body = await response.text();
     throw new Error(`STAFF_API_${response.status}:${body}`);
   }
+  return response;
+}
+
+export async function staffApi<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await staffApiResponse(path, init);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }

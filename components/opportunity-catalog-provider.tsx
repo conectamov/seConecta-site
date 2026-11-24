@@ -1,5 +1,7 @@
 "use client";
 
+import { educationLabels } from "@/lib/opportunity-education-labels";
+
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Opportunity, OpportunityMetadata } from "@/types/opportunity-catalog";
 import { apiRequest } from "@/services/seconecta-browser-api";
@@ -59,18 +61,6 @@ const typeLabels: Record<string, string> = {
   POST: "Conteúdo",
 };
 
-const educationLabels: Record<string, string> = {
-  MIDDLE_SCHOOL: "Ensino Fundamental II",
-  HIGH_SCHOOL: "Ensino Médio",
-  FUNDAMENTAL_2: "Ensino Fundamental II",
-  ENSINO_MEDIO_1: "1º ano do Ensino Médio",
-  ENSINO_MEDIO_2: "2º ano do Ensino Médio",
-  ENSINO_MEDIO_3: "3º ano do Ensino Médio",
-  GAP_YEAR: "Gap year",
-  UNDERGRAD: "Universidade",
-  UNDERGRADUATE: "Universidade",
-  OTHER: "Outros",
-};
 
 function daysUntil(date: string | null) {
   if (!date) return 9999;

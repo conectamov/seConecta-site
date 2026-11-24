@@ -1,11 +1,12 @@
 import "server-only";
 
+import { educationLabels } from "@/lib/opportunity-education-labels";
+
 import type { OpportunityDetail } from "@/types/opportunity-detail";
 import type { OpportunityCatalogItemApi, OpportunityCatalogListApi, OpportunityDetailApi } from "@/types/seconecta-api";
 import type { OpportunityGuideDocument } from "@/types/opportunity-knowledge-hub";
 
 const typeLabels: Record<string, string> = { OLYMPIAD: "Olimpíada", RESEARCH: "Pesquisa", SCHOLARSHIP: "Bolsa", SUMMER_PROGRAM: "Programa de Verão", COMPETITION: "Competição", EVENT: "Evento", HACKATHON: "Hackathon", VOLUNTEERING: "Voluntariado", MENTORSHIP: "Mentoria", MUN: "Simulação da ONU", EXTRACURRICULAR: "Programa extracurricular", INITIATIVE: "Iniciativa", WORKSHOP: "Workshop", POST: "Conteúdo" };
-const educationLabels: Record<string, string> = { MIDDLE_SCHOOL: "Ensino Fundamental II", HIGH_SCHOOL: "Ensino Médio", FUNDAMENTAL_2: "Ensino Fundamental II", ENSINO_MEDIO_1: "1º ano do Ensino Médio", ENSINO_MEDIO_2: "2º ano do Ensino Médio", ENSINO_MEDIO_3: "3º ano do Ensino Médio", GAP_YEAR: "Gap year", UNDERGRAD: "Universidade", UNDERGRADUATE: "Universidade", OTHER: "Outros" };
 const competitivenessLabels: Record<string, string> = { LOW: "Acessível", MEDIUM: "Competitiva", HIGH: "Muito competitiva", UNKNOWN: "Não informada" };
 const languageLabels: Record<string, string> = { "pt-BR": "Português", pt: "Português", en: "Inglês", es: "Espanhol" };
 
@@ -90,7 +91,7 @@ export function mapOpportunityDetail(item: OpportunityDetailApi, related: Opport
     coverImage: item.coverImage ?? undefined,
     type: typeLabels[item.type] ?? item.type,
     location: [item.location, item.deliveryFormat].filter(Boolean).join(" · ") || "Local não informado",
-    educationLevel: (item.educationLevels ?? []).map((level) => educationLabels[level] ?? level).join(" · ") || item.targetAudience || "Público não informado",
+    educationLevel: [...(item.educationLevels ?? []).map((level) => educationLabels[level] ?? level), item.targetAudience].filter(Boolean).join(" · ") || "Público não informado",
     deadline: formatDate(item.applicationClosesAt ?? item.deadline),
     deadlineNote: item.deadlineNote ?? (item.applicationStatus === "unknown" ? "Cronograma ainda não confirmado" : "Confirme o horário na página oficial"),
     competitiveness: (item.competitiveness ?? []).map((level) => competitivenessLabels[level] ?? level).join(" · ") || "Não informada",
